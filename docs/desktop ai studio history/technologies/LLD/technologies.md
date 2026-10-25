@@ -1,94 +1,102 @@
-# Desktop AI Studio — Technologies Integration & Subsystem Interoperability (LLD)
+# DeskAI — Technologies Integration & Subsystem Interoperability (LLD)
 
-Yeh document **Desktop AI Studio** ke tamam technologies (`PyWebView`, `HTML5/CSS3/JS`, `FastAPI/Uvicorn`, `Ollama/Qwen 7B`, `PostgreSQL/pgvector`) ke aapsi **Low-Level Design (LLD)** integration protocols, IPC wire formats, process boundaries, memory budgets aur startup/shutdown lifecycle ko **Roman Urdu** mein tafseel se bayan karta hai.
+Yeh document **DeskAI** ke tamam subsystems (`PyWebView`, `HTML5/CSS3/JS + CodeMirror 6`, `FastAPI/Uvicorn`, `Ollama/Qwen 7B`, `SQLite/sqlite-vec`) ke aapsi **Low-Level Design (LLD)** integration protocols, dynamic port allocation, IPC wire formats, authentication tokens, memory budgets aur startup/shutdown lifecycle ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
 ## 1. Executive Summary & Full-Stack System Topology
 
-Desktop AI Studio ka runtime 4 ahem subsystems par mushtamil tha jo operating system ke andar loopback networking aur C-level shared memory ke zariye aapas mein communicate karte the:
+DeskAI ka architecture lightweight, secure aur fully embedded runtime par mushtamil hai. Koi external Docker daemon ya PostgreSQL service nahi chahiye:
 
 ```text
 +---------------------------------------------------------------------------------------------------+
 |                                      LINUX OS (HOST RUNTIME)                                      |
 |                                                                                                   |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [SUBSYSTEM 1: DESKTOP CLIENT] (Process PID: ~28100 | RAM: ~65 MB)                           |  |
-|  | - Window Shell: PyWebView WebKit2GTK Container (GDK_BACKEND="x11,wayland")                  |  |
-|  | - UI Layout: Semantic HTML5 DOM (No Virtual DOM)                                            |  |
+|  | [SUBSYSTEM 1: DESKTOP CLIENT] (Process PID: ~28100 | RAM: ~140 MB)                          |  |
+|  | - Window Shell: PyWebView Container (WebKitGTK on Linux / WebView2 on Windows)              |  |
+|  | - UI Layout: Semantic HTML5 DOM (No Virtual DOM overhead)                                   |  |
 |  | - Visual Styling: Pure CSS3 Design Tokens & Hardware-Accelerated Transforms                  |  |
-|  | - Client Logic: Pure Vanilla ES Modules (Proxy Store, rAF Token Streamer, UEC State Machine)  |  |
+|  | - Code Editor: Embedded CodeMirror 6 (Virtual Scrolling, Syntax Highlight, Dirty Tracking)   |  |
+|  | - Client Logic: Native ES Modules (Recursive Deep Proxy, rAF Batcher, UEC State Machine)   |  |
 |  +----------------------------------------------+----------------------------------------------+  |
 |                                                 |                                                 |
-|                        C-Level Memory IPC Bridge| | Local WebSocket Protocol                     |
-|                        (window.pywebview.api)   | | (ws://127.0.0.1:8000/ws)                      |
+|                   Native OS IPC Bridge          | Authenticated WebSocket (Token-Guarded)         |
+|                   (window.pywebview.api)        | (ws://127.0.0.1:{dynamic_port}/ws?token=xyz)    |
 |                                                 v v                                               |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [SUBSYSTEM 2: ASYNC GATEWAY & ENGINE] (Process PID: ~28105 | RAM: ~95 MB)                    |  |
-|  | - Web Server: Uvicorn ASGI Server (uvloop, httptools)                                       |  |
-|  | - Application Framework: FastAPI 0.100+ / Starlette                                          |  |
-|  | - Hardware Telemetry Daemon: PyNVML / GPUtil (2-second poll interval)                         |  |
-|  | - Task & Agent Orchestrator: Multi-step Execution Pipeline & Diff Engine                     |  |
-|  +-----------------------+----------------------------------------------+----------------------+  |
-|                          |                                              |                         |
-|     Async HTTP Streaming |                                    Connection| Pool (asyncpg)          |
-|     (http://127.0.0.1:   |                                    (tcp://127| .0.0.1:5433)            |
-|      11434/api/chat)     |                                              |                         |
-|                          v                                              v                         |
-|  +-----------------------------------+              +------------------------------------------+  |
-|  | [SUBSYSTEM 3: LOCAL NEURAL BRAIN] |              | [SUBSYSTEM 4: VECTOR KNOWLEDGE STORE]    |  |
-|  | - Engine: Ollama Local Daemon     |              | - Container: Docker Engine               |  |
-|  | - Model: Qwen 2.5 Coder 7B Q4_K_M |              | - Engine: PostgreSQL 17                  |  |
-|  | - Accelerator: CUDA 12.x          |              | - Vector Plugin: pgvector 0.8.7 (HNSW)   |  |
-|  | - VRAM Footprint: ~2.1 GB         |              | - RAM Footprint: ~180 MB                 |  |
-|  +-----------------------------------+              +------------------------------------------+  |
+|  | [SUBSYSTEM 2: ASYNC GATEWAY & EMBEDDED ENGINE] (Process PID: ~28105 | RAM: ~105 MB)           |  |
+|  | - Web Server: Uvicorn ASGI Server on ephemeral port (127.0.0.1:{dynamic_port})             |  |
+|  | - Security Guard: Ephemeral Token Validator & Strict Origin Checker                         |  |
+|  | - Hardware Telemetry Daemon: NVML / sysfs collector (2-second poll interval)                |  |
+|  | - Task & Agent Orchestrator: Multi-step Execution Pipeline, Sandbox & Diff Engine            |  |
+|  |                                                                                             |  |
+|  |   [IN-PROCESS STORAGE & VECTOR MEMORY]                                                      |  |
+|  |   - Storage Engine: SQLite 3 with WAL Mode (Write-Ahead Logging, synchronous=NORMAL)       |  |
+|  |   - Vector Engine: sqlite-vec C Extension (HNSW Cosine Similarity, Zero-Docker)             |  |
+|  |   - Footprint: ~15 MB RAM, 0 external network ports                                         |  |
+|  +----------------------------------------------+----------------------------------------------+  |
+|                                                 |                                                 |
+|                             Async HTTP Stream   |                                                 |
+|                             (http://127.0.0.1:  |                                                 |
+|                              11434/api/chat)    |                                                 |
+|                                                 v                                                 |
+|  +---------------------------------------------------------------------------------------------+  |
+|  | [SUBSYSTEM 3: LOCAL NEURAL BRAIN]                                                           |  |
+|  | - Engine: Ollama Local Daemon                                                               |  |
+|  | - Model: Qwen 2.5 Coder 7B (Q4_K_M)                                                         |  |
+|  | - Accelerator: NVIDIA CUDA 12.x / ROCm                                                      |  |
+|  | - VRAM Footprint: ~4.7 GB (Realistic Ollama footprint on RTX 2070 Super 8GB)                |  |
+|  +---------------------------------------------------------------------------------------------+  |
 +---------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Low-Level Communication Protocols & Wire Formats
+## 2. Low-Level Communication Protocols & Security Wire Formats
 
-Charon layers ke darmiyan hone wale data exchange ke exact formats yeh the:
+### 2.1 Dynamic Port & Authentication Handshake
+* **Ephemeral Port:** Python backend launch ke waqt OS se free port leta hai (`sock.bind(('127.0.0.1', 0))`). Hardcoded 8000 use nahi hota.
+* **Per-Launch Secret Token:** `token = secrets.token_urlsafe(32)`. 
+* **Handshake Rule:** Tamam incoming HTTP requests mein `X-DeskAI-Token: <token>` header aur WebSocket upgrade request mein `?token=<token>` parameter zaroori hota hai.
+* **Origin Check:** Server incoming `Origin` header ko verify karta hai. Sirf local origin (`http://127.0.0.1:{dynamic_port}` ya internal WebKit scheme) allowed hai; browser tabs ki requests foran HTTP 403 / WS 1008 se reject hoti hain.
 
-### 2.1 Channel 1: Client ➔ PyWebView Bridge (`window.pywebview.api`)
-* **Transport:** WebKit2GTK C-Level Script Messages (Zero network packet overhead).
-* **Latency:** < 0.2ms.
-* **Request Signature:**
-  ```javascript
-  const res = await window.pywebview.api.open_directory_dialog("Select Project");
-  ```
-* **Wire Response Envelope:**
+### 2.2 Channel 1: Native OS Bridge (`window.pywebview.api`)
+* **Usage:** Sirf native OS actions ke liye (Folder Dialogs, Window Min/Max/Close, System Clipboard, Notifications).
+* **Wire Envelope:**
   ```json
   {
     "success": true,
-    "data": {
-      "path": "/mnt/Data/Workspaces/Projects/DeskAI"
-    },
+    "data": { "path": "/mnt/Data/Workspaces/Projects/DeskAI" },
     "error": null,
     "error_code": null
   }
   ```
 
-### 2.2 Channel 2: Client ➔ Gateway WebSocket (`ws://127.0.0.1:8000/ws`)
-* **Transport:** Persistent TCP Socket with 15-second heartbeat ping.
-* **Multiplexed Action Schemas:**
+### 2.3 Channel 2: Authenticated WebSocket (`ws://127.0.0.1:{port}/ws`)
+* **Transport:** Ephemeral TCP Socket with token handshake, sequence numbering (`seq`) aur 15s heartbeat.
+* **Resync Protocol:** Client disconnect/reconnect hone par `client.resync` bhejta hai with `last_seq`. Backend snapshot frame bhej kar client state foran update karta hai.
+* **Wire Formats:**
+
   1. **Hardware Telemetry Push (`telemetry.update`):**
      ```json
      {
        "type": "telemetry.update",
+       "seq": 1042,
        "payload": {
          "gpu": { "name": "NVIDIA RTX 2070 Super", "active": true, "temp_c": 54 },
-         "vram": { "used_mb": 2150, "total_mb": 8192, "pct": 26.2 },
+         "vram": { "used_mb": 4710, "total_mb": 8192, "pct": 57.5 },
          "cpu": { "usage_pct": 14.8, "cores": 16 },
-         "ram": { "used_mb": 6240, "total_mb": 32150 }
+         "ram": { "used_mb": 5820, "total_mb": 32150 }
        }
      }
      ```
+
   2. **Streaming AI Token Chunk (`agent.chunk`):**
      ```json
      {
        "type": "agent.chunk",
+       "seq": 1043,
        "correlation_id": "req-98f2a1",
        "payload": {
          "token": "def authenticate_user",
@@ -96,126 +104,90 @@ Charon layers ke darmiyan hone wale data exchange ke exact formats yeh the:
        }
      }
      ```
-  3. **Plan Step Checklist (`agent.plan`):**
+
+  3. **Standardized Error Frame (`system.error`):**
      ```json
      {
-       "type": "agent.plan",
+       "type": "system.error",
+       "seq": 1044,
+       "correlation_id": "req-98f2a1",
        "payload": {
-         "task_id": "task-01",
-         "title": "Implement JWT Middleware",
-         "steps": [
-           { "index": 0, "desc": "Create auth schema", "status": "COMPLETED" },
-           { "index": 1, "desc": "Mount middleware", "status": "IN_PROGRESS" }
-         ]
+         "code": "ERR_SANDBOX_PATH_VIOLATION",
+         "message": "Attempted write outside workspace boundary.",
+         "details": { "target": "/etc/passwd" }
        }
      }
      ```
 
-### 2.3 Channel 3: Gateway ➔ Ollama Daemon (`http://127.0.0.1:11434/api/chat`)
-* **Transport:** Asynchronous HTTP/1.1 chunked transfer streaming (`httpx.AsyncClient`).
-* **Request Payload:**
-  ```json
-  {
-    "model": "qwen2.5-coder:7b",
-    "messages": [
-      { "role": "system", "content": "You are DeskAI coding agent..." },
-      { "role": "user", "content": "Add unit tests for user login" }
-    ],
-    "options": {
-      "temperature": 0.2,
-      "num_ctx": 16384,
-      "num_gpu": 33
-    },
-    "stream": true
-  }
-  ```
-* **Stream Chunk Response:**
-  ```json
-  {
-    "model": "qwen2.5-coder:7b",
-    "created_at": "2026-10-26T03:45:00Z",
-    "message": { "role": "assistant", "content": "import pytest\n" },
-    "done": false
-  }
-  ```
-
-### 2.4 Channel 4: Gateway ➔ PostgreSQL/pgvector (`127.0.0.1:5433`)
-* **Transport:** Binary PostgreSQL wire protocol using `asyncpg` connection pool.
-* **HNSW Vector Search Query:**
+### 2.4 Channel 3: Local Vector Memory Query (`sqlite-vec`)
+* **Transport:** Direct In-Process C-Extension Call (Zero network hop, sub-1ms latency).
+* **Vector Search Query:**
   ```sql
-  SELECT file_path, chunk_index, content, 
-         1 - (embedding <=> $1) AS cosine_similarity
-  FROM workspace_code_chunks
-  WHERE workspace_id = $2
-  ORDER BY embedding <=> $1
-  LIMIT 5;
+  SELECT chunk_id, file_path, content, distance
+  FROM code_embeddings
+  WHERE embedding MATCH :query_vector
+    AND k = 5
+  ORDER BY distance;
   ```
 
 ---
 
-## 3. End-to-End Handshake & Startup Sequence
-
-Application launch ke waqt 4 subsystems ka bootstrapping sequence:
+## 3. End-to-End Bootstrapping Sequence
 
 ```
-[User / CLI]
+[User / CLI Launch]
     │
     ▼
-1. Launch Python Entry (src/deskai/app.py)
+1. Launch Entry (src/deskai/main.py)
     │
-    ├────────► Check Ollama Daemon (http://127.0.0.1:11434/api/tags)
-    │          └─ Model Verified: Qwen 2.5 Coder 7B (2.1 GB VRAM ready)
+    ├────────► Allocate Ephemeral Port & Generate Session Secret (32 bytes)
     │
-    ├────────► Verify Postgres Container (docker inspect orchestrix-test-postgres)
-    │          └─ pgvector 0.8.7 extension verified
+    ├────────► Initialize SQLite Database (WAL mode) & Load sqlite-vec extension
+    │          └─ Tables verified: sessions, checkpoints, embeddings (0 Docker)
     │
-    ├────────► Spawn FastAPI / Uvicorn Background Thread (Thread-2)
-    │          └─ Listening on http://127.0.0.1:8000
+    ├────────► Async Health-Check for Local Ollama Daemon (http://127.0.0.1:11434)
+    │          └─ Non-blocking check; UI displays offline warning if absent
     │
-    └────────► Start PyWebView Window on Main Thread (Thread-1)
+    ├────────► Start FastAPI/Uvicorn on Background Thread
+    │          └─ Listening on 127.0.0.1:{dynamic_port} with CSP & Token validation
+    │
+    └────────► Create PyWebView WebKit Window on Main Thread
                │
                ▼
-        WebKitGTK Window Created (1440x900)
+         WebKit Window Loads http://127.0.0.1:{dynamic_port}/?token=XYZ
                │
                ▼
-        Loads http://127.0.0.1:8000/static/index.html
+         DOM Ready & Strict CSP Header enforced
                │
                ▼
-        DOM Ready & js_api injected
+         WebSocket Handshake Established with Auth Token
                │
                ▼
-        ws.connect() ──► WebSocket Handshake Established (ws://127.0.0.1:8000/ws)
-               │
-               ▼
-        App Fully Operational (Time to Interactive: ~0.35s)
+         DeskAI Ready (Time to Interactive: ~0.35s)
 ```
 
 ---
 
 ## 4. Hardware Resource & Memory Footprint Budget
 
-Desktop AI Studio ki sab se bari kamyabi iska nihayat lean memory budget tha:
-
-| Component | Technology | Target Memory | Overhead vs Alternative |
+| Component | Technology | Target Memory | Real-World Overhead |
 |---|---|---|---|
-| **Window & UI** | PyWebView + WebKitGTK | **~65 MB RAM** | Electron (~600 MB) ke muqable mein 90% bachat |
-| **Server Engine** | FastAPI + Uvicorn + uvloop | **~95 MB RAM** | Node.js Express/Nest ke muqable mein 40% tez |
-| **Database** | PostgreSQL 17 + pgvector | **~180 MB RAM** | Pinecone/Milvus server ke muqable mein 100% local |
-| **Neural AI Model** | Qwen 2.5 Coder 7B (Q4_K_M) | **~2.1 GB VRAM** | RTX 2070 Super (8GB) par 6GB headroom bilkul free |
-| **Total Stack** | **Entire Desktop Studio** | **~340 MB RAM + 2.1 GB VRAM** | Extreme lightweight & 100% private |
+| **Window & UI** | PyWebView + WebKitGTK / WebView2 | **~140 MB RAM** | Web process + network process combined |
+| **Backend Engine** | Python 3.10 + FastAPI + Uvicorn | **~105 MB RAM** | ASGI event loop + route handlers |
+| **Storage & Vectors**| Embedded SQLite (WAL) + sqlite-vec | **~15 MB RAM** | Zero Docker, in-process C-level memory |
+| **Local AI Engine** | Ollama (Qwen 2.5 Coder 7B Q4_K_M) | **~4.7 GB VRAM** | RTX 2070 Super (8GB) par ~3.3 GB free |
+| **Total Stack** | **DeskAI Complete Suite** | **~260 MB RAM + 4.7 GB VRAM** | Extremely lean, reliable & 100% private |
 
 ---
 
-## 5. Graceful Teardown & Fault-Tolerance Matrix
+## 5. Lifecycle, Safety & Error Recovery
 
-System reliability ke liye fail-safe rules:
-
-1. **Window Close Event (`closing`):**
-   - Jab user 'X' button dabata hai, PyWebView ka `closing` hook intercept hota hai.
-   - Active WebSocket connections ko status code 1000 (Normal Closure) send hota hai.
-   - Uvicorn server graceful shutdown trigger karta hai (inflight file writes flush hotay hain).
-   - Python main thread `sys.exit(0)` par terminate hota hai (zero zombie background processes).
-2. **Ollama Crash Recovery:**
-   - Agar local Ollama daemon crash ho jaye, to WebSocket client UI par instant yellow alert pill ("Brain Disconnected") show karta hai aur backend auto-retry loop mein chala jata hai.
-3. **Database Unavailability:**
-   - Agar PostgreSQL container stop ho jaye, to IDE core features (file editing, syntax highlighting, terminal) bina ruki chalti hain, sirf vector search fallback to direct regex grep search ho jata hai.
+1. **Window Close & Teardown Rule:**
+   - User close request par `closing` hook sirf confirmation check karta hai (`isDirty` tabs check).
+   - Tamam irreversible teardown (database commit, temporary sandbox cleanup, process kill) PyWebView ke **`closed`** event mein run hoti hai taake accidental exit par data corrupt na ho.
+2. **Terminal Sandbox Enforcement:**
+   - Agent ke terminal commands strict working directory (`/mnt/Data/Workspaces/Projects/DeskAI`) ke andar bound rehte hain.
+   - 30-second execution timeout aur 1MB max stdout buffer limit enforce hoti hai.
+   - High-risk commands (e.g. `rm`, file deletion, external network access) ke liye human-in-the-loop approval card (UEC) lazmi hota hai.
+3. **NVIDIA / WebKitGTK Stability on Linux:**
+   - WebKitGTK blank window issue se bachne ke liye `WEBKIT_DISABLE_DMABUF_RENDERER=1` auto-configured hota hai.

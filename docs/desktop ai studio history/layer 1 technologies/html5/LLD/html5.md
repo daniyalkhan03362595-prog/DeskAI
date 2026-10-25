@@ -1,25 +1,22 @@
-# Layer 1 Technology LLD: HTML5 Semantic DOM, Component Templates & Accessibility
+# Layer 1 Technology LLD: HTML5 Semantic DOM, Component Layout & Template Engine
 
-Yeh document **Desktop AI Studio** ke **Layer 1 (Frontend)** mein use hone wali **HTML5** ki mukammal **Low-Level Design (LLD)** specifications, semantic markup hierarchy, component templates, data-attributes routing aur ARIA accessibility standards ko **Roman Urdu** mein tafseel se bayan karta hai.
-
----
-
-## 1. Executive Summary & Design Scope
-
-Desktop AI Studio ka frontend structure kisi virtual DOM library ke bajaye **Semantic HTML5** standards par mabni hai. Yeh browser ke native C++ layout engine (WebKit WebCore) ko direct trigger karta hai, jis se UI rendering latency 0.1ms se kam rehti hai.
-
-### Low-Level Responsibilities:
-1. **Deterministic Master Layout:** 3-column desktop IDE structure (Header, Left Sidebar, Editor Stage, Right Agent Dock, Bottom Drawer, Overlay Modals).
-2. **HTML5 `<template>` Engine:** High-performance reusable client-side DOM blueprints (Tree nodes, Editor tabs, Chat bubbles, UEC cards).
-3. **Data-Attribute Action Dispatching:** Event delegation ke liye standardized `data-action` contracts.
-4. **Native Modal & Dialogs:** `<dialog>` element ka native modal loop bina kisi external modal library ke.
-5. **Accessibility (ARIA):** Screen readers aur keyboard navigation ke liye complete ARIA role hierarchy.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Layout)** mein use hone wali **Semantic HTML5** specifications, master DOM tree, CSP-compliant structure, CodeMirror 6 host, aur reusable templates ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
-## 2. Master DOM Hierarchy & File Specifications
+## 1. Executive Summary & Design Constraints
 
-Primary entry point file `src/deskai/static/index.html` hai:
+DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP constraints ke mutabiq design kiya gaya hai:
+
+### Low-Level Technical Constraints:
+1. **Zero Inline Styles:** CSP violations se bachne ke liye koi inline `style="..."` attribute use nahi hota. Tamam dimensions CSS classes aur CSS variables se handle hoti hain.
+2. **Synchronized Action Attributes:** Tamam clickable elements `data-action` attribute use karte hain jo JavaScript event delegation router ke sath 100% matched hain.
+3. **Native Dialog & Templates:** Native `<dialog>` element aur non-rendered `<template>` nodes jo DOM rendering cost 0 rakhte hain.
+4. **CodeMirror 6 Container:** Hand-rolled contenteditable ke bajaye clean mounting node `<div class="codemirror-host" id="codeEditorHost"></div>`.
+
+---
+
+## 2. Master DOM Specification (`index.html`)
 
 ```html
 <!DOCTYPE html>
@@ -27,26 +24,23 @@ Primary entry point file `src/deskai/static/index.html` hai:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' ws:;">
-  <title>Desktop AI Studio</title>
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>DeskAI Studio</title>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
 </head>
-<body class="theme-dark">
+<body>
   <div class="app-root" id="appRoot">
-
-    <!-- 1. Native Header Bar -->
-    <header class="app-header" id="appHeader" role="banner">
+    
+    <!-- 1. Top Navigation & Window Control Bar -->
+    <header class="app-header" id="appHeader">
       <div class="header-left">
-        <svg class="app-logo" viewBox="0 0 24 24" width="18" height="18">
-          <circle cx="12" cy="12" r="10" fill="#1abc9c"/>
-        </svg>
-        <span class="app-title">Desktop AI Studio</span>
-        <span class="workspace-badge" id="headerWorkspaceName">No Workspace</span>
+        <span class="app-logo">⚡ DeskAI</span>
+        <span class="workspace-pill" id="headerWorkspacePill">DeskAI / main</span>
       </div>
       <div class="header-center">
-        <button class="palette-trigger-btn" data-action="open-palette" aria-keyshortcuts="Control+P">
+        <button class="omnibar-trigger" id="omnibarBtn" data-action="open-palette" aria-label="Open Command Palette">
           <span class="search-icon">🔍</span>
           <span class="placeholder-text">Search files, symbols, commands... (Ctrl+P)</span>
         </button>
@@ -62,7 +56,7 @@ Primary entry point file `src/deskai/static/index.html` hai:
     <main class="app-body" id="appBody">
       
       <!-- Left Column: File Explorer & Hardware Dock -->
-      <aside class="sidebar-left" id="sidebarLeft" style="width: var(--sidebar-left-w);">
+      <aside class="sidebar-left" id="sidebarLeft">
         <nav class="activity-bar" aria-label="Primary Navigation">
           <button class="activity-btn active" data-action="switch-panel" data-panel="explorer" title="Explorer (Ctrl+Shift+E)">📁</button>
           <button class="activity-btn" data-action="switch-panel" data-panel="search" title="Search (Ctrl+Shift+F)">🔍</button>
@@ -83,7 +77,7 @@ Primary entry point file `src/deskai/static/index.html` hai:
           </div>
         </section>
 
-        <!-- Hardware Status Dock (Req 20) -->
+        <!-- Hardware Status Dock -->
         <footer class="hardware-dock" id="hardwareDock" aria-label="System Hardware Telemetry">
           <div class="telemetry-row">
             <span class="tele-label">GPU Acceleration</span>
@@ -91,14 +85,18 @@ Primary entry point file `src/deskai/static/index.html` hai:
           </div>
           <div class="telemetry-row">
             <span class="tele-label">VRAM Resident</span>
-            <span class="tele-val" id="teleVramText">1.8 / 8.0 GB (22%)</span>
+            <span class="tele-val" id="teleVramText">4.7 / 8.0 GB (58%)</span>
           </div>
-          <div class="vram-meter-track" role="progressbar" aria-valuenow="22" aria-valuemin="0" aria-valuemax="100">
-            <div class="vram-meter-fill" id="teleVramFill" style="width: 22.5%;"></div>
+          <div class="vram-meter-track" role="progressbar" aria-valuenow="58" aria-valuemin="0" aria-valuemax="100">
+            <div class="vram-meter-fill" id="teleVramFill"></div>
           </div>
           <div class="telemetry-row">
-            <span class="tele-label">Neural Model</span>
+            <span class="tele-label">Neural Engine</span>
             <span class="tele-val brain-val" id="teleModelName">Qwen 2.5 Coder 7B</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="tele-label">Embedded DB</span>
+            <span class="tele-val db-val" id="teleDbName">SQLite 3 (WAL) + vec</span>
           </div>
         </footer>
       </aside>
@@ -106,21 +104,15 @@ Primary entry point file `src/deskai/static/index.html` hai:
       <!-- Resizer Handle Left -->
       <div class="resizer-col" id="resizerLeft" role="separator" aria-orientation="vertical" tabindex="0"></div>
 
-      <!-- Center Column: Multi-tab Code Surface -->
+      <!-- Center Column: Multi-tab Code Stage with CodeMirror 6 -->
       <section class="editor-stage" id="editorStage">
         <div class="tab-strip" id="editorTabStrip" role="tablist">
           <!-- Dynamic Tabs Rendered Here -->
         </div>
 
         <div class="editor-viewport" id="editorViewport">
-          <div class="line-gutter" id="lineGutter" aria-hidden="true"></div>
-          <div class="code-surface" id="codeSurface" contenteditable="false" spellcheck="false" role="textbox" aria-multiline="true">
-            <div class="welcome-screen" id="welcomeScreen">
-              <h2>Desktop AI Studio</h2>
-              <p>Autonomous Pair Programming IDE</p>
-              <button class="primary-btn" data-action="open-folder-dialog">Open Project Folder</button>
-            </div>
-          </div>
+          <!-- CodeMirror 6 Mount Node -->
+          <div class="codemirror-host" id="codeEditorHost"></div>
         </div>
 
         <!-- Collapsible Bottom Drawer -->
@@ -134,7 +126,7 @@ Primary entry point file `src/deskai/static/index.html` hai:
             <button class="icon-btn close-drawer-btn" data-action="toggle-drawer">─</button>
           </div>
           <div class="drawer-content" id="drawerContent">
-            <pre class="terminal-view" id="terminalOutput"><code>DeskAI CLI Ready. Connected to Linux GTK bridge.</code></pre>
+            <pre class="terminal-view" id="terminalOutput"><code>DeskAI Sandboxed Terminal Ready. Bound to workspace root.</code></pre>
           </div>
         </section>
       </section>
@@ -143,14 +135,14 @@ Primary entry point file `src/deskai/static/index.html` hai:
       <div class="resizer-col" id="resizerRight" role="separator" aria-orientation="vertical" tabindex="0"></div>
 
       <!-- Right Column: Agentic Chat & Morphing UEC Dock -->
-      <aside class="sidebar-right" id="sidebarRight" style="width: var(--sidebar-right-w);">
+      <aside class="sidebar-right" id="sidebarRight">
         <div class="chat-header">
           <span class="chat-title">AI PAIR PROGRAMMER</span>
           <span class="model-pill">Qwen 2.5 Coder 7B</span>
         </div>
 
         <div class="chat-thread" id="chatThread" role="log" aria-live="polite">
-          <!-- Chat Bubbles Rendered Here -->
+          <!-- DOMPurify-Sanitized Chat Bubbles Rendered Here -->
         </div>
 
         <!-- Unified Execution Card (UEC) Container -->
@@ -183,7 +175,7 @@ Primary entry point file `src/deskai/static/index.html` hai:
     <div class="toast-rack" id="toastRack" aria-live="assertive"></div>
 
     <!-- 4. Reusable HTML5 Component Templates -->
-    <div id="templateStore" style="display: none;" aria-hidden="true">
+    <div id="templateStore" hidden aria-hidden="true">
       
       <!-- Template: Tree Node -->
       <template id="tplTreeNode">
@@ -195,17 +187,17 @@ Primary entry point file `src/deskai/static/index.html` hai:
         </li>
       </template>
 
-      <!-- Template: Editor Tab -->
+      <!-- Template: Editor Tab (Action: tab-close) -->
       <template id="tplEditorTab">
         <div class="editor-tab" role="tab" data-tab-id="" data-path="" tabindex="0">
           <span class="tab-icon">📄</span>
           <span class="tab-label">file.py</span>
           <span class="tab-dirty-indicator">●</span>
-          <button class="tab-close-btn" data-action="close-tab" aria-label="Close Tab">✕</button>
+          <button class="tab-close-btn" data-action="tab-close" aria-label="Close Tab">✕</button>
         </div>
       </template>
 
-      <!-- Template: Chat Bubble -->
+      <!-- Template: Chat Bubble (Sanitized Markdown Body) -->
       <template id="tplChatBubble">
         <article class="chat-bubble" data-role="">
           <div class="bubble-header">
@@ -216,7 +208,7 @@ Primary entry point file `src/deskai/static/index.html` hai:
         </article>
       </template>
 
-      <!-- Template: UEC Card -->
+      <!-- Template: UEC Card with Approve, Reject, Rollback & Cancel Actions -->
       <template id="tplUecCard">
         <div class="uec-card" data-state="PLANNING">
           <div class="uec-header">
@@ -225,7 +217,9 @@ Primary entry point file `src/deskai/static/index.html` hai:
           </div>
           <ul class="uec-checklist" id="uecChecklist"></ul>
           <div class="uec-actions">
+            <button class="uec-btn btn-cancel" data-action="uec-cancel">Cancel</button>
             <button class="uec-btn btn-reject" data-action="uec-reject">Reject</button>
+            <button class="uec-btn btn-rollback" data-action="uec-rollback">Rollback</button>
             <button class="uec-btn btn-approve" data-action="uec-approve">Approve & Execute</button>
           </div>
         </div>
@@ -238,74 +232,3 @@ Primary entry point file `src/deskai/static/index.html` hai:
 </body>
 </html>
 ```
-
----
-
-## 3. HTML5 Template Engine Specification
-
-Browser ke native `<template>` tag ka faida yeh hai ke iska inner markup memory mein parse hota hai magar page load par render ya execute nahi hota.
-
-### Template Instantiation Protocol:
-```javascript
-export function instantiateTemplate(templateId, dataBindings = {}) {
-  const tpl = document.getElementById(templateId);
-  if (!tpl) throw new Error(`Template #${templateId} not found.`);
-
-  // Clone template content (True deep clone)
-  const clone = tpl.content.cloneNode(true);
-  const root = clone.firstElementChild;
-
-  // Apply data-bindings
-  for (const [selector, textOrAttrs] of Object.entries(dataBindings)) {
-    const el = selector === ":root" ? root : root.querySelector(selector);
-    if (!el) continue;
-
-    if (typeof textOrAttrs === "string") {
-      el.textContent = textOrAttrs;
-    } else if (typeof textOrAttrs === "object") {
-      if (textOrAttrs.text) el.textContent = textOrAttrs.text;
-      if (textOrAttrs.html) el.innerHTML = textOrAttrs.html;
-      if (textOrAttrs.dataset) {
-        Object.assign(el.dataset, textOrAttrs.dataset);
-      }
-      if (textOrAttrs.attrs) {
-        for (const [k, v] of Object.entries(textOrAttrs.attrs)) {
-          el.setAttribute(k, v);
-        }
-      }
-    }
-  }
-
-  return root;
-}
-```
-
----
-
-## 4. Standardized `data-action` Protocol
-
-HTML elements par inline `onclick` lagane ke bajaye standardized dataset attributes use kiye gaye hain:
-
-| Element Selector | `data-action` Value | `data-*` Parameters | Description |
-|---|---|---|---|
-| `.win-btn` | `win-minimize`, `win-maximize`, `win-close` | None | PyWebView native window controls trigger karta hai. |
-| `.editor-tab` | `select-tab` | `data-tab-id="uuid"` | Active editor tab switch karta hai. |
-| `.tab-close-btn` | `close-tab` | `data-tab-id="uuid"` | Editor tab close karta hai. |
-| `.tree-item` | `open-file` | `data-path="/path"` | File buffer load kar ke tab open karta hai. |
-| `.uec-btn` | `uec-approve`, `uec-reject` | `data-task-id="uuid"` | AI plan ya code diff accept/reject karta hai. |
-| `.palette-trigger-btn` | `open-palette` | None | `<dialog id="commandPaletteDialog">` showModal() call karta hai. |
-
----
-
-## 5. Accessibility (ARIA) & Keyboard Trapping Standards
-
-1. **Native Dialog Modal Loop:**
-   Command Palette ke liye `<dialog>` element ka `showModal()` method use hota hai. Yeh method khud ba khud background DOM ko `inert` kar deta hai aur keyboard focus ko modal ke andar trap karta hai (ESC key par khud close hota hai).
-2. **File Tree ARIA Specification:**
-   - Container par `role="tree"` aur `tabindex="0"`.
-   - Folders par `role="treeitem"` aur `aria-expanded="false" | "true"`.
-   - Files par `role="treeitem"` aur `aria-selected="true"`.
-3. **Editor Tabs ARIA Specification:**
-   - Tab container par `role="tablist"`.
-   - Har tab par `role="tab"`, `aria-selected="true" | "false"`.
-   - Code surface par `role="tabpanel"`.

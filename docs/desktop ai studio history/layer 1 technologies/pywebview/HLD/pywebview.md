@@ -1,29 +1,39 @@
 # Layer 1 Technology HLD: PyWebView Desktop Wrapper & Native Bridge Architecture
 
-Yeh document **Desktop AI Studio** ke **Layer 1 (Frontend)** mein use hone wali **PyWebView** library ki mukammal **High-Level Design (HLD)** architecture, native GTK integration aur Python-JavaScript IPC bridge ko **Roman Urdu** mein bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Native Shell)** mein use hone wali **PyWebView** library ki mukammal **High-Level Design (HLD)** architecture, native GTK integration, dynamic port allocation, aur secure IPC bridge ko **Roman Urdu** mein bayan karta hai.
 
 ---
 
 ## 1. Executive Summary (Native Wrapper Falsafa)
-Desktop AI Studio ko desktop application banane ke liye Electron ya Chromium-based wrappers ke bajaye **PyWebView** choose kiya gaya tha.
+DeskAI ko desktop application banane ke liye Electron ya Chromium-based heavy frameworks ke bajaye **PyWebView** choose kiya gaya hai.
 
 ### Is Decision ke Fawaid (Electron vs PyWebView):
-1. **Zero Chromium Overhead:** Electron har app ke sath 150MB+ ka alag Chromium browser aur Node.js runtime ship karta hai. PyWebView Linux operating system ke built-in **WebKitGTK / WebKit2Gtk** engine ko reuse karta hai.
-2. **Massive RAM Savings:** Electron apps (jaise VS Code ya Slack) 500MB se 1GB tak RAM khati hain. PyWebView ke sath Desktop AI Studio sirf **~60MB RAM** par smooth chalti thi.
-3. **GPU VRAM Preservation:** Graphics card ki Video RAM (VRAM) application rendering mein zaya nahi hoti thi, balki 100% local AI models (Qwen 7B) ke liye free rehti thi.
-4. **Fast Cold Start:** 0.3 second ke andar application khul kar screen par display ho jati thi.
+1. **Zero Chromium Bloat:** Electron har app ke sath 150MB+ ka Chromium aur Node.js runtime ship karta hai. PyWebView OS ke native **WebKitGTK** (Linux) / **WebView2** (Windows) engine ko direct leverage karta hai.
+2. **Massive Memory Savings:** Electron apps 600MB+ RAM leti hain. PyWebView ke sath DeskAI ka full UI process sirf **~120–140 MB RAM** leti hai.
+3. **GPU VRAM Preservation:** Graphics card ki VRAM UI rendering mein zaya nahi hoti, balki local AI models (Qwen 7B) ke liye **100% free** rehti hai.
+4. **Instant Cold Start:** ~0.35s ke andar desktop window screen par interactive ho jati hai.
 
 ---
 
 ## 2. Window Container Initialization Architecture
 
-Application ka desktop window Python ke andar is tarah initialize hota tha:
+Application ka desktop window dynamic port aur security token ke sath initialize hota hai:
 
 ```python
+import os
+import secrets
 import webview
+from deskai.utils.net import get_ephemeral_port
+
+# Security & Rendering Environment Flags
+os.environ["GDK_BACKEND"] = "x11,wayland"
+os.environ["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1"  # Fixes blank window on NVIDIA GPUs
 
 class StudioJsApi:
-    """Python functions exposed directly to JavaScript DOM"""
+    """Native OS operations exposed directly to JavaScript DOM"""
+    def __init__(self, workspace_root: str):
+        self.workspace_root = workspace_root
+
     def open_folder_dialog(self):
         result = webview.windows[0].create_file_dialog(
             webview.OPEN_DIALOG,
@@ -32,22 +42,22 @@ class StudioJsApi:
         )
         return result[0] if result else None
 
-    def get_system_telemetry(self):
-        # Direct C-memory read without network call
-        return {"gpu": "RTX 2070 Super", "status": "active"}
+# Allocate dynamic port & generate secure session token
+dynamic_port = get_ephemeral_port()
+session_token = secrets.token_urlsafe(32)
 
-# Initialize Desktop Window
 window = webview.create_window(
-    title='Desktop AI Studio',
-    url='http://127.0.0.1:8000',
-    js_api=StudioJsApi(),
+    title='DeskAI Studio',
+    url=f'http://127.0.0.1:{dynamic_port}/?token={session_token}',
+    js_api=StudioJsApi(workspace_root="/mnt/Data/Workspaces/Projects/DeskAI"),
     width=1440,
     height=900,
     min_size=(1024, 680),
-    background_color='#0c0e14'
+    frameless=False,  # Native OS window decorations enabled
+    background_color='#0a0c12'
 )
 
-# Start GTK Engine with clean loop
+# Start GTK Engine on Main Thread
 webview.start(gui='gtk', debug=False)
 ```
 
@@ -55,26 +65,17 @@ webview.start(gui='gtk', debug=False)
 
 ## 3. Char Bunyadi PyWebView HLD Components
 
-### Component 1: Python-JavaScript Direct IPC Bridge (`js_api`)
-* **Direct Function Call:** JavaScript se direct Python class ke functions call hotay the:
-  ```javascript
-  const selectedFolder = await window.pywebview.api.open_folder_dialog();
-  ```
-* **Zero Network Dependency:** Localhost ports block hone, firewall restrictions ya proxy conflicts ke baghair memory bridge par direct data exchange hota tha.
-* **Native File Dialogs:** PyWebView OS ka native GTK/KDE file picker dialog open karta tha jo system ke default look-and-feel ke sath match karta tha.
+### Component 1: Python-JavaScript Native OS Bridge (`js_api`)
+* **Strict Concern Separation:** `window.pywebview.api` sirf native OS functions (Folder Pickers, File Dialogs, System Clipboard, Notifications) ke liye reserved hai. High-throughput data (AI tokens, telemetry) WebSocket se chalti hai.
+* **Path Canonicalization:** Bridge ke andar aane wale tamam file paths ko `os.path.realpath()` se check kiya jata hai taake workspace directory se bahar koi arbitrary read/write na ho sake.
 
-### Component 2: Window Lifecycle & Graceful Teardown
-* **Lifecycle Event Hooks:**
-  * `window.events.loaded`: UI fully mount hone ka signal.
-  * `window.events.closing`: User ke window close karne ka signal.
-  * `window.events.closed`: Clean exit hook.
-* **Graceful Teardown:** Jab user 'X' button dabata tha to backend Uvicorn server, background telemetry pollers, aur active WebSocket connections ko gracefully terminate kiya jata tha taake system par koi orphan/zombie process na bache.
+### Component 2: Two-Phase Lifecycle & Graceful Teardown
+* **`window.events.closing` (Phase 1):** User ke close click par check karta hai ke kya koi editor tab dirty (unsaved) hai. Agar user cancel kare to window khuli rehti hai.
+* **`window.events.closed` (Phase 2):** Window band hone ke baad irreversible teardown hota hai: SQLite flush, background worker processes termination aur clean exit.
 
-### Component 3: Linux GDK & Wayland/X11 Compatibility
-* **Backend Priority:** Linux environment mein `GDK_BACKEND="x11,wayland"` set kiya gaya tha taake GNOME aur KDE dono window managers par reliable rendering miley.
-* **XDnD Drag-and-Drop:** File manager se files ko drag kar ke direct IDE ke code editor mein drop karne ki native support milti thi.
-* **Native Titlebar & Controls:** OS ke standard window controls (Minimize, Maximize, Close, Snapping) smoothly integrate the.
+### Component 3: Linux GDK & NVIDIA Hardware Stability
+* **NVIDIA Driver Compatibility:** WebKitGTK ka DMABUF renderer Linux par NVIDIA proprietary drivers ke sath blank screen crash karta tha. `WEBKIT_DISABLE_DMABUF_RENDERER=1` set kar ke is crash ko 100% fix kiya gaya hai.
+* **Multi-Window Manager Support:** X11 aur Wayland dono par seamless hardware acceleration.
 
-### Component 4: WebKitGTK Hardware Acceleration
-* **OpenGL/WebGL Compositing:** WebKit engine ke andar hardware-accelerated canvas aur CSS transforms active the, jis se animations 60 FPS par smooth render hoti theen.
-* **Font Anti-Aliasing:** Linux system ke native FreeType font rendering engine se crystal-clear monospace coding fonts display hotay the.
+### Component 4: Cross-Platform Path
+* DeskAI ka presentation layer standard HTML5/CSS3/ES Modules hai. Linux par WebKitGTK, Windows par WebView2, aur macOS par WKWebView par automatically transparently map hota hai.

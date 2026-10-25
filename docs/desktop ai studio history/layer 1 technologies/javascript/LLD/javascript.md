@@ -1,50 +1,46 @@
 # Layer 1 Technology LLD: JavaScript Client State, Streaming & DOM Architecture
 
-Yeh document **Desktop AI Studio** ke **Layer 1 (Frontend)** mein use hone wali **Pure Vanilla JavaScript (ES2022)** ki mukammal **Low-Level Design (LLD)** specifications, module breakdown, reactive store implementation, PyWebView bridge integration, rAF token batcher, aur UEC finite state machine ko **Roman Urdu** mein tafseel se bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Client Logic)** mein use hone wali **Pure Vanilla JavaScript (ES2022 Modules)** ki mukammal **Low-Level Design (LLD)** specifications, recursive deep proxy store, CodeMirror 6 editor integration, WebSocket client with resync protocol, symmetric resizer math aur UEC finite state machine ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
 ## 1. Executive Summary & Design Constraints
 
-Desktop AI Studio ka frontend kisi bhi bhaari framework (React, Vue, Angular) ya bundling toolchain (Webpack, Vite, npm) ke baghair chalta hai. Poori application **Native ES Modules** par mushtamil hai jo browser engine ke andar direct load hoti hai.
+DeskAI ka frontend kisi heavy framework ya bundling toolchain ke baghair **Native ES Modules** par mushtamil hai jo browser engine ke andar direct load hoti hai.
 
 ### Low-Level Technical Constraints:
-1. **Zero Runtime Dependencies:** Sirf native browser APIs (`WebSocket`, `Proxy`, `requestAnimationFrame`, `PointerEvent`, `CustomEvent`) use hoti hain.
-2. **Sub-16ms Frame Budget (60 FPS):** AI text generation ke dauran 50-80 tokens/sec aane par bhi UI layout thrashing ya frame drop nahi hona chahiye.
-3. **Deterministic State Synchronization:** Python backend, PyWebView bridge, aur WebSocket events ka state aik single predictable store mein synchronize hota hai.
+1. **Zero-Bundling & Native Modules:** Direct browser ES imports (`import { store } from './state.js'`).
+2. **Deep Observable Reactivity:** Recursive `Proxy` tree jo nested state mutations (`store.state.execution.state = 'PLANNING'`) ko accurately detect aur notify kare.
+3. **Sub-16ms Frame Budget (60 FPS):** `requestAnimationFrame` token batching aur DOMPurify sanitization.
+4. **Deterministic State Synchronization:** Backend SQLite source-of-truth ke sath sequence-numbered resync.
 
 ---
 
 ## 2. Directory & Client Module Architecture
 
-Frontend ka code modular ES6 files mein taqseem hota hai:
-
 ```text
 src/deskai/static/js/
-├── app.js                    # Entry point, initialization & event orchestration
-├── state.js                  # Reactive StudioStore (Proxy-based observable state)
+├── app.js                    # Entry point, bootstrapping & token reception
+├── state.js                  # Deep Reactive StudioStore (Recursive Proxy Engine)
 ├── bridge.js                 # PyWebView Native Bridge client wrapper
-├── ws.js                     # WebSocketClient (exponential backoff & message router)
-├── stream.js                 # High-Speed TokenStreamBuffer & rAF scheduler
-├── uec.js                    # Unified Execution Card (UEC) finite state machine
-├── editor.js                 # TabManager, multi-file buffers & dirty tracking
-├── events.js                 # Event delegation router, resizers & global keybindings
+├── ws.js                     # WebSocketClient (Exponential backoff, queue & resync)
+├── stream.js                 # TokenStreamBuffer with DOMPurify & rAF scheduler
+├── uec.js                    # UEC State Machine with Cancel & Rollback states
+├── editor.js                 # CodeMirror 6 embedded editor controller
+├── events.js                 # Synchronized Action Router & Dual-Sided Resizers
 └── components/
-    ├── filetree.js           # Virtual directory tree renderer
-    ├── telemetry.js          # Hardware gauges, GPU VRAM & status pills
-    └── diffview.js           # Split & inline diff rendering engine
+    ├── filetree.js           # Directory tree renderer
+    ├── telemetry.js          # Hardware gauges, GPU VRAM & SQLite status
+    └── diffview.js           # Side-by-side & inline diff view
 ```
 
 ---
 
-## 3. Reactive State Store Specification (`state.js`)
+## 3. Deep Reactive State Store (`state.js`)
 
-Central state management ke liye lightweight `Proxy` pattern use hota hai jo mutations ko intercept kar ke registered subscriber callbacks trigger karta hai.
+Shallow proxy ke masle ko hal karne ke liye recursive Proxy pattern implement kiya gaya hai:
 
 ```javascript
-/**
- * StudioState Definition
- */
 export const initialState = {
   workspace: {
     rootPath: null,
@@ -52,46 +48,60 @@ export const initialState = {
     selectedPath: null
   },
   editor: {
-    openTabs: new Map(),      // tabId -> { path, name, content, isDirty, cursor }
+    openTabs: [],             // Array of { id, path, name, isDirty }
     activeTabId: null
   },
   telemetry: {
     gpuName: "NVIDIA RTX 2070 Super",
-    vramUsedMB: 0,
+    vramUsedMB: 4710,
     vramTotalMB: 8192,
-    cpuUsagePct: 0,
-    ramUsedMB: 0,
+    cpuUsagePct: 14.8,
+    ramUsedMB: 5820,
     status: "ready"
   },
   execution: {
-    state: "IDLE",            // IDLE | PLANNING | EXECUTING | REVIEW_DIFF | SUCCESS | FAILED
+    state: "IDLE",            // IDLE | PLANNING | EXECUTING | REVIEW_DIFF | SUCCESS | FAILED | ROLLBACK | CANCELLED
     taskTitle: "",
     checklist: [],
     activeDiff: null
   },
   connection: {
     isSocketConnected: false,
-    isBridgeReady: false
+    lastSeq: 0
   }
 };
 
-class StudioStore {
-  constructor(state) {
+export class StudioStore {
+  constructor(initialData) {
     this._subscribers = new Map();
-    this.state = this._createProxy(state);
+    this.state = this._createDeepProxy(initialData, "");
   }
 
-  _createProxy(target, path = "") {
+  _createDeepProxy(target, path) {
+    if (typeof target !== "object" || target === null) {
+      return target;
+    }
+
     const self = this;
-    return new Proxy(target, {
+    const proxyHandler = {
+      get(obj, prop) {
+        const val = obj[prop];
+        if (typeof val === "object" && val !== null) {
+          const nestedPath = path ? `${path}.${String(prop)}` : String(prop);
+          return self._createDeepProxy(val, nestedPath);
+        }
+        return val;
+      },
       set(obj, prop, value) {
         const oldValue = obj[prop];
         obj[prop] = value;
-        const currentPath = path ? `${path}.${prop}` : prop;
+        const currentPath = path ? `${path}.${String(prop)}` : String(prop);
         self._notify(currentPath, value, oldValue);
         return true;
       }
-    });
+    };
+
+    return new Proxy(target, proxyHandler);
   }
 
   subscribe(path, callback) {
@@ -103,14 +113,10 @@ class StudioStore {
   }
 
   _notify(path, newValue, oldValue) {
-    // Exact path notifications
     if (this._subscribers.has(path)) {
-      this._subscribers.get(path).forEach(cb => cb(newValue, oldValue));
-    }
-    // Wildcard path notifications (e.g. "telemetry.*")
-    const parentPath = path.substring(0, path.lastIndexOf("."));
-    if (this._subscribers.has(`${parentPath}.*`)) {
-      this._subscribers.get(`${parentPath}.*`).forEach(cb => cb(newValue, oldValue, path));
+      for (const cb of this._subscribers.get(path)) {
+        cb(newValue, oldValue);
+      }
     }
   }
 }
@@ -120,244 +126,151 @@ export const store = new StudioStore(initialState);
 
 ---
 
-## 4. PyWebView Native Bridge Client (`bridge.js`)
-
-Frontend par `window.pywebview.api` ko direct call karne ke bajaye aik guarded wrapper use kiya jata hai jo `pywebviewready` event ka intezar karta hai aur offline testing support karta hai.
-
-```javascript
-export class NativeBridge {
-  static _isReady = false;
-  static _readyPromise = null;
-
-  static init() {
-    if (this._readyPromise) return this._readyPromise;
-
-    this._readyPromise = new Promise((resolve) => {
-      if (window.pywebview && window.pywebview.api) {
-        this._isReady = true;
-        resolve(window.pywebview.api);
-      } else {
-        window.addEventListener("pywebviewready", () => {
-          this._isReady = true;
-          resolve(window.pywebview.api);
-        }, { once: true });
-      }
-    });
-    return this._readyPromise;
-  }
-
-  static async call(methodName, ...args) {
-    await this.init();
-    if (!window.pywebview || !window.pywebview.api[methodName]) {
-      throw new Error(`NativeBridge: Method '${methodName}' not found on PyWebView API.`);
-    }
-
-    try {
-      const response = await window.pywebview.api[methodName](...args);
-      if (!response.success) {
-        throw new Error(response.error || `Error in ${methodName}`);
-      }
-      return response.data;
-    } catch (err) {
-      console.error(`[Bridge Error] ${methodName}:`, err);
-      throw err;
-    }
-  }
-
-  // High-Level Helper Abstractions
-  static selectFolder(title = "Select Project Folder") {
-    return this.call("open_directory_dialog", title);
-  }
-
-  static selectFiles(fileTypes, allowMultiple = false) {
-    return this.call("open_file_dialog", fileTypes, allowMultiple);
-  }
-
-  static saveFile(defaultFilename) {
-    return this.call("save_file_dialog", defaultFilename);
-  }
-
-  static fetchTelemetry() {
-    return this.call("get_hardware_telemetry");
-  }
-
-  static windowControl(action) {
-    return this.call("control_window", action);
-  }
-}
-```
-
----
-
-## 5. WebSocket Client & Exponential Backoff (`ws.js`)
-
-Real-time streaming, chat interaction aur AI coordination ke liye resilient WebSocket connection implement kiya gaya hai:
+## 4. WebSocket Client with Resync & Offline Queue (`ws.js`)
 
 ```javascript
 export class WebSocketClient {
-  constructor(url) {
-    this.url = url;
+  constructor(endpointUrl, authToken) {
+    this.url = `${endpointUrl}?token=${authToken}`;
     this.socket = null;
     this.reconnectAttempts = 0;
     this.maxReconnectDelay = 10000;
     this.handlers = new Map();
-    this.heartbeatTimer = null;
+    this.outboundQueue = [];
+    this.watchdogTimer = null;
   }
 
   connect() {
     this.socket = new WebSocket(this.url);
 
     this.socket.onopen = () => {
-      console.log("[WS] Connected to Desktop AI Studio Gateway.");
+      console.log("[WS] Connected & Authenticated.");
       this.reconnectAttempts = 0;
       store.state.connection.isSocketConnected = true;
-      this._startHeartbeat();
+      this._flushQueue();
+      this._requestSnapshotResync();
+      this._startWatchdog();
     };
 
     this.socket.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data);
-        this._routeMessage(message);
+        const msg = JSON.parse(event.data);
+        if (msg.seq) {
+          store.state.connection.lastSeq = msg.seq;
+        }
+        this._routeMessage(msg);
       } catch (e) {
-        console.error("[WS] Malformed JSON payload:", event.data);
+        console.error("[WS] JSON parse error:", e);
       }
     };
 
     this.socket.onclose = () => {
       store.state.connection.isSocketConnected = false;
-      this._stopHeartbeat();
+      this._stopWatchdog();
       this._scheduleReconnect();
     };
-
-    this.socket.onerror = (err) => {
-      console.warn("[WS] Socket encountered error:", err);
-      this.socket.close();
-    };
   }
 
-  on(actionType, handler) {
-    if (!this.handlers.has(actionType)) {
-      this.handlers.set(actionType, []);
-    }
-    this.handlers.get(actionType).push(handler);
-  }
-
-  send(actionType, payload = {}) {
+  send(type, payload = {}) {
+    const frame = { type, payload, timestamp: Date.now() };
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ type: actionType, payload }));
+      this.socket.send(JSON.stringify(frame));
     } else {
-      console.warn("[WS] Cannot send message, socket is closed.");
+      console.warn("[WS] Socket offline. Queuing message:", type);
+      this.outboundQueue.push(frame);
     }
   }
 
-  _routeMessage(message) {
-    const { type, payload } = message;
-    if (this.handlers.has(type)) {
-      this.handlers.get(type).forEach(fn => fn(payload));
+  _flushQueue() {
+    while (this.outboundQueue.length > 0 && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify(this.outboundQueue.shift()));
     }
+  }
+
+  _requestSnapshotResync() {
+    this.send("client.resync", { lastSeq: store.state.connection.lastSeq });
   }
 
   _scheduleReconnect() {
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), this.maxReconnectDelay);
-    console.log(`[WS] Reconnecting in ${Math.round(delay)}ms (Attempt ${this.reconnectAttempts})...`);
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
+    console.log(`[WS] Reconnecting in ${delay}ms...`);
     setTimeout(() => this.connect(), delay);
-  }
-
-  _startHeartbeat() {
-    this.heartbeatTimer = setInterval(() => {
-      this.send("ping");
-    }, 15000);
-  }
-
-  _stopHeartbeat() {
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
   }
 }
 ```
 
 ---
 
-## 6. High-Speed Token Streaming & rAF Scheduler (`stream.js`)
+## 5. Token Stream Buffer with DOMPurify (`stream.js`)
 
-Jab local Qwen 7B model 60+ tokens/sec stream karta hai, to har character par DOM mutation browser ko hang kar sakti hai. Iske hal ke liye **Micro-batching Engine** implement kiya gaya hai:
+AI ke generated output ko xss-safe tareeqe se render karne ke liye `DOMPurify` use hota hai:
 
 ```javascript
 export class TokenStreamBuffer {
   constructor(targetElement) {
     this.target = targetElement;
-    this.chunkQueue = [];
-    this.isFlushScheduled = false;
-    this.isUserScrolledUp = false;
-
-    // Detect user manual scroll to avoid disruptive auto-scrolling
-    this.target.parentElement.addEventListener("scroll", () => {
-      const el = this.target.parentElement;
-      const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 30;
-      this.isUserScrolledUp = !atBottom;
-    });
+    this.queue = [];
+    this.isScheduled = false;
   }
 
-  append(tokenChunk) {
-    this.chunkQueue.push(tokenChunk);
-    if (!this.isFlushScheduled) {
-      this.isFlushScheduled = true;
+  append(chunk) {
+    this.queue.push(chunk);
+    if (!this.isScheduled) {
+      this.isScheduled = true;
       requestAnimationFrame(() => this._flush());
     }
   }
 
   _flush() {
-    if (this.chunkQueue.length === 0) {
-      this.isFlushScheduled = false;
+    if (this.queue.length === 0) {
+      this.isScheduled = false;
       return;
     }
 
-    // Join all accumulated tokens during the frame window
-    const combinedText = this.chunkQueue.join("");
-    this.chunkQueue = [];
+    const rawMarkdown = this.queue.join("");
+    this.queue = [];
 
-    // Fast append without re-parsing entire innerHTML
-    const textNode = document.createTextNode(combinedText);
-    this.target.appendChild(textNode);
+    // Parse markdown and sanitize via DOMPurify
+    const cleanHtml = DOMPurify.sanitize(marked.parse(rawMarkdown));
+    this.target.innerHTML = cleanHtml;
 
-    // Auto-scroll only if user is at bottom
-    if (!this.isUserScrolledUp) {
-      const container = this.target.parentElement;
-      container.scrollTop = container.scrollHeight;
-    }
-
-    this.isFlushScheduled = false;
+    this.target.parentElement.scrollTop = this.target.parentElement.scrollHeight;
+    this.isScheduled = false;
   }
 }
 ```
 
 ---
 
-## 7. Unified Execution Card (UEC) Finite State Machine (`uec.js`)
-
-AI execution ka lifecycle aik deterministic State Machine follow karta hai:
+## 6. UEC Finite State Machine with Cancel & Rollback (`uec.js`)
 
 ```
 [IDLE] ──(prompt.send)──► [PLANNING] ──(plan.approved)──► [EXECUTING]
-  ▲                                                            │
-  │                                                            ▼
-[SUCCESS] ◄──(diff.accepted)── [REVIEW_DIFF] ◄──(step.complete)┘
+  ▲                           │                                │
+  │                     (user.cancel)                   (step.complete)
+  │                           │                                │
+  │                           ▼                                ▼
+[SUCCESS] ◄──(diff.accepted)── [REVIEW_DIFF]           [REVIEW_DIFF]
   │                                   │
-  └───(diff.rejected)─────────────────┘
+  ├───(diff.rejected)─────────────────┤
+  │                                   ▼
+  └─────────────────────────────► [ROLLBACK] ──► [IDLE]
 ```
 
-### State Machine Implementation:
 ```javascript
 export class UECStateMachine {
   constructor() {
     this.currentState = "IDLE";
     this.transitions = {
       IDLE: ["PLANNING"],
-      PLANNING: ["EXECUTING", "IDLE"],
-      EXECUTING: ["REVIEW_DIFF", "FAILED"],
-      REVIEW_DIFF: ["SUCCESS", "FAILED", "EXECUTING"],
+      PLANNING: ["EXECUTING", "CANCELLED", "IDLE"],
+      EXECUTING: ["REVIEW_DIFF", "FAILED", "CANCELLED"],
+      REVIEW_DIFF: ["SUCCESS", "ROLLBACK", "EXECUTING"],
       SUCCESS: ["IDLE"],
-      FAILED: ["IDLE", "PLANNING"]
+      ROLLBACK: ["IDLE"],
+      CANCELLED: ["IDLE"],
+      FAILED: ["IDLE", "ROLLBACK"]
     };
   }
 
@@ -370,38 +283,27 @@ export class UECStateMachine {
 
     this.currentState = nextState;
     store.state.execution.state = nextState;
-
-    this._onStateChange(nextState, payload);
+    this._handleStateSideEffects(nextState, payload);
     return true;
   }
 
-  _onStateChange(state, payload) {
-    switch (state) {
-      case "PLANNING":
-        store.state.execution.checklist = payload.steps || [];
-        break;
-      case "EXECUTING":
-        store.state.execution.currentStep = payload.activeStepIndex;
-        break;
-      case "REVIEW_DIFF":
-        store.state.execution.activeDiff = payload.diffData;
-        break;
-      case "SUCCESS":
-        // Auto reset after 3 seconds
-        setTimeout(() => this.transition("IDLE"), 3000);
-        break;
-    }
+  cancel() {
+    return this.transition("CANCELLED");
+  }
+
+  rollback() {
+    return this.transition("ROLLBACK");
   }
 }
 ```
 
 ---
 
-## 8. Global Event Delegation & Resizer Engine (`events.js`)
+## 7. Synchronized Event Router & Dual-Panel Resizers (`events.js`)
 
-Pure DOM interaction model mein per-element listener lagane ke bajaye single global dispatcher use hota hai:
+### 7.1 Synchronized Action Router
+Action names HTML aur JS mein 100% synchronized hain:
 
-### 8.1 Action Router (Click Delegation)
 ```javascript
 document.addEventListener("click", (e) => {
   const trigger = e.target.closest("[data-action]");
@@ -412,40 +314,69 @@ document.addEventListener("click", (e) => {
 
   switch (action) {
     case "tab-close":
-      TabManager.closeTab(param);
+      EditorManager.closeTab(param);
       break;
-    case "diff-accept":
-      UEC.acceptDiff();
-      break;
-    case "window-minimize":
+    case "win-minimize":
       NativeBridge.windowControl("minimize");
+      break;
+    case "win-maximize":
+      NativeBridge.windowControl("maximize");
+      break;
+    case "win-close":
+      NativeBridge.windowControl("close");
+      break;
+    case "uec-approve":
+      UEC.approvePlan();
+      break;
+    case "uec-reject":
+      UEC.rejectPlan();
+      break;
+    case "uec-rollback":
+      UEC.rollback();
+      break;
+    case "uec-cancel":
+      UEC.cancel();
       break;
   }
 });
 ```
 
-### 8.2 Pointer Drag Resizers
-Sidebar dividers par smooth resizing ke liye `PointerEvents` use hotay hain:
+### 7.2 Symmetric Resizer Math
+Left aur right sidebar resizing ka correct mathematical formula:
+
 ```javascript
-export function initResizer(resizerEl, cssVarName, minWidth = 200, maxWidth = 550) {
-  resizerEl.addEventListener("pointerdown", (e) => {
-    resizerEl.setPointerCapture(e.pointerId);
-    resizerEl.classList.add("resizing");
+export function initResizers() {
+  const leftResizer = document.getElementById("resizerLeft");
+  const rightResizer = document.getElementById("resizerRight");
 
-    const onPointerMove = (moveEvent) => {
-      const newWidth = Math.max(minWidth, Math.min(moveEvent.clientX, maxWidth));
-      document.documentElement.style.setProperty(cssVarName, `${newWidth}px`);
+  // Left Sidebar Resizer
+  leftResizer.addEventListener("pointerdown", (e) => {
+    leftResizer.setPointerCapture(e.pointerId);
+    const onMove = (ev) => {
+      const newWidth = Math.max(200, Math.min(ev.clientX, 550));
+      document.documentElement.style.setProperty("--sidebar-left-w", `${newWidth}px`);
     };
-
-    const onPointerUp = () => {
-      resizerEl.releasePointerCapture(e.pointerId);
-      resizerEl.classList.remove("resizing");
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
 
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
+  // Right Sidebar Resizer (Window Width - clientX)
+  rightResizer.addEventListener("pointerdown", (e) => {
+    rightResizer.setPointerCapture(e.pointerId);
+    const onMove = (ev) => {
+      const newWidth = Math.max(260, Math.min(window.innerWidth - ev.clientX, 650));
+      document.documentElement.style.setProperty("--sidebar-right-w", `${newWidth}px`);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   });
 }
 ```
