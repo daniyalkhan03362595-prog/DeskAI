@@ -38,33 +38,35 @@ Poori application `:root` variables ke zariye dynamically adapt hoti hai:
 ```css
 :root {
   /* ==========================================================================
-     1. Dark Mode Color Palette
+     1. 2026 Obsidian Matte + Warm Amber Palette
      ========================================================================== */
-  --bg-app: #0a0c12;            /* Application master background */
-  --bg-header: #0e111a;         /* Window titlebar & controls */
-  --bg-sidebar: #10131d;        /* Left & right dock panels */
-  --bg-surface: #141724;        /* Editor background & dialog surfaces */
-  --bg-card: #171b2b;           /* Cards & component containers */
+  --bg-app: #121315;            /* Deep Obsidian Matte Master Canvas */
+  --bg-header: #17181b;         /* Elevated Window Titlebar & Controls */
+  --bg-sidebar: #151619;        /* Explorer & Activity Navigation */
+  --bg-surface: #1a1b1f;        /* Editor Workbench & Terminal Drawer */
+  --bg-card: #202126;           /* Cards & Input Dock Containers */
   --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active: rgba(255, 255, 255, 0.09);
+  --bg-active: rgba(255, 255, 255, 0.08);
 
-  /* Borders & Dividers */
-  --border-subtle: #1c2132;
-  --border-regular: #262d44;
-  --border-focus: #3498db;
+  /* Hairline Borders & Dividers */
+  --border-subtle: #26272c;
+  --border-regular: #31333a;
+  --border-focus: #d99b26;
 
   /* Accent & Functional Colors */
-  --color-primary: #3498db;     /* Action buttons & selection */
-  --color-teal: #1abc9c;        /* Brand logo & bridge indicators */
-  --color-success: #2ecc71;     /* GPU active & diff additions */
-  --color-warning: #f39c12;     /* In-progress & review diffs */
-  --color-danger: #ff6b6b;      /* Contrast 5.8:1 on card (Exceeds WCAG AA) */
+  --color-primary: #d99b26;     /* Primary Warm Amber Accent */
+  --color-primary-hover: #b8821d;
+  --color-amber: #f59e0b;       /* DeskAI ⚡ Lightning Brand */
+  --color-success: #22c55e;     /* GPU active & diff additions */
+  --color-warning: #f59e0b;     /* In-progress & review diffs */
+  --color-danger: #ff6b6b;      /* Contrast 5.8:1 on card */
 
   /* Text Colors */
-  --text-primary: #e6eaf2;
-  --text-secondary: #9da7c0;
-  --text-muted: #858fa8;        /* Contrast 5.3:1 (Exceeds WCAG AA) */
-  --text-inverse: #0a0c12;
+  --text-primary: #ededed;
+  --text-secondary: #9ca0a6;
+  --text-muted: #8a8e97;        /* Contrast 5.7:1 (Exceeds WCAG AA >= 4.5:1) */
+  --text-inverse: #121315;
+  --text-btn-primary: #121315;  /* Contrast 7.7:1 on Amber button (Exceeds WCAG AAA) */
 
   /* ==========================================================================
      2. Typography Scales
@@ -386,10 +388,11 @@ Code differences ko side-by-side aur unified views mein render karne ke liye pre
 
 ## 9. Accessibility & WCAG AA Contrast Standards
 
-1. **High Contrast Typography:**
-   - `--text-primary` (`#e6eaf2`) on `--bg-app` (`#0a0c12`) yields a contrast ratio of **14.8:1**, far exceeding the WCAG AAA requirement (7:1).
-   - `--text-secondary` (`#9da7c0`) yields **7.2:1** (WCAG AAA).
-   - `--text-muted` has been updated to `#858fa8`, yielding **5.3:1**, exceeding WCAG AA for small 11px/12px text.
+1. **High Contrast Typography (2026 Obsidian Matte Palette):**
+   - `--text-primary` (`#ededed`) on `--bg-app` (`#121315`) yields a contrast ratio of **15.9:1**, far exceeding the WCAG AAA requirement (7:1).
+   - `--text-secondary` (`#9ca0a6`) yields **7.1:1** (WCAG AAA).
+   - `--text-muted` (`#8a8e97`) yields **5.7:1**, exceeding WCAG AA for small 11px/12px text (requires >= 4.5:1).
+   - `--text-btn-primary` (`#121315`) on `--color-primary` (`#d99b26`) yields **7.7:1** (WCAG AAA).
 2. **Keyboard Focus Outlines:**
    ```css
    :focus-visible {

@@ -35,7 +35,7 @@
 .app-logo {
   font-weight: 700;
   font-size: var(--text-base);
-  color: var(--color-teal);
+  color: var(--color-amber);
   letter-spacing: -0.5px;
 }
 
@@ -248,7 +248,7 @@
 .vram-meter-fill {
   height: 100%;
   width: 40%;
-  background: linear-gradient(90deg, var(--color-teal), var(--color-primary));
+  background: linear-gradient(to right, #b8821d, #f59e0b);
   border-radius: 3px;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -333,13 +333,18 @@
 
 .primary-btn {
   background-color: var(--color-primary);
-  color: #fff;
-  border: none;
+  color: var(--text-btn-primary);
+  border: 1px solid var(--color-primary-hover);
   padding: 8px 16px;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
   font-size: var(--text-sm);
+  transition: all 0.15s ease;
+}
+
+.primary-btn:hover {
+  background-color: var(--color-primary-hover);
 }
 
 .codemirror-host {
@@ -425,7 +430,7 @@
 
 .model-pill {
   background-color: var(--bg-surface);
-  color: var(--color-teal);
+  color: var(--color-success);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -485,13 +490,13 @@
 }
 
 .uec-card[data-state="PLANNING"] {
-  border-color: var(--color-teal);
-  box-shadow: var(--shadow-glow-teal);
+  border-color: var(--color-amber);
+  box-shadow: var(--shadow-glow-amber);
 }
 
 .uec-card[data-state="EXECUTING"] {
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-glow-blue);
+  box-shadow: var(--shadow-glow-amber);
 }
 
 .uec-card[data-state="REVIEW_DIFF"] {
@@ -593,11 +598,21 @@
 .prompt-send-btn {
   background-color: var(--color-primary);
   border: none;
-  color: #fff;
+  color: var(--text-btn-primary);
   width: 28px;
   height: 28px;
   border-radius: 4px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.prompt-send-btn:hover {
+  background-color: var(--color-primary-hover);
+}
   display: flex;
   align-items: center;
   justify-content: center;

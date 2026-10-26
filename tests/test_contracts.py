@@ -277,5 +277,58 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         self.assertIn('.sr-only {', content)
         self.assertIn('clip: rect(0, 0, 0, 0);', content)
 
+    def test_wcag_aa_contrast_ratios_in_tokens(self):
+        """
+        Parses tokens.css and calculates WCAG 2.1 relative luminance and contrast ratio.
+        Asserts that --text-primary, --text-secondary, --text-muted, and button text
+        all exceed the WCAG AA minimum threshold of 4.5:1 on their respective backgrounds.
+        """
+        tokens_path = REPO_ROOT / "src" / "deskai" / "static" / "css" / "tokens.css"
+        tokens_content = tokens_path.read_text(encoding="utf-8")
+
+        import re
+        tokens = {}
+        for line in tokens_content.splitlines():
+            line = line.strip()
+            m = re.match(r"--([a-zA-Z0-9-]+)\s*:\s*([^;]+);", line)
+            if m:
+                tokens[m.group(1)] = m.group(2).strip()
+
+        def hex_to_rgb(hex_code):
+            hex_code = hex_code.lstrip("#")
+            return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+
+        def rel_luminance(rgb):
+            def channel(c):
+                c = c / 255.0
+                return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+            r, g, b = (channel(x) for x in rgb)
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+        def contrast_ratio(c1, c2):
+            l1, l2 = rel_luminance(hex_to_rgb(c1)), rel_luminance(hex_to_rgb(c2))
+            return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+        bg_app = tokens["bg-app"]
+        bg_surface = tokens["bg-surface"]
+        primary_btn_bg = tokens["color-primary"]
+
+        text_primary = tokens["text-primary"]
+        text_secondary = tokens["text-secondary"]
+        text_muted = tokens["text-muted"]
+        text_btn_primary = tokens["text-btn-primary"]
+
+        # Check contrast on master background (Target >= 4.5:1)
+        self.assertGreaterEqual(contrast_ratio(text_primary, bg_app), 4.5)
+        self.assertGreaterEqual(contrast_ratio(text_secondary, bg_app), 4.5)
+        self.assertGreaterEqual(contrast_ratio(text_muted, bg_app), 4.5)
+
+        # Check contrast on surface
+        self.assertGreaterEqual(contrast_ratio(text_primary, bg_surface), 4.5)
+        self.assertGreaterEqual(contrast_ratio(text_muted, bg_surface), 4.5)
+
+        # Check contrast on primary amber button
+        self.assertGreaterEqual(contrast_ratio(text_btn_primary, primary_btn_bg), 4.5)
+
 if __name__ == "__main__":
     unittest.main()

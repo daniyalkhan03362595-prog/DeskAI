@@ -49,7 +49,7 @@ window = webview.create_window(
     height=900,
     min_size=(1024, 680),
     frameless=True,  # Modern custom IDE header & client-side decorations
-    background_color='#0a0c12'
+    background_color='#121315'
 )
 ```
 

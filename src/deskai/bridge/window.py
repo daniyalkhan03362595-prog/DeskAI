@@ -40,7 +40,7 @@ class WindowManager:
             frameless=True,
             easy_drag=False,
             confirm_close=False,  # Managed by WindowLifecycleHandler
-            background_color="#0a0c12"
+            background_color="#121315"
         )
 
         # 4. Attach lifecycle listeners

@@ -21,24 +21,24 @@ Application ka visual system standardized `:root` variables ke zariye dynamicall
 
 ```css
 :root {
-  /* Master Application Palette */
-  --bg-app: #0a0c12;            /* Application master background */
-  --bg-header: #0e111a;         /* Window titlebar & controls */
-  --bg-sidebar: #10131d;        /* Left & right dock panels */
-  --bg-surface: #141724;        /* Editor background & dialog surfaces */
-  --bg-card: #171b2b;           /* Cards & component containers */
+  /* Master Application Palette (2026 Obsidian Matte + Warm Amber) */
+  --bg-app: #121315;            /* Deep Obsidian Matte Master Canvas */
+  --bg-header: #17181b;         /* Elevated Window Titlebar & Controls */
+  --bg-sidebar: #151619;        /* Explorer & Activity Navigation */
+  --bg-surface: #1a1b1f;        /* Editor Workbench & Terminal Drawer */
+  --bg-card: #202126;           /* Cards & Input Dock Containers */
 
-  /* Borders & Dividers */
-  --border-subtle: #1c2132;
-  --border-regular: #262d44;
-  --border-focus: #3498db;
+  /* Hairline Borders & Dividers */
+  --border-subtle: #26272c;
+  --border-regular: #31333a;
+  --border-focus: #d99b26;
   
   /* Brand & Accent Colors */
-  --color-primary: #3498db;     /* Primary blue action accent */
-  --color-teal: #1abc9c;        /* Secondary brand accent */
-  --color-success: #2ecc71;     /* Active GPU & status green */
-  --color-warning: #f39c12;     /* In-progress & review diffs */
-  --color-danger: #e74c3c;      /* Error & close button */
+  --color-primary: #d99b26;     /* Primary Warm Amber Accent */
+  --color-amber: #f59e0b;       /* Secondary brand accent */
+  --color-success: #22c55e;     /* Active GPU & status green */
+  --color-warning: #f59e0b;     /* In-progress & review diffs */
+  --color-danger: #ff6b6b;      /* Error & close button */
 
   /* Typography Scales */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;

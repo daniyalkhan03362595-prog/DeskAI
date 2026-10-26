@@ -63,7 +63,7 @@ class WindowConfig(BaseModel):
     min_height: int = 680
     resizable: bool = True
     frameless: bool = True              # Modern custom IDE header & client-side decorations
-    background_color: str = "#0a0c12"
+    background_color: str = "#121315"
     confirm_close: bool = False        # Controlled via JS dirty state handler
     text_select: bool = True
 
