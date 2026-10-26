@@ -134,6 +134,28 @@ export class EditorManager {
     this.renderTabs();
   }
 
+  async saveActiveBuffer() {
+    if (!this.activeTabId || !this.buffers.has(this.activeTabId)) return false;
+    const buffer = this.buffers.get(this.activeTabId);
+    let filePath = buffer.path;
+    if (!filePath) {
+      const res = await NativeBridge.saveFileDialog(buffer.name);
+      if (res && res.status === "ok" && res.path) {
+        filePath = res.path;
+        buffer.path = filePath;
+        buffer.name = filePath.split("/").pop().split("\\").pop();
+      } else {
+        return false;
+      }
+    }
+    const writeRes = await NativeBridge.writeFile(filePath, buffer.content);
+    if (writeRes && writeRes.status === "ok") {
+      this.markDirty(this.activeTabId, false);
+      return true;
+    }
+    return false;
+  }
+
   markDirty(id, isDirty) {
     const buffer = this.buffers.get(id);
     if (buffer) {

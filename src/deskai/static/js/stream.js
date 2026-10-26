@@ -19,6 +19,10 @@ export class TokenStreamBuffer {
   }
 
   append(chunk) {
+    if (!this.accumulatedText && this.chunkQueue.length === 0) {
+      const announcer = document.getElementById("screenReaderAnnouncer");
+      if (announcer) announcer.textContent = "AI is typing...";
+    }
     this.chunkQueue.push(chunk);
     this._scheduleFlush();
   }
@@ -76,8 +80,8 @@ export class TokenStreamBuffer {
     this.lastRenderTime = performance.now();
     this.isScheduled = false;
 
-    if (!this.isUserScrolledUp && this.target.parentElement) {
-      const container = this.target.parentElement;
+    const container = this.target.closest(".chat-thread") || this.target.parentElement;
+    if (!this.isUserScrolledUp && container) {
       container.scrollTop = container.scrollHeight;
     }
   }
@@ -87,7 +91,10 @@ export class TokenStreamBuffer {
     this._flush();
     const announcer = document.getElementById("screenReaderAnnouncer");
     if (announcer) {
-      announcer.textContent = "AI generation complete.";
+      announcer.textContent = "";
+      setTimeout(() => {
+        announcer.textContent = "Response complete.";
+      }, 50);
     }
   }
 }

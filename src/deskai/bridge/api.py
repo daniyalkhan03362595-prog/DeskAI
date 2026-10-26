@@ -379,6 +379,43 @@ class DesktopBridgeAPI:
         except Exception as e:
             return {"status": "error", "message": str(e), "entries": []}
 
+    def get_system_telemetry(self) -> dict:
+        """Returns real host system telemetry or fallback values."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "telemetry": None}
+
+        telemetry = {
+            "gpuName": "--",
+            "vramUsedMB": "--",
+            "vramTotalMB": "--",
+            "cpuUsagePct": "--",
+            "ramUsedMB": "--",
+            "status": "ready"
+        }
+
+        try:
+            import platform
+            telemetry["platform"] = platform.system()
+
+            # Attempt real memory telemetry
+            if os.name != "nt" and os.path.exists("/proc/meminfo"):
+                mem = {}
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        parts = line.split(":")
+                        if len(parts) == 2:
+                            mem[parts[0].strip()] = parts[1].strip()
+                if "MemTotal" in mem and "MemAvailable" in mem:
+                    total_kb = int(mem["MemTotal"].split()[0])
+                    avail_kb = int(mem["MemAvailable"].split()[0])
+                    used_mb = (total_kb - avail_kb) // 1024
+                    telemetry["ramUsedMB"] = used_mb
+                    telemetry["ramTotalMB"] = total_kb // 1024
+        except Exception:
+            pass
+
+        return {"status": "ok", "telemetry": telemetry}
+
     def _is_safe_path(self, target_path: str) -> bool:
         """Internal sandbox helper."""
         return is_safe_workspace_path(target_path, self.workspace_root)

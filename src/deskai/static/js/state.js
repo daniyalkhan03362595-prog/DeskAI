@@ -9,12 +9,12 @@ export const initialState = {
     activeTabId: null
   },
   telemetry: {
-    gpuName: "NVIDIA RTX 2070 Super",
-    vramUsedMB: 4710,
-    vramTotalMB: 8192,
-    cpuUsagePct: 14.8,
-    ramUsedMB: 5820,
-    status: "ready"
+    gpuName: "--",
+    vramUsedMB: "--",
+    vramTotalMB: "--",
+    cpuUsagePct: "--",
+    ramUsedMB: "--",
+    status: "idle"
   },
   execution: {
     state: "IDLE",            // IDLE | PLANNING | EXECUTING | REVIEW_DIFF | SUCCESS | FAILED | ROLLBACK | CANCELLED
@@ -60,9 +60,28 @@ export class StudioStore {
 
         obj[prop] = value;
         const currentPath = path ? `${path}.${String(prop)}` : String(prop);
-        
-        self._notify(currentPath, value, oldValue);
-        self._bubbleNotify(currentPath, value);
+
+        self._notify(currentPath, value, oldValue, obj, "set");
+        self._bubbleNotify(currentPath, value, oldValue, obj, "set");
+
+        // Notify array container when mutating elements
+        if (Array.isArray(obj) && prop !== "length" && path) {
+          self._notify(path, obj, obj, obj, "array_mutation");
+        }
+        return true;
+      },
+      deleteProperty(obj, prop) {
+        if (!(prop in obj)) return true;
+        const oldValue = obj[prop];
+        delete obj[prop];
+        const currentPath = path ? `${path}.${String(prop)}` : String(prop);
+
+        self._notify(currentPath, undefined, oldValue, obj, "delete");
+        self._bubbleNotify(currentPath, undefined, oldValue, obj, "delete");
+
+        if (Array.isArray(obj) && path) {
+          self._notify(path, obj, obj, obj, "array_mutation");
+        }
         return true;
       }
     };
@@ -80,20 +99,20 @@ export class StudioStore {
     return () => this._subscribers.get(path).delete(callback);
   }
 
-  _notify(path, newValue, oldValue) {
+  _notify(path, newValue, oldValue, parent, changeType = "set") {
     if (this._subscribers.has(path)) {
       for (const cb of this._subscribers.get(path)) {
-        cb(newValue, oldValue);
+        cb(newValue, oldValue, parent, changeType);
       }
     }
   }
 
-  _bubbleNotify(fullPath, value) {
+  _bubbleNotify(fullPath, newValue, oldValue, parentObject, changeType = "set") {
     const parts = fullPath.split(".");
     while (parts.length > 1) {
       parts.pop();
       const parentPath = parts.join(".");
-      this._notify(parentPath, value, undefined);
+      this._notify(parentPath, newValue, oldValue, parentObject, changeType);
     }
   }
 }
