@@ -1,4 +1,3 @@
-import sys
 import unittest
 from unittest.mock import MagicMock, patch
 from deskai.bridge.api import DesktopBridgeAPI, RESIZE_DIRECTIONS, _windows_native_drag
@@ -30,9 +29,23 @@ class TestFramelessWindowAndLifecycle(unittest.TestCase):
     def test_all_semantic_and_compass_resize_directions_valid(self):
         """All supported compass and semantic directions must be accepted without ValueError."""
         expected_keys = [
-            "n", "s", "w", "e", "nw", "ne", "sw", "se",
-            "top", "bottom", "left", "right",
-            "top-left", "top-right", "bottom-left", "bottom-right", "move"
+            "n",
+            "s",
+            "w",
+            "e",
+            "nw",
+            "ne",
+            "sw",
+            "se",
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "move",
         ]
         for key in expected_keys:
             self.assertIn(key, RESIZE_DIRECTIONS)

@@ -43,3 +43,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 deskai = ["static/**/*"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]

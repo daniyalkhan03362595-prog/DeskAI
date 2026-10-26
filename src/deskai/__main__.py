@@ -3,6 +3,7 @@ DeskAI Application Main Entrypoint.
 Usage:
     python -m deskai
 """
+
 import sys
 from deskai.bridge.window import WindowManager
 

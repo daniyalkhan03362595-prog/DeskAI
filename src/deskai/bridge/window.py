@@ -2,6 +2,7 @@
 WindowManager Implementation:
 Native PyWebView window configuration, flags, and server lifecycle bootstrapping.
 """
+
 import sys
 import webview
 
@@ -40,7 +41,7 @@ class WindowManager:
             frameless=True,
             easy_drag=False,
             confirm_close=False,  # Managed by WindowLifecycleHandler
-            background_color="#121315"
+            background_color="#121315",
         )
 
         # 4. Attach lifecycle listeners

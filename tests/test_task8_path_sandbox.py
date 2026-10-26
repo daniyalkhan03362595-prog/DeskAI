@@ -121,7 +121,6 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
             self.assertNotIn(".git", entry_names)
 
             # 6. File exceeding 10MB rejected
-            large_file = os.path.join(ws_root, "large.bin")
             with patch("os.path.getsize", return_value=11 * 1024 * 1024):
                 res_large = self.api.read_file(inside_file)
                 self.assertEqual(res_large.get("status"), "error")

@@ -21,7 +21,7 @@ class TestThemeAndAccessibility(unittest.TestCase):
 
         # Compute relative luminance
         def lum(hex_str):
-            r, g, b = [int(hex_str[i:i+2], 16) / 255.0 for i in (0, 2, 4)]
+            r, g, b = [int(hex_str[i : i + 2], 16) / 255.0 for i in (0, 2, 4)]
             rg = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
             return 0.2126 * rg[0] + 0.7152 * rg[1] + 0.0722 * rg[2]
 

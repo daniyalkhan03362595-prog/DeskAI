@@ -2,6 +2,7 @@
 Window Lifecycle & Safe Exit Handler.
 Tracks unsaved buffers, ensures origin containment, and handles clean server shutdown on exit.
 """
+
 from typing import TYPE_CHECKING
 import webview
 
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class WindowLifecycleHandler:
-    def __init__(self, manager: 'WindowManager'):
+    def __init__(self, manager: "WindowManager"):
         self.manager = manager
         self.has_dirty_tabs: bool = False
         self._exit_confirmed: bool = False
@@ -34,7 +35,9 @@ class WindowLifecycleHandler:
             def _search_and_hook(widget):
                 try:
                     from gi.repository import WebKit2
+
                     if isinstance(widget, WebKit2.WebView):
+
                         def _on_decide_policy(wv, decision, decision_type):
                             if type(decision) is WebKit2.NavigationPolicyDecision:
                                 req = decision.get_navigation_action().get_request()
@@ -44,6 +47,7 @@ class WindowLifecycleHandler:
                                     decision.ignore()
                                     return True
                             return False
+
                         widget.connect("decide-policy", _on_decide_policy)
                         return True
                 except Exception:
@@ -89,8 +93,7 @@ class WindowLifecycleHandler:
         window = getattr(self.manager, "window", None)
         if window and hasattr(window, "create_confirmation_dialog"):
             result = window.create_confirmation_dialog(
-                "Unsaved Changes",
-                "You have unsaved changes in your workspace. Are you sure you want to exit?"
+                "Unsaved Changes", "You have unsaved changes in your workspace. Are you sure you want to exit?"
             )
             if result:
                 self._exit_confirmed = True

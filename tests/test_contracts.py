@@ -2,13 +2,14 @@
 Comprehensive Contract, State Machine & Security Verification Suite for DeskAI Layer 1
 Directly scans and validates documentation specifications, FSM reachability, and security invariants.
 """
-import os
+
 import re
 import unittest
 import secrets
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 class TestDeskAILayer1Contracts(unittest.TestCase):
 
@@ -35,11 +36,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         js_handlers = set(re.findall(r'case "([^"]+)":', js_content))
 
         unhandled = all_expected_actions - js_handlers
-        self.assertEqual(
-            unhandled,
-            set(),
-            f"The following actions lack JavaScript router handlers: {unhandled}"
-        )
+        self.assertEqual(unhandled, set(), f"The following actions lack JavaScript router handlers: {unhandled}")
 
     def test_uec_state_machine_reachability_and_no_loops(self):
         """
@@ -77,7 +74,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
             "FAILED": ["ROLLBACK", "CANCELLED", "IDLE"],
             "ROLLBACK": ["IDLE", "FAILED"],
             "CANCELLED": ["IDLE"],
-            "SUCCESS": ["IDLE"]
+            "SUCCESS": ["IDLE"],
         }
         for state, targets in transitions.items():
             self.assertTrue(len(targets) > 0, f"State {state} is a dead end without exits!")
@@ -149,7 +146,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # 1. Evil Host
         ok, code, reason = authorize_ws_connection(
             headers={"host": "evil.com", "origin": f"http://127.0.0.1:{active_port}"},
-            cookies={"deskai_session": "valid_session_token_123"}
+            cookies={"deskai_session": "valid_session_token_123"},
         )
         self.assertFalse(ok)
         self.assertEqual(code, 4403)
@@ -157,7 +154,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # 2. Evil Origin
         ok, code, reason = authorize_ws_connection(
             headers={"host": f"127.0.0.1:{active_port}", "origin": "http://evil-site.com"},
-            cookies={"deskai_session": "valid_session_token_123"}
+            cookies={"deskai_session": "valid_session_token_123"},
         )
         self.assertFalse(ok)
         self.assertEqual(code, 4403)
@@ -165,7 +162,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # 3. Null Origin (sandboxed iframe attempt)
         ok, code, reason = authorize_ws_connection(
             headers={"host": f"127.0.0.1:{active_port}", "origin": "null"},
-            cookies={"deskai_session": "valid_session_token_123"}
+            cookies={"deskai_session": "valid_session_token_123"},
         )
         self.assertFalse(ok)
         self.assertEqual(code, 4403)
@@ -173,7 +170,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # 4. Missing / Invalid Cookie
         ok, code, reason = authorize_ws_connection(
             headers={"host": f"127.0.0.1:{active_port}", "origin": f"http://127.0.0.1:{active_port}"},
-            cookies={"deskai_session": "bad_token"}
+            cookies={"deskai_session": "bad_token"},
         )
         self.assertFalse(ok)
         self.assertEqual(code, 4401)
@@ -181,7 +178,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # 5. Legitimate connection (All matched)
         ok, code, reason = authorize_ws_connection(
             headers={"host": f"127.0.0.1:{active_port}", "origin": f"http://127.0.0.1:{active_port}"},
-            cookies={"deskai_session": "valid_session_token_123"}
+            cookies={"deskai_session": "valid_session_token_123"},
         )
         self.assertTrue(ok)
         self.assertEqual(code, 1000)
@@ -264,8 +261,8 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
         content = js_spec_path.read_text(encoding="utf-8")
 
-        self.assertIn('this.trailingTimer = null;', content)
-        self.assertIn('this.trailingTimer = setTimeout(() => {', content)
+        self.assertIn("this.trailingTimer = null;", content)
+        self.assertIn("this.trailingTimer = setTimeout(() => {", content)
 
     def test_css_sr_only_utility_present(self):
         """
@@ -274,8 +271,8 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         css_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "css3" / "LLD" / "css3.md"
         content = css_spec_path.read_text(encoding="utf-8")
 
-        self.assertIn('.sr-only {', content)
-        self.assertIn('clip: rect(0, 0, 0, 0);', content)
+        self.assertIn(".sr-only {", content)
+        self.assertIn("clip: rect(0, 0, 0, 0);", content)
 
     def test_wcag_aa_contrast_ratios_in_tokens(self):
         """
@@ -287,6 +284,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         tokens_content = tokens_path.read_text(encoding="utf-8")
 
         import re
+
         tokens = {}
         for line in tokens_content.splitlines():
             line = line.strip()
@@ -296,12 +294,13 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
 
         def hex_to_rgb(hex_code):
             hex_code = hex_code.lstrip("#")
-            return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+            return tuple(int(hex_code[i : i + 2], 16) for i in (0, 2, 4))
 
         def rel_luminance(rgb):
             def channel(c):
                 c = c / 255.0
                 return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
             r, g, b = (channel(x) for x in rgb)
             return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
@@ -329,6 +328,7 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
 
         # Check contrast on primary amber button
         self.assertGreaterEqual(contrast_ratio(text_btn_primary, primary_btn_bg), 4.5)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,3 @@
-import sys
 import unittest
 from unittest.mock import MagicMock, patch
 from starlette.testclient import TestClient
@@ -34,9 +33,7 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
 
         # Test redeem endpoint
         res_redeem = self.client.get(
-            f"/auth/redeem?token={token}",
-            headers={"Host": f"127.0.0.1:{self.port}"},
-            follow_redirects=False
+            f"/auth/redeem?token={token}", headers={"Host": f"127.0.0.1:{self.port}"}, follow_redirects=False
         )
         self.assertEqual(res_redeem.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(res_redeem.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
@@ -47,9 +44,7 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         # Test root endpoint with valid cookie
         session_id = res_redeem.cookies.get("deskai_session")
         res_root = self.client.get(
-            "/",
-            headers={"Host": f"127.0.0.1:{self.port}"},
-            cookies={"deskai_session": session_id}
+            "/", headers={"Host": f"127.0.0.1:{self.port}"}, cookies={"deskai_session": session_id}
         )
         self.assertEqual(res_root.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(res_root.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
@@ -59,9 +54,7 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
 
         # Test static asset endpoint with valid cookie
         res_static = self.client.get(
-            "/css/tokens.css",
-            headers={"Host": f"127.0.0.1:{self.port}"},
-            cookies={"deskai_session": session_id}
+            "/css/tokens.css", headers={"Host": f"127.0.0.1:{self.port}"}, cookies={"deskai_session": session_id}
         )
         self.assertEqual(res_static.headers.get("X-Frame-Options"), "DENY")
         self.assertEqual(res_static.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
@@ -96,7 +89,6 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         mock_sock.getsockname.return_value = ("127.0.0.1", 54321)
 
         import socket
-        so_exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", -5)
 
         with patch.object(socket, "SO_EXCLUSIVEADDRUSE", -5, create=True):
             sock, port = bind_ephemeral_loopback_socket()

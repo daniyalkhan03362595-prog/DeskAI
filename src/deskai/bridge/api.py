@@ -3,6 +3,7 @@ DesktopBridgeAPI Implementation:
 Exposed to JavaScript via window.pywebview.api.
 Handles native dialogs, external URL dispatch, window controls, and path sandboxing.
 """
+
 import os
 import sys
 import webbrowser
@@ -55,6 +56,7 @@ def _windows_native_drag(window: webview.Window, ht_code: int) -> bool:
         return False
     try:
         import ctypes
+
         user32 = ctypes.windll.user32
         hwnd = getattr(window, "native", None)
         if not hwnd or not isinstance(hwnd, int):
@@ -71,7 +73,7 @@ def _windows_native_drag(window: webview.Window, ht_code: int) -> bool:
 
 
 class DesktopBridgeAPI:
-    def __init__(self, manager: 'WindowManager'):
+    def __init__(self, manager: "WindowManager"):
         self._manager = manager
         self.workspace_root: str | None = None
 
@@ -92,7 +94,7 @@ class DesktopBridgeAPI:
         current_url = get_url() or ""
         expected_origin = f"http://127.0.0.1:{port}"
         if current_url.startswith(expected_origin):
-            suffix = current_url[len(expected_origin):]
+            suffix = current_url[len(expected_origin) :]
             if not suffix or suffix.startswith(("/", "?", "#")):
                 return True
         return False
@@ -124,10 +126,7 @@ class DesktopBridgeAPI:
         """Opens native OS file save dialog."""
         if not self._is_origin_allowed():
             return {"status": "error", "message": "Unauthorized origin", "path": None}
-        selected = self._window.create_file_dialog(
-            DIALOG_SAVE,
-            save_filename=default_name
-        )
+        selected = self._window.create_file_dialog(DIALOG_SAVE, save_filename=default_name)
         if selected:
             return {"status": "ok", "path": canonicalize_path(selected)}
         return {"status": "cancelled", "path": None}
@@ -172,6 +171,7 @@ class DesktopBridgeAPI:
                                     native.begin_move_drag(1, int(x), int(y), Gdk.CURRENT_TIME)
                     except Exception as e:
                         print(f"[DeskAI] Native drag error: {e}")
+
                 GLib.idle_add(_do_drag)
                 return True
             except Exception as e:
@@ -195,6 +195,7 @@ class DesktopBridgeAPI:
         if native and hasattr(native, "begin_resize_drag"):
             try:
                 from gi.repository import GLib, Gdk
+
                 if hasattr(native, "is_maximized") and native.is_maximized():
                     return False
 
@@ -232,6 +233,7 @@ class DesktopBridgeAPI:
                                     native.begin_resize_drag(edge_enum, 1, int(x), int(y), Gdk.CURRENT_TIME)
                     except Exception as e:
                         print(f"[DeskAI] Native resize error: {e}")
+
                 GLib.idle_add(_do_resize)
                 return True
             except Exception as e:
@@ -239,24 +241,12 @@ class DesktopBridgeAPI:
                 return False
         return False
 
-    def window_control(
-        self,
-        action: str,
-        direction: str | None = None,
-        timestamp: float | None = None
-    ) -> bool:
+    def window_control(self, action: str, direction: str | None = None, timestamp: float | None = None) -> bool:
         """Handles native window frame buttons and frameless drag/resize actions."""
         if not self._is_origin_allowed():
             return False
 
-        valid_actions = {
-            "minimize",
-            "maximize",
-            "close",
-            "close_request",
-            "drag_start",
-            "resize_start"
-        }
+        valid_actions = {"minimize", "maximize", "close", "close_request", "drag_start", "resize_start"}
         if action not in valid_actions:
             raise ValueError(f"Unknown window control action: {action}")
 
@@ -269,6 +259,7 @@ class DesktopBridgeAPI:
             if native and hasattr(native, "is_maximized"):
                 try:
                     from gi.repository import GLib
+
                     if native.is_maximized():
                         GLib.idle_add(native.unmaximize)
                     else:
@@ -339,6 +330,7 @@ class DesktopBridgeAPI:
         os.makedirs(parent_dir, exist_ok=True)
 
         import tempfile
+
         try:
             with tempfile.NamedTemporaryFile("w", dir=parent_dir, encoding="utf-8", delete=False) as tf:
                 tf.write(content)
@@ -369,11 +361,13 @@ class DesktopBridgeAPI:
                 for entry in it:
                     if entry.name.startswith("."):
                         continue
-                    entries.append({
-                        "name": entry.name,
-                        "is_dir": entry.is_dir(),
-                        "path": canonicalize_path(entry.path),
-                    })
+                    entries.append(
+                        {
+                            "name": entry.name,
+                            "is_dir": entry.is_dir(),
+                            "path": canonicalize_path(entry.path),
+                        }
+                    )
             entries.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
             return {"status": "ok", "entries": entries, "path": canonical}
         except Exception as e:
@@ -390,11 +384,12 @@ class DesktopBridgeAPI:
             "vramTotalMB": "--",
             "cpuUsagePct": "--",
             "ramUsedMB": "--",
-            "status": "ready"
+            "status": "ready",
         }
 
         try:
             import platform
+
             telemetry["platform"] = platform.system()
 
             # Attempt real memory telemetry

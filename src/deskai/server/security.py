@@ -9,6 +9,7 @@ import time
 
 class SessionStore(dict):
     """Custom dictionary store supporting both dict and set-like access for backward compatibility."""
+
     def add(self, session_id: str) -> None:
         self[session_id] = time.time()
 

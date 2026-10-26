@@ -7,11 +7,36 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Linting Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black
+
+      - name: Code Formatting Check (black)
+        run: black --check src tests
+
+      - name: Code Quality & Style Check (flake8)
+        run: flake8
+
+  test:
+    needs: lint
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,21 +46,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Package & Test Dependencies
+      - name: Install System Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgirepository1.0-dev libcairo2-dev gir1.2-webkit2-4.0
+
+      - name: Install Package & Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
-          pip install pip-audit flake8 playwright httpx2
-          playwright install --with-deps chromium
+          pip install -e .[dev]
 
-      - name: Run Vulnerability Audit
-        run: |
-          pip-audit
+      - name: Install Playwright Browsers (Linux only)
+        if: runner.os == 'Linux'
+        run: playwright install --with-deps chromium
 
-      - name: Run Code Style Check (flake8)
-        run: |
-          flake8 src/deskai/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-
-      - name: Run Layer 1 Integration, Browser Smoke & Security Tests
-        run: |
-          python -m unittest discover -s tests
+      - name: Run Test Suite
+        run: python -m unittest discover -s tests

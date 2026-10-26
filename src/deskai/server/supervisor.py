@@ -3,6 +3,7 @@ DesktopServer Implementation:
 Pre-bound loopback socket, root static asset mounting, single-use token redemption,
 and hardened WebSocket gateway.
 """
+
 import json
 import threading
 import time
@@ -60,13 +61,7 @@ class DesktopServer:
 
             # Redirect to clean root URL with HttpOnly SameSite=Strict cookie
             response = RedirectResponse(url="/", status_code=303)
-            response.set_cookie(
-                key="deskai_session",
-                value=session_id,
-                httponly=True,
-                samesite="strict",
-                path="/"
-            )
+            response.set_cookie(key="deskai_session", value=session_id, httponly=True, samesite="strict", path="/")
             return self.security.apply_security_headers(response, is_no_store=True)
 
         # 2. HTTP Middleware (Host, Cookie & CSP Guards)
@@ -133,11 +128,7 @@ class DesktopServer:
 
             async def send_frame(frame_type: str, payload: dict = None, **extra):
                 nonlocal conn_seq
-                frame = {
-                    "type": frame_type,
-                    "seq": conn_seq,
-                    "payload": payload if payload is not None else {}
-                }
+                frame = {"type": frame_type, "seq": conn_seq, "payload": payload if payload is not None else {}}
                 frame.update(extra)
                 conn_seq += 1
                 await ws.send_json(frame)
@@ -206,14 +197,13 @@ class DesktopServer:
                                 await send_frame(
                                     "error",
                                     code="ERR_INVALID_TRANSITION",
-                                    message=f"Transition from {uec_state} to {target_state} not allowed"
+                                    message=f"Transition from {uec_state} to {target_state} not allowed",
                                 )
                         elif msg_type == "uec.approve":
                             req_id = data.get("request_id") or data.get("idempotency_key")
                             if req_id and req_id in processed_requests:
                                 await send_frame(
-                                    "uec.ack",
-                                    payload={"state": uec_state, "approved": True, "idempotent": True}
+                                    "uec.ack", payload={"state": uec_state, "approved": True, "idempotent": True}
                                 )
                                 continue
 
@@ -225,7 +215,7 @@ class DesktopServer:
                                 await send_frame(
                                     "error",
                                     code="ERR_INVALID_TRANSITION",
-                                    message=f"Cannot approve in state {uec_state}"
+                                    message=f"Cannot approve in state {uec_state}",
                                 )
                                 continue
 
@@ -239,14 +229,13 @@ class DesktopServer:
                                 await send_frame(
                                     "error",
                                     code="ERR_INVALID_TRANSITION",
-                                    message=f"Transition from {uec_state} to {next_state} not allowed"
+                                    message=f"Transition from {uec_state} to {next_state} not allowed",
                                 )
                         elif msg_type == "uec.reject":
                             req_id = data.get("request_id") or data.get("idempotency_key")
                             if req_id and req_id in processed_requests:
                                 await send_frame(
-                                    "uec.ack",
-                                    payload={"state": uec_state, "rejected": True, "idempotent": True}
+                                    "uec.ack", payload={"state": uec_state, "rejected": True, "idempotent": True}
                                 )
                                 continue
 
@@ -258,7 +247,7 @@ class DesktopServer:
                                 await send_frame(
                                     "error",
                                     code="ERR_INVALID_TRANSITION",
-                                    message=f"Cannot reject in state {uec_state}"
+                                    message=f"Cannot reject in state {uec_state}",
                                 )
                                 continue
 
@@ -272,7 +261,7 @@ class DesktopServer:
                                 await send_frame(
                                     "error",
                                     code="ERR_INVALID_TRANSITION",
-                                    message=f"Transition from {uec_state} to {next_state} not allowed"
+                                    message=f"Transition from {uec_state} to {next_state} not allowed",
                                 )
             except WebSocketDisconnect:
                 pass
@@ -295,9 +284,7 @@ class DesktopServer:
         )
         self.uvicorn_server = uvicorn.Server(config)
         self.server_thread = threading.Thread(
-            target=self.uvicorn_server.run,
-            kwargs={"sockets": [self.listen_socket]},
-            daemon=True
+            target=self.uvicorn_server.run, kwargs={"sockets": [self.listen_socket]}, daemon=True
         )
         self.server_thread.start()
 

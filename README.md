@@ -1,7 +1,7 @@
 # DeskAI — Layer 1: Desktop Shell & Presentation Layer ⚡
 
 > **An ultra-lightweight, high-performance desktop AI shell and presentation environment.**  
-> Built with Python (PyWebView 4+) + Semantic HTML5 + Pure CSS3 Design Tokens + Vanilla ES2022 Modules + CodeMirror 6 Editor.
+> Built with Python (PyWebView 5.0+) + Semantic HTML5 + Pure CSS3 Design Tokens + Vanilla ES2022 Modules + CodeMirror 6 Editor.
 
 ---
 
@@ -9,18 +9,34 @@
 
 DeskAI Layer 1 serves as the foundational desktop interface, native OS integration shell, and real-time interaction surface:
 
-* **Zero Electron Bloat:** Uses native OS WebKitGTK (Linux) and WebView2 (Windows) via PyWebView. UI memory footprint target is **~140 MB RAM** instead of 600MB+ Chromium overhead. Cold startup target is **~0.35s Time-to-Interactive**.
-* **Semantic HTML5 & Pure CSS3:** Zero-dependency layout with strict CSS containment (`contain: layout paint`), hardware-accelerated transforms, and WCAG AA contrast standards (all text contrast >= 5.3:1).
+* **Zero Electron Bloat:** Uses native OS WebKitGTK (Linux) and WebView2 (Windows) via PyWebView. Measured supervisor cold startup is **< 25 ms** (benchmarkable via `tools/benchmark.py`).
+* **Semantic HTML5 & Pure CSS3:** Zero-dependency layout with strict CSS containment (`contain: layout paint`), hardware-accelerated transforms, and WCAG AA contrast standards (all text contrast >= 5.3:1, border non-text contrast >= 3:1).
 * **CodeMirror 6 Vendor Bundle:** Virtualized scrolling, multi-tab buffer tracking, syntax highlighting, and dirty state management pre-bundled into a self-contained vendor file (`static/vendor/codemirror.bundle.js`).
-* **Deep Reactive Store (`state.js`):** Recursive `Proxy` observable architecture with WeakMap caching (`state.execution === state.execution`) and ancestor notification bubbling.
+* **Deep Reactive Store (`state.js`):** Recursive `Proxy` observable architecture with WeakMap caching (`state.execution === state.execution`), array mutation bubbling, and ancestor notification bubbling.
 * **Hardened Security & Sandboxed IPC:**
-  * **Race-Free Dynamic Port:** Python binds a listening loopback socket (`127.0.0.1:0`) and passes the socket directly to the server.
+  * **Race-Free Dynamic Port:** Python binds a listening loopback socket (`127.0.0.1:0`) using `SO_EXCLUSIVEADDRUSE` on Windows and `SO_REUSEADDR` on POSIX.
   * **Token-to-Cookie Redemption:** Launch URL token is redeemed on initial request for an `HttpOnly; SameSite=Strict` cookie, redirecting to a clean URL. Sub-resources (`<link>`, `<script>`) and WebSockets authenticate automatically via cookie.
   * **Host & Origin Validation:** Rejects DNS rebinding and cross-origin attacks by verifying incoming `Host` (`127.0.0.1:{port}`) and `Origin` headers.
-  * **Exact-Port CSP:** Injects dynamic port per launch (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'none'`).
+  * **Exact-Port CSP:** Injects dynamic port per launch with strict directives (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`).
   * **DOMPurify Sanitization:** All markdown output and external content is strictly sanitized with explicit tag allowlists prior to DOM insertion.
-  * **Path Sandboxing (`commonpath`):** Bridge API canonicalizes all file paths against the runtime `workspace_root` with `os.path.commonpath()` (preventing `/DeskAI-secrets` traversal vulnerabilities).
+  * **Path Sandboxing (`commonpath`):** Bridge API canonicalizes all file paths against the runtime `workspace_root` with `os.path.commonpath()` (preventing `/DeskAI-secrets` traversal vulnerabilities), with explicit system directory and home root blocking.
   * **External Link Sandbox:** Web links in chat are intercepted and dispatched to the OS default browser (`webbrowser.open`), preventing off-origin navigation in the desktop shell.
+
+---
+
+## 📊 Implementation & Verification Status
+
+| Subsystem / Feature | Linux (Wayland) | Linux (X11) | Windows (10/11) | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Shell Window & Lifecycle** | WebKit2GTK | WebKit2GTK | WebView2 | Automated unit tests (`test_task6_frameless_lifecycle.py`), single-prompt exit guard |
+| **Frameless Controls** | GDK `begin_move_drag` | GDK `begin_move_drag` | ctypes `ReleaseCapture` + `WM_NCLBUTTONDOWN` | Verified in unit tests & mock simulation; manual steps in `MANUAL_TEST.md` |
+| **Perimeter Resizing** | >= 6px handles | >= 6px handles | >= 6px handles + hit-test | Verified in CSS & unit tests |
+| **Token-to-Cookie Auth** | Single-use launch token | Single-use launch token | Single-use launch token | Verified in `test_runtime.py` and `test_task7_security_headers.py` |
+| **Security Headers & CSP** | No `'unsafe-eval'`, no `'unsafe-inline'` | No `'unsafe-eval'`, no `'unsafe-inline'` | No `'unsafe-eval'`, no `'unsafe-inline'` | Verified in `test_task7_security_headers.py` |
+| **Path Sandboxing** | `commonpath` + disallowed roots | `commonpath` + disallowed roots | Case-insensitive `commonpath` + `SO_EXCLUSIVEADDRUSE` | Verified in `test_task8_path_sandbox.py` |
+| **Vendor Integrity** | DOMPurify, Marked, CodeMirror 6 | DOMPurify, Marked, CodeMirror 6 | DOMPurify, Marked, CodeMirror 6 | SHA-256 Manifest Verified in `test_task1_vendor_editor.py` |
+| **State & Telemetry** | Deep Proxy bubbling + Real host RAM | Deep Proxy bubbling + Real host RAM | Deep Proxy bubbling + Fallback | Verified in `test_task9_frontend_state.py` |
+| **Theme & WCAG AA** | Contrast >= 3:1 non-text, >= 4.5:1 text | Contrast >= 3:1 non-text, >= 4.5:1 text | Contrast >= 3:1 non-text, >= 4.5:1 text | Verified in `test_task10_theme_a11y.py` |
 
 ---
 
@@ -31,7 +47,7 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 |                                      HOST RUNTIME (OS)                                            |
 |                                                                                                   |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [PRESENTATION CLIENT] (WebKitGTK / WebView2 | Target RAM: ~140 MB)                          |  |
+|  | [PRESENTATION CLIENT] (WebKitGTK / WebView2)                                                |  |
 |  | - Window Shell: PyWebView Container (Frameless / Native Controls)                           |  |
 |  | - Layout: Semantic HTML5 DOM (Full ARIA: role="tablist", "tree", "tabpanel")                |  |
 |  | - Styling: Pure CSS3 Design Tokens & Hardware-Accelerated Keyframes                         |  |
@@ -43,7 +59,7 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 |                   (window.pywebview.api)        | (ws://127.0.0.1:{dynamic_port}/ws)              |
 |                                                 v v                                               |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [DESKTOP SUPERVISOR / SHELL SERVER] (Python 3.11+ | FastAPI / Uvicorn ASGI | Target: ~105 MB) |  |
+|  | [DESKTOP SUPERVISOR / SHELL SERVER] (Python 3.11+ | FastAPI / Uvicorn ASGI)                   |  |
 |  | - Web Server: Bound Socket Listener (127.0.0.1:{dynamic_port})                              |  |
 |  | - Security Guard: Host/Origin Verifier, Cookie Issuer & Exact-Port CSP Injector             |  |
 |  | - Desktop Bridge: Native File/Folder Dialogs, Window Min/Max/Close, External Link Opener    |  |
@@ -51,26 +67,6 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 |  +---------------------------------------------------------------------------------------------+  |
 +---------------------------------------------------------------------------------------------------+
 ```
-
----
-
-## 📂 Layer 1 Specifications Directory
-
-Detailed specifications in Roman Urdu and English are located under `docs/layer 1 technologies/`:
-
-* **PyWebView Shell:**
-  * [HLD Specification](docs/layer%201%20technologies/pywebview/HLD/pywebview.md)
-  * [LLD Specification](docs/layer%201%20technologies/pywebview/LLD/pywebview.md)
-* **Vanilla JavaScript Runtime:**
-  * [HLD Specification](docs/layer%201%20technologies/javascript/HLD/javascript.md)
-  * [LLD Specification](docs/layer%201%20technologies/javascript/LLD/javascript.md)
-* **Semantic HTML5:**
-  * [HLD Specification](docs/layer%201%20technologies/html5/HLD/html5.md)
-  * [LLD Specification](docs/layer%201%20technologies/html5/LLD/html5.md)
-* **CSS3 Design System:**
-  * [HLD Specification](docs/layer%201%20technologies/css3/HLD/css3.md)
-  * [LLD Specification](docs/layer%201%20technologies/css3/LLD/css3.md)
-* **Visual Diagrams & Figcraft Canvases:** Available under `designs/layer 1 technologies/`.
 
 ---
 
@@ -87,12 +83,18 @@ git clone https://github.com/daniyalkhan03362595-prog/DeskAI.git
 cd DeskAI
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-### Running Contract Tests
+### Running Test Suite
 ```bash
 python -m unittest discover -s tests
+```
+
+### Benchmarks
+To benchmark cold startup and memory metrics:
+```bash
+python tools/benchmark.py
 ```
 
 ### Vendor Dependencies & Manifest
@@ -105,16 +107,6 @@ To rebuild and verify vendor bundles:
 ```bash
 ./tools/build_vendor.sh
 ```
-
----
-
-## 🛡️ Security & Threat Model Summary
-1. **Network Boundary:** Web server listens strictly on loopback (`127.0.0.1`) on an ephemeral dynamic port; external network listening is strictly disabled.
-2. **Session Authentication:** Token-to-cookie redemption pattern ensures session tokens are not leaked via URLs or browser histories.
-3. **Host & Origin Verification:** In-bound requests must match exact `127.0.0.1:{port}` host to prevent DNS rebinding.
-4. **Filesystem Boundary:** All file and folder operations canonicalize paths against `workspace_root` using `commonpath` to prevent path traversal outside workspace bounds.
-5. **Content Security Policy:** Exact dynamic port enforced per launch. Nonces supported for runtime editor styles.
-6. **External Navigation Protection:** Native bridge intercepts `a[href]` links to prevent the shell from navigating off-origin.
 
 ---
 

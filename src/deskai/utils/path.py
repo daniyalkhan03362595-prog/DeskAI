@@ -1,19 +1,33 @@
 """
 Safe Path Sandboxing & Canonicalization Helper using os.path.commonpath.
 """
+
 import ntpath
 import os
 import posixpath
 import sys
 
 DISALLOWED_SYSTEM_PREFIXES = (
-    "/etc", "/usr", "/var", "/proc", "/sys", "/dev", "/boot", "/root", "/run",
-    "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/opt", "/srv", "/snap"
+    "/etc",
+    "/usr",
+    "/var",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/boot",
+    "/root",
+    "/run",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/opt",
+    "/srv",
+    "/snap",
 )
 
-SENSITIVE_HOME_SUBDIRS = (
-    "~/.ssh", "~/.gnupg", "~/.aws", "~/.kube", "~/.config/gcloud"
-)
+SENSITIVE_HOME_SUBDIRS = ("~/.ssh", "~/.gnupg", "~/.aws", "~/.kube", "~/.config/gcloud")
 
 
 def is_disallowed_workspace_root(root_path: str | None) -> bool:
