@@ -9,16 +9,18 @@
 
 DeskAI Layer 1 serves as the foundational desktop interface, native OS integration shell, and real-time interaction surface:
 
-* **Zero Electron Bloat:** Uses native OS WebKitGTK (Linux) and WebView2 (Windows) via PyWebView. UI memory footprint is **~140 MB RAM** instead of 600MB+ Chromium overhead.
-* **Semantic HTML5 & Pure CSS3:** Zero-dependency layout with strict CSS containment (`contain: layout paint`), hardware-accelerated transforms, and WCAG AA contrast standards.
-* **CodeMirror 6 Embedded Editor:** Virtualized scrolling, multi-tab buffer tracking, syntax highlighting, and dirty state management.
-* **Deep Reactive Store (`state.js`):** Recursive `Proxy` observable architecture ensuring fine-grained updates without virtual DOM overhead.
+* **Zero Electron Bloat:** Uses native OS WebKitGTK (Linux) and WebView2 (Windows) via PyWebView. UI memory footprint target is **~140 MB RAM** instead of 600MB+ Chromium overhead. Cold startup target is **~0.35s Time-to-Interactive**.
+* **Semantic HTML5 & Pure CSS3:** Zero-dependency layout with strict CSS containment (`contain: layout paint`), hardware-accelerated transforms, and WCAG AA contrast standards (all text contrast >= 5.3:1).
+* **CodeMirror 6 Vendor Bundle:** Virtualized scrolling, multi-tab buffer tracking, syntax highlighting, and dirty state management pre-bundled into a self-contained vendor file (`static/vendor/codemirror.bundle.js`).
+* **Deep Reactive Store (`state.js`):** Recursive `Proxy` observable architecture with WeakMap caching (`state.execution === state.execution`) and ancestor notification bubbling.
 * **Hardened Security & Sandboxed IPC:**
-  * **Dynamic Ephemeral Port:** Python allocates a random loopback port on launch (`127.0.0.1:{dynamic_port}`).
-  * **Cryptographic Session Token:** All HTTP requests and WebSocket connections require a per-launch 32-byte secret token (`X-DeskAI-Token`).
-  * **Strict Origin & CSP:** Blocks external browser connections, DNS rebinding, and untrusted scripts via HTTP headers.
-  * **DOMPurify Sanitization:** All markdown output and external content is strictly sanitized prior to DOM insertion.
-  * **Path Canonicalization:** Bridge API canonicalizes all file paths against the workspace root with `os.path.realpath()`.
+  * **Race-Free Dynamic Port:** Python binds a listening loopback socket (`127.0.0.1:0`) and passes the socket directly to the server.
+  * **Token-to-Cookie Redemption:** Launch URL token is redeemed on initial request for an `HttpOnly; SameSite=Strict` cookie, redirecting to a clean URL. Sub-resources (`<link>`, `<script>`) and WebSockets authenticate automatically via cookie.
+  * **Host & Origin Validation:** Rejects DNS rebinding and cross-origin attacks by verifying incoming `Host` (`127.0.0.1:{port}`) and `Origin` headers.
+  * **Exact-Port CSP:** Injects dynamic port per launch (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; object-src 'none'; base-uri 'none'; form-action 'none'`).
+  * **DOMPurify Sanitization:** All markdown output and external content is strictly sanitized with explicit tag allowlists prior to DOM insertion.
+  * **Path Sandboxing (`commonpath`):** Bridge API canonicalizes all file paths against the runtime `workspace_root` with `os.path.commonpath()` (preventing `/DeskAI-secrets` traversal vulnerabilities).
+  * **External Link Sandbox:** Web links in chat are intercepted and dispatched to the OS default browser (`webbrowser.open`), preventing off-origin navigation in the desktop shell.
 
 ---
 
@@ -29,23 +31,23 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 |                                      HOST RUNTIME (OS)                                            |
 |                                                                                                   |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [PRESENTATION CLIENT] (WebKitGTK / WebView2 | RAM: ~140 MB)                                 |  |
+|  | [PRESENTATION CLIENT] (WebKitGTK / WebView2 | Target RAM: ~140 MB)                          |  |
 |  | - Window Shell: PyWebView Container (Frameless / Native Controls)                           |  |
-|  | - Layout: Semantic HTML5 DOM (No Virtual DOM overhead)                                     |  |
+|  | - Layout: Semantic HTML5 DOM (Full ARIA: role="tablist", "tree", "tabpanel")                |  |
 |  | - Styling: Pure CSS3 Design Tokens & Hardware-Accelerated Keyframes                         |  |
-|  | - Code Editor: Embedded CodeMirror 6 (Virtual Scrolling & Multi-Buffer Tabs)               |  |
-|  | - Client Logic: Native ES Modules (Recursive Deep Proxy, rAF Streamer, Action Router)       |  |
+|  | - Code Editor: Embedded CodeMirror 6 Vendor Bundle (Virtual Scrolling & Multi-Buffer Tabs)  |  |
+|  | - Client Logic: Native ES Modules (WeakMap Deep Proxy, Accumulated Streamer, Action Router) |  |
 |  +----------------------------------------------+----------------------------------------------+  |
 |                                                 |                                                 |
-|                   Native OS IPC Bridge          | Authenticated WebSocket (Token-Guarded)         |
-|                   (window.pywebview.api)        | (ws://127.0.0.1:{dynamic_port}/ws?token=xyz)    |
+|                   Native OS IPC Bridge          | Cookie-Authenticated WebSocket                  |
+|                   (window.pywebview.api)        | (ws://127.0.0.1:{dynamic_port}/ws)              |
 |                                                 v v                                               |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [LOCAL GATEWAY & DESKTOP SUPERVISOR] (Python 3.10+ | FastAPI / Uvicorn ASGI | RAM: ~105 MB)   |  |
-|  | - Web Server: Ephemeral Port Listener (127.0.0.1:{dynamic_port})                            |  |
-|  | - Security Guard: Session Token Validator & Strict Localhost Origin Checker                 |  |
-|  | - Desktop Bridge: Native File/Folder Dialogs, Window Min/Max/Close, System Clipboard        |  |
-|  | - Sandbox Guard: Workspace Root Boundary Enforcement (os.path.realpath)                     |  |
+|  | [DESKTOP SUPERVISOR / SHELL SERVER] (Python 3.10+ | FastAPI / Uvicorn ASGI | Target: ~105 MB) |  |
+|  | - Web Server: Bound Socket Listener (127.0.0.1:{dynamic_port})                              |  |
+|  | - Security Guard: Host/Origin Verifier, Cookie Issuer & Exact-Port CSP Injector             |  |
+|  | - Desktop Bridge: Native File/Folder Dialogs, Window Min/Max/Close, External Link Opener    |  |
+|  | - Sandbox Guard: Workspace Root Boundary Enforcement (os.path.commonpath)                   |  |
 |  +---------------------------------------------------------------------------------------------+  |
 +---------------------------------------------------------------------------------------------------+
 ```
@@ -96,10 +98,12 @@ python -m unittest discover -s tests
 ---
 
 ## 🛡️ Security & Threat Model Summary
-1. **Network Boundary:** Web server listens strictly on `127.0.0.1` on an ephemeral dynamic port; external network listening is strictly disabled.
-2. **WebSocket Handshake:** Unauthenticated connections without `?token=<secret>` or invalid origins are rejected immediately (HTTP 403 / Close code 1008).
-3. **Filesystem Boundary:** All file and folder operations canonicalize paths against `workspace_root`.
-4. **Content Security Policy:** `default-src 'self'; script-src 'self'; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'`.
+1. **Network Boundary:** Web server listens strictly on loopback (`127.0.0.1`) on an ephemeral dynamic port; external network listening is strictly disabled.
+2. **Session Authentication:** Token-to-cookie redemption pattern ensures session tokens are not leaked via URLs or browser histories.
+3. **Host & Origin Verification:** In-bound requests must match exact `127.0.0.1:{port}` host to prevent DNS rebinding.
+4. **Filesystem Boundary:** All file and folder operations canonicalize paths against `workspace_root` using `commonpath` to prevent path traversal outside workspace bounds.
+5. **Content Security Policy:** Exact dynamic port enforced per launch. Nonces supported for runtime editor styles.
+6. **External Navigation Protection:** Native bridge intercepts `a[href]` links to prevent the shell from navigating off-origin.
 
 ---
 

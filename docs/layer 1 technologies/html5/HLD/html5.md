@@ -91,7 +91,7 @@ Application interface chaar baray semantic hisson mein taqseem hai:
 * **Hardware Status Footer (`#hardwareDock`):** Screen ke bottom par fixed telemetry status card:
   1. `GPU Acceleration`: 🟢 NVIDIA RTX 2070 Super status badge.
   2. `VRAM Resident`: Usage counter (`4.7 / 8.0 GB`) + `<div class="vram-meter-track">` visual fill bar.
-  3. `Local Neural Brain`: Offline coding LLM (`Qwen 2.5 Coder 7B`).
+  3. `Local Neural Brain`: Handshake-received local model name.
   4. `System RAM`: Host memory usage text (`5.8 / 32.0 GB`).
 
 ### Zone 2: Central Code Stage (`<section class="editor-stage">`)

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "deskai"
 version = "0.1.0"
-description = "Lean, offline-first desktop AI presentation shell and engineering studio"
+description = "Lean desktop presentation shell and AI studio supervisor"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -13,15 +13,16 @@ authors = [
     { name = "Daniyal Khan" }
 ]
 dependencies = [
-    "pywebview>=4.4.1",
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "pydantic>=2.6.0",
-    "httpx>=0.26.0",
-    "pynvml>=11.5.0",
+    "pywebview>=4.4.1,<5.0.0",
+    "fastapi>=0.109.0,<0.111.0",
+    "uvicorn[standard]>=0.27.0,<0.30.0",
+    "pydantic>=2.6.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
+linux = [
+    "PyGObject>=3.42.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",

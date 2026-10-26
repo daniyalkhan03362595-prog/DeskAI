@@ -1,12 +1,12 @@
 # Layer 1 Technology LLD: CSS3 Design System, Variables & Hardware Acceleration
 
-Yeh document **Desktop AI Studio** ke **Layer 1 (Frontend)** mein use hone wali **CSS3** ki mukammal **Low-Level Design (LLD)** specifications, design tokens, layout geometry, component styling, hardware-accelerated animations aur CSS containment rules ko **Roman Urdu** mein tafseel se bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Styling)** mein use hone wali **CSS3** ki mukammal **Low-Level Design (LLD)** specifications, design tokens, layout geometry, component styling, hardware-accelerated animations aur CSS containment rules ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
 ## 1. Executive Summary & Design Constraints
 
-Desktop AI Studio ka visual architecture bina kisi utility framework (Tailwind/Bootstrap) ya preprocessor (Sass/Less) ke **Modern Pure CSS3** standards par tayar kiya gaya hai.
+DeskAI ka visual architecture bina kisi utility framework (Tailwind/Bootstrap) ya preprocessor (Sass/Less) ke **Modern Pure CSS3** standards par tayar kiya gaya hai.
 
 ### Low-Level Technical Constraints:
 1. **Zero Runtime Overhead:** Runtime par CSS-in-JS compilation ya stylesheet recalculations ka bojh 0% hona chahiye.
@@ -63,7 +63,7 @@ Poori application `:root` variables ke zariye dynamically adapt hoti hai:
   /* Text Colors */
   --text-primary: #e6eaf2;
   --text-secondary: #9da7c0;
-  --text-muted: #626b84;
+  --text-muted: #858fa8;        /* Contrast 5.3:1 (Exceeds WCAG AA) */
   --text-inverse: #0a0c12;
 
   /* ==========================================================================
@@ -197,17 +197,25 @@ Jab local Qwen 7B model chat window mein tezi se text chunks stream karta hai, t
 
 ```css
 /* Chat Thread Containment */
+.sidebar-right {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
 .chat-thread {
-  contain: strict;              /* Layout, Style, Paint isolated */
+  flex: 1;
+  min-height: 0;                /* Allows flex container to shrink properly */
+  contain: layout paint;        /* Isolate layout without rigid size constraints */
   overflow-y: auto;
   overflow-x: hidden;
-  height: calc(100% - 130px);
   will-change: scroll-position;
 }
 
-/* Editor Surface Containment */
+/* Editor Surface Containment (Note: CodeMirror configured with tooltips({parent: document.body})) */
 .editor-stage {
-  contain: content;
+  contain: layout paint;
   overflow: hidden;
   position: relative;
 }

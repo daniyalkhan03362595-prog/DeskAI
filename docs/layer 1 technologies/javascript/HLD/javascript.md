@@ -1,23 +1,23 @@
 # Layer 1 Technology HLD: JavaScript Client State & Streaming Architecture
 
-Yeh document **DeskAI** ke **Layer 1 (Presentation & Client Logic)** mein use hone wali **Vanilla JavaScript (ES2022 Modules)** ki mukammal **High-Level Design (HLD)** architecture, reactive state store, CodeMirror 6 editor integration aur WebSocket streaming engine ko **Roman Urdu** mein bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Client Logic)** mein use hone wali **Vanilla JavaScript (ES2022 Modules)** ki mukammal **High-Level Design (HLD)** architecture, reactive state store, CodeMirror 6 vendor integration aur WebSocket streaming engine ko **Roman Urdu** mein bayan karta hai.
 
 ---
 
 ## 1. Executive Summary (Client Logic Falsafa)
-DeskAI mein React, Redux, ya Webpack jaisi bhaari frameworks ke bajaye **Native ES Modules** istemal kiye gaye hain.
+DeskAI mein heavy application-level compilation frameworks ke bajaye **Native ES Modules + Pre-bundled Vendor Singletons** approach istemal ki gayi hai.
 
 ### Is Architecture ke Fawaid:
-1. **Zero Runtime Bundling Overhead:** Browser bina kisi npm build ya node_modules complexity ke direct JavaScript execute karta hai.
-2. **Instant Event Loop:** Memory par koi virtual DOM reconciliation layer nahi hai; direct real DOM mutations 10x tezi se run hoti hain.
-3. **rAF Stream Batching:** Local AI se 50-80 tokens/sec aane par bhi `requestAnimationFrame` ke zariye UI 60 FPS smooth rehti hai.
-4. **CodeMirror 6 Core:** Hand-rolled contenteditable editor ke bug-prone traps se bachne ke liye CodeMirror 6 ko embedded editor banaya gaya hai.
+1. **Zero App Bundling Overhead:** Application ka apna code bina kisi npm build ya dev server ke direct browser ES modules mein run hota hai.
+2. **Deterministic CodeMirror 6 Vendor Bundle:** CodeMirror 6 ke npm modular packages ko single, self-contained vendor file (`static/vendor/codemirror.bundle.js`) mein bundle kar ke version-hash ke sath load kiya jata hai.
+3. **Accumulated Token Streaming:** Local AI streaming ke dauran tokens ko accumulate kiya jata hai taake previous frames overwrite na hon aur user scroll position lock rahe.
+4. **WeakMap-Cached Reactivity:** Central store reference equality (`===`) aur ancestor path notifications ensure karta hai.
 
 ---
 
 ## 2. Central State Store Architecture (`StudioState`)
 
-Application ka runtime state aik deep observable store mein synchronize hota hai:
+Application ka runtime state observable store mein synchronize hota hai:
 
 ```javascript
 const StudioState = {
@@ -34,12 +34,14 @@ const StudioState = {
     activeTabId: null
   },
 
-  // Real-time Hardware Telemetry (Realistic GPU & DB info)
+  // Real-time Host Telemetry
   telemetry: {
-    gpu: { name: "NVIDIA RTX 2070 Super", active: true },
-    vram: { usedGB: 4.7, totalGB: 8.0, percent: 58.7 },
-    brain: { model: "Qwen 2.5 Coder 7B", offline: true },
-    ram: { usedGB: 5.8, totalGB: 32.0, percent: 18.1 }
+    gpuName: "NVIDIA RTX 2070 Super",
+    vramUsedMB: 4710,
+    vramTotalMB: 8192,
+    cpuUsagePct: 14.8,
+    ramUsedMB: 5820,
+    status: "ready"
   },
 
   // Execution & Agent Lifecycle State
@@ -47,14 +49,12 @@ const StudioState = {
     state: "IDLE",            // IDLE | PLANNING | EXECUTING | REVIEW_DIFF | SUCCESS | FAILED | ROLLBACK | CANCELLED
     currentStep: null,
     checklist: [],
-    diffBuffer: null
+    activeDiff: null
   },
 
-  // WebSocket Connection & Authentication
-  socket: {
-    instance: null,
-    isConnected: false,
-    sessionToken: null,
+  // WebSocket Connection
+  connection: {
+    isSocketConnected: false,
     lastSeq: 0
   }
 };
@@ -64,27 +64,21 @@ const StudioState = {
 
 ## 3. Char Bunyadi JavaScript HLD Engines
 
-### Engine 1: Authenticated WebSocket Client (`ws.js`)
-* **Dynamic Connection:** Launch ke waqt window initialization se dynamic port aur secret token receive hota hai (`ws://127.0.0.1:{dynamic_port}/ws?token={token}`).
-* **Exponential Backoff Reconnect:** Connection drop hone par instant fixed retry ke bajaye exponential backoff (`Math.min(1000 * 2 ** attempts, 10000)`) use hota hai with ping/pong timeout detection.
-* **Resync Protocol:** Reconnect hone par client `lastSeq` bhej kar backend se snapshot state fetch karta hai taake koi data loss na ho.
+### Engine 1: Gap-Aware WebSocket Client (`ws.js`)
+* **Cookie-Based Seamless Authentication:** Launch par receive hone wali session cookie automatically WebSocket upgrade par sath jati hai (WS URL clean rehti hai).
+* **Gap Detection & Fatal Codes:** Har packet ka sequence number (`seq`) verify hota hai. Agar gap detect ho to client foran snapshot resync request karta hai. Code 1008 (Auth Failure) aane par reconnect loop foran stop ho jata hai.
+* **Safe Queue:** Reconnect ke waqt sirf safe queries queue hoti hain; state mutations (jaise approve plan) stale state mein dobara trigger nahi hotin.
 
-### Engine 2: High-Speed Token Streaming & rAF Scheduler (`stream.js`)
-* **rAF Batching:** Naye aane wale text chunks pehle memory queue mein store hotay hain aur monitor ke 60Hz tick par batch append hotay hain.
-* **Sanitized Rendering:** Token chunks ko render karte waqt **DOMPurify** se sanitize kiya jata hai taake XSS script injection ka khatra na rahe.
-* **Auto-Scroll Engine:** Chat window scroll-locked rehti hai; agar developer manually scroll up kare to auto-scroll pause ho jata hai.
+### Engine 2: Accumulated Token Streaming & DOMPurify (`stream.js`)
+* **Full Text Accumulation:** Tokens append hone par pichla text wipe nahi hota; full accumulated string maintain hoti hai.
+* **Scroll Protection:** User ke manually up-scroll karne par auto-scroll lock khud ba khud pause ho jata hai.
+* **XSS Defense:** Har frame par DOMPurify ke strict allowed tags aur URL regex ke mutabiq HTML sanitize hota hai.
 
 ### Engine 3: Unified Execution Card (UEC) State Machine (`uec.js`)
-* **Deterministic Flow with Rollback & Cancel:**
-  1. `PLANNING`: Task checklists create karna.
-  2. `EXECUTING`: Code modifications aur sandboxed terminal commands chalana.
-  3. `REVIEW_DIFF`: User ke samne unified diffs pesh karna.
-  4. `SUCCESS`: Approved changes apply karna.
-  5. `ROLLBACK`: User rejection ya critical error par workspace ka pre-execution snapshot restore karna.
-  6. `CANCELLED`: Running AI stream ya task ko beech mein safely abort karna.
+* **Finite State Transitions:** `IDLE -> PLANNING -> EXECUTING -> REVIEW_DIFF -> SUCCESS / FAILED / ROLLBACK / CANCELLED`.
+* **State-Driven UI Rendering:** Sirf active state ke mutabiq action buttons (Approve, Reject, Cancel, Rollback) render hotay hain.
 
-### Engine 4: DOM Event Delegation & Dual-Panel Resizers (`events.js`)
-* **Global Action Router:** Single event listener `data-action` attributes ke zariye tamam buttons (`tab-close`, `win-minimize`, `uec-approve`, etc.) ko synchronize handle karta hai.
-* **Symmetric Resizer Math:**
-  * Left sidebar width: `moveEvent.clientX`
-  * Right sidebar width: `window.innerWidth - moveEvent.clientX`
+### Engine 4: DOM Event Delegation & Link Interception (`events.js`)
+* **Complete Action Router:** HTML ke tamam 15 `data-action` attributes (`tab-close`, `win-minimize`, `open-palette`, `switch-panel`, `new-file`, `toggle-drawer`, etc.) centrally handle hotay hain.
+* **External Link Sandbox:** Web links (`<a href="...">`) ko intercept kar ke PyWebView ke bajaye OS ke default external browser mein open kiya jata hai.
+* **Symmetric Resizers:** Left (`clientX`) aur Right (`window.innerWidth - clientX`) panels ka smooth resizing math.

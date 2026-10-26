@@ -1,18 +1,18 @@
 # Layer 1 Technology LLD: HTML5 Semantic DOM, Component Layout & Template Engine
 
-Yeh document **DeskAI** ke **Layer 1 (Presentation & Layout)** mein use hone wali **Semantic HTML5** specifications, master DOM tree, CSP-compliant structure, CodeMirror 6 host, aur reusable templates ko **Roman Urdu** mein tafseel se bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Layout)** mein use hone wali **Semantic HTML5** specifications, master DOM tree, CSP-compliant structure, ARIA accessibility attributes, CodeMirror 6 host, aur reusable templates ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
 ## 1. Executive Summary & Design Constraints
 
-DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP constraints ke mutabiq design kiya gaya hai:
+DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur WCAG accessibility constraints ke mutabiq design kiya gaya hai:
 
 ### Low-Level Technical Constraints:
 1. **Zero Inline Styles:** CSP violations se bachne ke liye koi inline `style="..."` attribute use nahi hota. Tamam dimensions CSS classes aur CSS variables se handle hoti hain.
-2. **Synchronized Action Attributes:** Tamam clickable elements `data-action` attribute use karte hain jo JavaScript event delegation router ke sath 100% matched hain.
-3. **Native Dialog & Templates:** Native `<dialog>` element aur non-rendered `<template>` nodes jo DOM rendering cost 0 rakhte hain.
-4. **CodeMirror 6 Container:** Hand-rolled contenteditable ke bajaye clean mounting node `<div class="codemirror-host" id="codeEditorHost"></div>`.
+2. **Complete Action Coverage:** Master DOM ke tamam 15 buttons `data-action` attribute use karte hain jo JavaScript event router ke sath 100% synchronized hain.
+3. **Full ARIA Accessibility:** Native tablist, tab, tabpanel aur tree roles with dynamic `aria-selected` aur `aria-expanded`.
+4. **CodeMirror 6 Host Node:** Modular container `<div class="codemirror-host" id="codeEditorHost" role="region" aria-label="Code Editor"></div>`.
 
 ---
 
@@ -34,18 +34,18 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
   <div class="app-root" id="appRoot">
     
     <!-- 1. Top Navigation & Window Control Bar -->
-    <header class="app-header" id="appHeader">
+    <header class="app-header" id="appHeader" role="banner">
       <div class="header-left">
         <span class="app-logo">⚡ DeskAI</span>
         <span class="workspace-pill" id="headerWorkspacePill">DeskAI / main</span>
       </div>
       <div class="header-center">
-        <button class="omnibar-trigger" id="omnibarBtn" data-action="open-palette" aria-label="Open Command Palette">
+        <button class="omnibar-trigger" id="omnibarBtn" data-action="open-palette" aria-label="Open Command Palette (Ctrl+P)">
           <span class="search-icon">🔍</span>
           <span class="placeholder-text">Search files, symbols, commands... (Ctrl+P)</span>
         </button>
       </div>
-      <div class="header-right window-controls">
+      <div class="header-right window-controls" role="group" aria-label="Window Controls">
         <button class="win-btn win-min" data-action="win-minimize" aria-label="Minimize Window">─</button>
         <button class="win-btn win-max" data-action="win-maximize" aria-label="Maximize Window">□</button>
         <button class="win-btn win-close" data-action="win-close" aria-label="Close Window">✕</button>
@@ -53,108 +53,109 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
     </header>
 
     <!-- 2. Main 3-Column IDE Body -->
-    <main class="app-body" id="appBody">
+    <main class="app-body" id="appBody" role="main">
       
       <!-- Left Column: File Explorer & Hardware Dock -->
-      <aside class="sidebar-left" id="sidebarLeft">
-        <nav class="activity-bar" aria-label="Primary Navigation">
-          <button class="activity-btn active" data-action="switch-panel" data-panel="explorer" title="Explorer (Ctrl+Shift+E)">📁</button>
-          <button class="activity-btn" data-action="switch-panel" data-panel="search" title="Search (Ctrl+Shift+F)">🔍</button>
-          <button class="activity-btn" data-action="switch-panel" data-panel="git" title="Source Control">🌿</button>
+      <aside class="sidebar-left" id="sidebarLeft" role="region" aria-label="Explorer & System Dock">
+        <nav class="activity-bar" role="navigation" aria-label="Primary Navigation">
+          <button class="activity-btn active" data-action="switch-panel" data-panel="explorer" title="Explorer (Ctrl+Shift+E)" aria-label="Explorer">📁</button>
+          <button class="activity-btn" data-action="switch-panel" data-panel="search" title="Search" aria-label="Search">🔍</button>
+          <button class="activity-btn" data-action="switch-panel" data-panel="git" title="Source Control" aria-label="Source Control">🌿</button>
         </nav>
 
         <section class="explorer-container">
           <div class="panel-header">
             <span class="panel-title">EXPLORER</span>
-            <div class="panel-actions">
-              <button class="icon-btn" data-action="new-file" title="New File">📄+</button>
-              <button class="icon-btn" data-action="new-folder" title="New Folder">📁+</button>
-              <button class="icon-btn" data-action="refresh-tree" title="Refresh">🔄</button>
+            <div class="panel-actions" role="toolbar" aria-label="Explorer Actions">
+              <button class="icon-btn" data-action="new-file" title="New File" aria-label="New File">📄+</button>
+              <button class="icon-btn" data-action="new-folder" title="New Folder" aria-label="New Folder">📁+</button>
+              <button class="icon-btn" data-action="refresh-tree" title="Refresh Tree" aria-label="Refresh Tree">🔄</button>
             </div>
           </div>
-          <div class="tree-viewport" id="fileTreeViewport" role="tree" tabindex="0">
+          <div class="tree-viewport" id="fileTreeViewport" role="tree" tabindex="0" aria-label="Project Files">
             <!-- Dynamic File Tree Rendered Here -->
           </div>
         </section>
 
         <!-- Hardware Status Dock -->
-        <footer class="hardware-dock" id="hardwareDock" aria-label="System Hardware Telemetry">
+        <footer class="hardware-dock" id="hardwareDock" role="contentinfo" aria-label="Host System Telemetry">
           <div class="telemetry-row">
             <span class="tele-label">GPU Acceleration</span>
-            <span class="tele-badge gpu-badge" id="teleGpuBadge">🟢 RTX 2070 Super</span>
+            <span class="tele-badge gpu-badge" id="teleGpuBadge">🟢 Detecting...</span>
           </div>
           <div class="telemetry-row">
             <span class="tele-label">VRAM Resident</span>
-            <span class="tele-val" id="teleVramText">4.7 / 8.0 GB (58%)</span>
+            <span class="tele-val" id="teleVramText">-- / -- GB</span>
           </div>
-          <div class="vram-meter-track" role="progressbar" aria-valuenow="58" aria-valuemin="0" aria-valuemax="100">
+          <div class="vram-meter-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
             <div class="vram-meter-fill" id="teleVramFill"></div>
           </div>
           <div class="telemetry-row">
-            <span class="tele-label">Neural Engine</span>
-            <span class="tele-val brain-val" id="teleModelName">Qwen 2.5 Coder 7B</span>
-          </div>
-          <div class="telemetry-row">
             <span class="tele-label">Host RAM</span>
-            <span class="tele-val ram-val" id="teleRamText">5.8 / 32.0 GB (18%)</span>
+            <span class="tele-val ram-val" id="teleRamText">-- / -- GB</span>
           </div>
         </footer>
       </aside>
 
       <!-- Resizer Handle Left -->
-      <div class="resizer-col" id="resizerLeft" role="separator" aria-orientation="vertical" tabindex="0"></div>
+      <div class="resizer-col" id="resizerLeft" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize Explorer"></div>
 
       <!-- Center Column: Multi-tab Code Stage with CodeMirror 6 -->
-      <section class="editor-stage" id="editorStage">
-        <div class="tab-strip" id="editorTabStrip" role="tablist">
-          <!-- Dynamic Tabs Rendered Here -->
+      <section class="editor-stage" id="editorStage" role="region" aria-label="Code Editor Stage">
+        <div class="tab-strip" id="editorTabStrip" role="tablist" aria-label="Open Files">
+          <!-- Dynamic Tabs Rendered Here with role="tab" & aria-selected -->
         </div>
 
-        <div class="editor-viewport" id="editorViewport">
+        <div class="editor-viewport" id="editorViewport" role="tabpanel" aria-label="Active File Editor">
+          <div class="welcome-screen" id="welcomeScreen">
+            <h2>Welcome to DeskAI</h2>
+            <p>Select a project folder to begin.</p>
+            <button class="primary-btn" data-action="open-folder-dialog">Open Project Folder</button>
+          </div>
           <!-- CodeMirror 6 Mount Node -->
-          <div class="codemirror-host" id="codeEditorHost"></div>
+          <div class="codemirror-host" id="codeEditorHost" role="region" aria-label="Code Surface"></div>
         </div>
 
         <!-- Collapsible Bottom Drawer -->
-        <section class="bottom-drawer" id="bottomDrawer">
+        <section class="bottom-drawer" id="bottomDrawer" role="region" aria-label="Output Drawer">
           <div class="drawer-header">
-            <div class="drawer-tabs">
-              <button class="drawer-tab active" data-action="drawer-tab" data-target="terminal">Terminal</button>
-              <button class="drawer-tab" data-action="drawer-tab" data-target="output">Output</button>
-              <button class="drawer-tab" data-action="drawer-tab" data-target="problems">Problems</button>
+            <div class="drawer-tabs" role="tablist" aria-label="Drawer Panels">
+              <button class="drawer-tab active" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true">Terminal</button>
+              <button class="drawer-tab" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false">Output</button>
+              <button class="drawer-tab" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false">Problems</button>
             </div>
-            <button class="icon-btn close-drawer-btn" data-action="toggle-drawer">─</button>
+            <button class="icon-btn close-drawer-btn" data-action="toggle-drawer" aria-label="Toggle Drawer">─</button>
           </div>
           <div class="drawer-content" id="drawerContent">
-            <pre class="terminal-view" id="terminalOutput"><code>DeskAI Sandboxed Terminal Ready. Bound to workspace root.</code></pre>
+            <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
           </div>
         </section>
       </section>
 
       <!-- Resizer Handle Right -->
-      <div class="resizer-col" id="resizerRight" role="separator" aria-orientation="vertical" tabindex="0"></div>
+      <div class="resizer-col" id="resizerRight" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize Chat Sidebar"></div>
 
       <!-- Right Column: Agentic Chat & Morphing UEC Dock -->
-      <aside class="sidebar-right" id="sidebarRight">
+      <aside class="sidebar-right" id="sidebarRight" role="region" aria-label="AI Interaction Panel">
         <div class="chat-header">
-          <span class="chat-title">AI PAIR PROGRAMMER</span>
-          <span class="model-pill">Qwen 2.5 Coder 7B</span>
+          <span class="chat-title">AI ASSISTANT</span>
+          <span class="model-pill" id="headerModelPill">Ready</span>
         </div>
 
-        <div class="chat-thread" id="chatThread" role="log" aria-live="polite">
+        <div class="chat-thread" id="chatThread" role="log" aria-live="polite" aria-label="Chat Message History">
           <!-- DOMPurify-Sanitized Chat Bubbles Rendered Here -->
         </div>
 
         <!-- Unified Execution Card (UEC) Container -->
-        <div class="uec-container" id="uecContainer" aria-label="Autonomous Execution Task">
-          <!-- UEC Morphing State Rendered Here -->
+        <div class="uec-container" id="uecContainer" role="region" aria-label="Autonomous Task Execution Card">
+          <!-- Dynamic UEC State & Buttons Rendered Here -->
         </div>
 
         <!-- Prompt Input Dock -->
-        <form class="prompt-dock" id="promptForm">
+        <form class="prompt-dock" id="promptForm" role="form" aria-label="Prompt Input">
           <div class="prompt-input-wrapper">
-            <textarea id="promptTextarea" class="prompt-textarea" rows="1" placeholder="Instruct AI to code, refactor or debug... (Ctrl+Enter to send)"></textarea>
-            <button type="submit" class="prompt-send-btn" id="promptSendBtn" title="Send Prompt">➔</button>
+            <textarea id="promptTextarea" class="prompt-textarea" rows="1" placeholder="Instruct AI to code, refactor or debug... (Ctrl+Enter to send)" aria-label="AI Prompt"></textarea>
+            <button type="submit" class="prompt-send-btn" id="promptSendBtn" title="Send Prompt" aria-label="Send">➔</button>
           </div>
         </form>
       </aside>
@@ -167,19 +168,19 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
         <span class="palette-icon">🔍</span>
         <input type="text" id="paletteSearchInput" class="palette-input" placeholder="Type a command or search files..." autofocus>
       </div>
-      <ul class="palette-list" id="paletteResultsList" role="listbox">
-        <!-- Filtered commands rendered here -->
+      <ul class="palette-list" id="paletteResultsList" role="listbox" aria-label="Command Suggestions">
+        <!-- Filtered commands rendered here with role="option" -->
       </ul>
     </dialog>
 
-    <div class="toast-rack" id="toastRack" aria-live="assertive"></div>
+    <div class="toast-rack" id="toastRack" aria-live="assertive" role="alert"></div>
 
     <!-- 4. Reusable HTML5 Component Templates -->
     <div id="templateStore" hidden aria-hidden="true">
       
-      <!-- Template: Tree Node -->
+      <!-- Template: Tree Item -->
       <template id="tplTreeNode">
-        <li class="tree-item" role="treeitem" data-path="" data-kind="">
+        <li class="tree-item" role="treeitem" data-path="" data-kind="" aria-expanded="false" tabindex="-1">
           <span class="tree-chevron">▶</span>
           <span class="tree-icon">📄</span>
           <span class="tree-label">filename.py</span>
@@ -187,9 +188,9 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
         </li>
       </template>
 
-      <!-- Template: Editor Tab (Action: tab-close) -->
+      <!-- Template: Editor Tab -->
       <template id="tplEditorTab">
-        <div class="editor-tab" role="tab" data-tab-id="" data-path="" tabindex="0">
+        <div class="editor-tab" role="tab" data-tab-id="" data-path="" tabindex="0" aria-selected="false" data-action="select-tab">
           <span class="tab-icon">📄</span>
           <span class="tab-label">file.py</span>
           <span class="tab-dirty-indicator">●</span>
@@ -197,7 +198,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
         </div>
       </template>
 
-      <!-- Template: Chat Bubble (Sanitized Markdown Body) -->
+      <!-- Template: Chat Bubble -->
       <template id="tplChatBubble">
         <article class="chat-bubble" data-role="">
           <div class="bubble-header">
@@ -208,7 +209,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
         </article>
       </template>
 
-      <!-- Template: UEC Card with Approve, Reject, Rollback & Cancel Actions -->
+      <!-- Template: UEC Card -->
       <template id="tplUecCard">
         <div class="uec-card" data-state="PLANNING">
           <div class="uec-header">
@@ -217,10 +218,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
           </div>
           <ul class="uec-checklist" id="uecChecklist"></ul>
           <div class="uec-actions">
-            <button class="uec-btn btn-cancel" data-action="uec-cancel">Cancel</button>
-            <button class="uec-btn btn-reject" data-action="uec-reject">Reject</button>
-            <button class="uec-btn btn-rollback" data-action="uec-rollback">Rollback</button>
-            <button class="uec-btn btn-approve" data-action="uec-approve">Approve & Execute</button>
+            <!-- Dynamic State-Driven Buttons Rendered by UECStateMachine -->
           </div>
         </div>
       </template>
