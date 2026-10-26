@@ -10,11 +10,11 @@
 }
 
 .diff-line.addition {
-  background-color: rgba(46, 204, 113, 0.12);
+  background-color: var(--color-success-subtle);
 }
 
 .diff-line.deletion {
-  background-color: rgba(231, 76, 60, 0.12);
+  background-color: var(--color-danger-subtle);
 }
 
 .diff-gutter-num {

@@ -8,6 +8,25 @@ export class EditorManager {
     this.tabStrip = document.getElementById("editorTabStrip");
     this.welcomeScreen = document.getElementById("welcomeScreen");
     this.editorHost = document.getElementById("codeEditorHost");
+
+    if (this.tabStrip) {
+      this.tabStrip.setAttribute("role", "tablist");
+      this.tabStrip.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          const tabIds = Array.from(this.buffers.keys());
+          if (tabIds.length <= 1) return;
+          const currentIndex = tabIds.indexOf(this.activeTabId);
+          let newIndex = e.key === "ArrowRight" ? currentIndex + 1 : currentIndex - 1;
+          if (newIndex >= tabIds.length) newIndex = 0;
+          if (newIndex < 0) newIndex = tabIds.length - 1;
+          const newTabId = tabIds[newIndex];
+          this.selectTab(newTabId);
+          const activeEl = this.tabStrip.querySelector(`[data-tab-id="${newTabId}"]`);
+          if (activeEl) activeEl.focus();
+        }
+      });
+    }
   }
 
   detectLanguage(filename) {
@@ -177,6 +196,8 @@ export class EditorManager {
       tabEl.setAttribute("role", "tab");
       tabEl.setAttribute("data-tab-id", id);
       tabEl.setAttribute("aria-selected", id === this.activeTabId ? "true" : "false");
+      tabEl.setAttribute("aria-controls", "editorViewport");
+      tabEl.setAttribute("tabindex", id === this.activeTabId ? "0" : "-1");
       tabEl.setAttribute("data-action", "select-tab");
       tabEl.setAttribute("data-param", id);
 

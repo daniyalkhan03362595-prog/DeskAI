@@ -13,6 +13,7 @@
   /* Hairline Borders & Dividers */
   --border-subtle: #26272c;
   --border-regular: #31333a;
+  --border-input: #686b76;      /* WCAG 2.1 AA Non-Text Contrast >= 3:1 against #1a1b1f (3.24:1) */
   --border-focus: #d99b26;
 
   /* Accent & Functional Colors (Warm Amber Brand Focus) */
@@ -21,8 +22,11 @@
   --color-amber: #f59e0b;       /* DeskAI ⚡ Lightning Brand */
   --color-amber-surface: rgba(217, 155, 38, 0.12);
   --color-success: #22c55e;     /* Emerald Green for 🟢 Ready */
+  --color-success-subtle: rgba(34, 197, 94, 0.12);
   --color-warning: #f59e0b;
   --color-danger: #ff6b6b;      /* Contrast 5.8:1 on card */
+  --color-danger-subtle: rgba(255, 107, 107, 0.12);
+  --color-text-white: #ffffff;
 
   /* Text Colors (Optimized for WCAG 2.1 AA Compliance >= 4.5:1) */
   --text-primary: #ededed;      /* 15.8:1 Contrast on #121315 */
@@ -74,4 +78,23 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
   --shadow-glow-amber: 0 0 12px rgba(245, 158, 11, 0.35);
+}
+
+/* 6. Accessible Focus Rings */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 7. Forced Colors / High Contrast Mode Support */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight;
+  }
+  .primary-btn, .prompt-send-btn, .btn-approve {
+    border: 1px solid ButtonText;
+  }
+  .editor-tab[aria-selected="true"] {
+    border-bottom: 2px solid Highlight;
+  }
 }

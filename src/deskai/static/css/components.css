@@ -101,7 +101,7 @@
 
 .win-close:hover {
   background-color: var(--color-danger);
-  color: #fff;
+  color: var(--color-text-white);
 }
 
 /* ==========================================================================
@@ -248,7 +248,7 @@
 .vram-meter-fill {
   height: 100%;
   width: 40%;
-  background: linear-gradient(to right, #b8821d, #f59e0b);
+  background: linear-gradient(to right, var(--color-primary-hover), var(--color-amber));
   border-radius: 3px;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -571,13 +571,13 @@
 .btn-approve {
   background-color: var(--color-success);
   border-color: var(--color-success);
-  color: #fff;
+  color: var(--color-text-white);
 }
 
 .btn-reject, .btn-rollback {
   background-color: var(--color-danger);
   border-color: var(--color-danger);
-  color: #fff;
+  color: var(--color-text-white);
 }
 
 .btn-cancel {
@@ -595,7 +595,7 @@
   display: flex;
   align-items: center;
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-regular);
+  border: 1px solid var(--border-input);
   border-radius: 6px;
   padding: var(--space-2);
 }
