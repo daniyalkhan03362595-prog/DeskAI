@@ -12,7 +12,7 @@ DeskAI ka frontend kisi heavy framework ya bundling toolchain ke baghair **Nativ
 1. **Zero-Bundling & Native Modules:** Direct browser ES imports (`import { store } from './state.js'`).
 2. **Deep Observable Reactivity:** Recursive `Proxy` tree jo nested state mutations (`store.state.execution.state = 'PLANNING'`) ko accurately detect aur notify kare.
 3. **Sub-16ms Frame Budget (60 FPS):** `requestAnimationFrame` token batching aur DOMPurify sanitization.
-4. **Deterministic State Synchronization:** Backend SQLite source-of-truth ke sath sequence-numbered resync.
+4. **Deterministic State Synchronization:** Backend desktop supervisor source-of-truth ke sath sequence-numbered resync.
 
 ---
 
@@ -30,7 +30,7 @@ src/deskai/static/js/
 ├── events.js                 # Synchronized Action Router & Dual-Sided Resizers
 └── components/
     ├── filetree.js           # Directory tree renderer
-    ├── telemetry.js          # Hardware gauges, GPU VRAM & SQLite status
+    ├── telemetry.js          # Hardware gauges, GPU VRAM & host memory status
     └── diffview.js           # Side-by-side & inline diff view
 ```
 

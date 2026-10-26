@@ -39,7 +39,7 @@ const StudioState = {
     gpu: { name: "NVIDIA RTX 2070 Super", active: true },
     vram: { usedGB: 4.7, totalGB: 8.0, percent: 58.7 },
     brain: { model: "Qwen 2.5 Coder 7B", offline: true },
-    db: { engine: "SQLite 3 (WAL)", vectorPlugin: "sqlite-vec", status: "ready" }
+    ram: { usedGB: 5.8, totalGB: 32.0, percent: 18.1 }
   },
 
   // Execution & Agent Lifecycle State

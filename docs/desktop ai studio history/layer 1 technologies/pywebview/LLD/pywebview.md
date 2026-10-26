@@ -197,7 +197,7 @@ class DesktopBridgeAPI:
       │
       ▼
 ┌─────────────┐
-│ INITIALIZING│ ➔ Allocates ephemeral port, token & initializes SQLite WAL database
+│ INITIALIZING│ ➔ Allocates ephemeral port, token & initializes supervisor state
 └──────┬──────┘
       │
       ▼
@@ -218,7 +218,7 @@ class DesktopBridgeAPI:
       ▼
 ┌─────────────┐
 │   CLOSED    │ ➔ window.events.closed (PHASE 2: Irreversible Teardown)
-└─────────────┘   * Commit SQLite pending transactions & close connection
+└─────────────┘   * Flush pending write buffers & session logs
                   * Terminate background worker processes
                   * Clean exit with status code 0
 ```
@@ -245,7 +245,7 @@ class WindowLifecycleHandler:
     def on_closed(self):
         """Phase 2: Irreversible system flush & daemon termination."""
         print("[DeskAI] Window closed. Flushing database & shutting down.")
-        # 1. Flush SQLite WAL logs
+        # 1. Flush file write buffers
         # 2. Terminate background threads & workers
         # 3. Clean exit
 ```

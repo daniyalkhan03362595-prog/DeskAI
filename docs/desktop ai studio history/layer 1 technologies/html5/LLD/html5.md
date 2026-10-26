@@ -95,8 +95,8 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP const
             <span class="tele-val brain-val" id="teleModelName">Qwen 2.5 Coder 7B</span>
           </div>
           <div class="telemetry-row">
-            <span class="tele-label">Embedded DB</span>
-            <span class="tele-val db-val" id="teleDbName">SQLite 3 (WAL) + vec</span>
+            <span class="tele-label">Host RAM</span>
+            <span class="tele-val ram-val" id="teleRamText">5.8 / 32.0 GB (18%)</span>
           </div>
         </footer>
       </aside>

@@ -71,7 +71,7 @@ webview.start(gui='gtk', debug=False)
 
 ### Component 2: Two-Phase Lifecycle & Graceful Teardown
 * **`window.events.closing` (Phase 1):** User ke close click par check karta hai ke kya koi editor tab dirty (unsaved) hai. Agar user cancel kare to window khuli rehti hai.
-* **`window.events.closed` (Phase 2):** Window band hone ke baad irreversible teardown hota hai: SQLite flush, background worker processes termination aur clean exit.
+* **`window.events.closed` (Phase 2):** Window band hone ke baad irreversible teardown hota hai: buffer flush, background processes termination aur clean exit.
 
 ### Component 3: Linux GDK & NVIDIA Hardware Stability
 * **NVIDIA Driver Compatibility:** WebKitGTK ka DMABUF renderer Linux par NVIDIA proprietary drivers ke sath blank screen crash karta tha. `WEBKIT_DISABLE_DMABUF_RENDERER=1` set kar ke is crash ko 100% fix kiya gaya hai.

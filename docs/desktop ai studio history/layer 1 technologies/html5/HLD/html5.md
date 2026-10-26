@@ -92,7 +92,7 @@ Application interface chaar baray semantic hisson mein taqseem hai:
   1. `GPU Acceleration`: 🟢 NVIDIA RTX 2070 Super status badge.
   2. `VRAM Resident`: Usage counter (`4.7 / 8.0 GB`) + `<div class="vram-meter-track">` visual fill bar.
   3. `Local Neural Brain`: Offline coding LLM (`Qwen 2.5 Coder 7B`).
-  4. `Embedded Vector DB`: In-process vector store (`SQLite 3 WAL + sqlite-vec`).
+  4. `System RAM`: Host memory usage text (`5.8 / 32.0 GB`).
 
 ### Zone 2: Central Code Stage (`<section class="editor-stage">`)
 * **Tab Strip (`#editorTabStrip`):** Multi-file tabs with dirty state dots aur close action (`tab-close`).

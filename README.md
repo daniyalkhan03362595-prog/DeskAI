@@ -1,67 +1,74 @@
-# DeskAI ⚡
+# DeskAI — Layer 1: Desktop Shell & Presentation Layer ⚡
 
-> **An ultra-lean, 100% private, autonomous desktop AI engineering studio.**  
-> Built with Python (PyWebView) + Semantic HTML5/CSS3/ES Modules + CodeMirror 6 + Local Ollama (Qwen 2.5 Coder 7B) + In-Process SQLite (sqlite-vec).
+> **An ultra-lightweight, high-performance desktop AI shell and presentation environment.**  
+> Built with Python (PyWebView 4+) + Semantic HTML5 + Pure CSS3 Design Tokens + Vanilla ES2022 Modules + CodeMirror 6 Editor.
 
 ---
 
-## 🎯 Architecture Philosophy
+## 🎯 Layer 1 Architecture & Scope
 
-DeskAI is engineered from first principles to solve the heavy memory bloat and cloud privacy leaks of modern developer tooling:
+DeskAI Layer 1 serves as the foundational desktop interface, native OS integration shell, and real-time interaction surface:
 
 * **Zero Electron Bloat:** Uses native OS WebKitGTK (Linux) and WebView2 (Windows) via PyWebView. UI memory footprint is **~140 MB RAM** instead of 600MB+ Chromium overhead.
-* **Zero Docker / Zero PostgreSQL:** Complete replacement of external containerized databases with embedded **SQLite 3 in WAL mode** and the **`sqlite-vec` C-extension** for high-dimensional vector search (~15 MB RAM, 0 external network ports).
-* **Hardware-Accelerated Local Intelligence:** Integrates with local **Ollama** running **Qwen 2.5 Coder 7B (Q4_K_M)** on NVIDIA CUDA. Realistic VRAM footprint is **~4.7 GB**, leaving 3.3 GB free headroom on an 8GB RTX GPU.
+* **Semantic HTML5 & Pure CSS3:** Zero-dependency layout with strict CSS containment (`contain: layout paint`), hardware-accelerated transforms, and WCAG AA contrast standards.
+* **CodeMirror 6 Embedded Editor:** Virtualized scrolling, multi-tab buffer tracking, syntax highlighting, and dirty state management.
+* **Deep Reactive Store (`state.js`):** Recursive `Proxy` observable architecture ensuring fine-grained updates without virtual DOM overhead.
 * **Hardened Security & Sandboxed IPC:**
-  * **Dynamic Ephemeral Port:** Python automatically allocates a random loopback port on startup.
-  * **Cryptographic Session Token:** All HTTP requests and WebSocket handshakes require a per-launch 32-byte secret token.
-  * **Strict Origin & CSP:** Blocks external browser connections, DNS rebinding, and untrusted scripts.
-  * **DOMPurify Sanitization:** All model-generated markdown is sanitized prior to DOM insertion.
-  * **Filesystem & Terminal Sandboxing:** Realpath boundary verification against workspace root with human-in-the-loop approvals for sensitive commands.
+  * **Dynamic Ephemeral Port:** Python allocates a random loopback port on launch (`127.0.0.1:{dynamic_port}`).
+  * **Cryptographic Session Token:** All HTTP requests and WebSocket connections require a per-launch 32-byte secret token (`X-DeskAI-Token`).
+  * **Strict Origin & CSP:** Blocks external browser connections, DNS rebinding, and untrusted scripts via HTTP headers.
+  * **DOMPurify Sanitization:** All markdown output and external content is strictly sanitized prior to DOM insertion.
+  * **Path Canonicalization:** Bridge API canonicalizes all file paths against the workspace root with `os.path.realpath()`.
 
 ---
 
-## 🏗️ Architecture & Layer Roadmap
+## 🏗️ Layer 1 System Architecture
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│                    Layer 1: Presentation & Native Shell       │
-│  PyWebView 4+ | HTML5 Semantic DOM | CSS3 Design Tokens      │
-│  Vanilla ES2022 Modules | CodeMirror 6 Editor | DOMPurify    │
-└──────────────────────────────┬───────────────────────────────┘
-                               │ Authenticated IPC & Streaming
-┌──────────────────────────────▼───────────────────────────────┐
-│                    Layer 2: Storage & Knowledge Engine       │
-│  SQLite 3 (WAL mode) | sqlite-vec HNSW | In-Process Memory   │
-│  AST File Chunking | Semantic Code Retrieval                 │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-┌──────────────────────────────▼───────────────────────────────┐
-│                    Layer 3: Local Neural Brain (Inference)   │
-│  Ollama Daemon | Qwen 2.5 Coder 7B | CUDA Acceleration       │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-┌──────────────────────────────▼───────────────────────────────┐
-│                    Layer 4: Autonomous Agent Orchestrator    │
-│  Unified Execution Card (UEC) | Diff Engine | Sandbox Runner │
-└──────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------------------------------------+
+|                                      HOST RUNTIME (OS)                                            |
+|                                                                                                   |
+|  +---------------------------------------------------------------------------------------------+  |
+|  | [PRESENTATION CLIENT] (WebKitGTK / WebView2 | RAM: ~140 MB)                                 |  |
+|  | - Window Shell: PyWebView Container (Frameless / Native Controls)                           |  |
+|  | - Layout: Semantic HTML5 DOM (No Virtual DOM overhead)                                     |  |
+|  | - Styling: Pure CSS3 Design Tokens & Hardware-Accelerated Keyframes                         |  |
+|  | - Code Editor: Embedded CodeMirror 6 (Virtual Scrolling & Multi-Buffer Tabs)               |  |
+|  | - Client Logic: Native ES Modules (Recursive Deep Proxy, rAF Streamer, Action Router)       |  |
+|  +----------------------------------------------+----------------------------------------------+  |
+|                                                 |                                                 |
+|                   Native OS IPC Bridge          | Authenticated WebSocket (Token-Guarded)         |
+|                   (window.pywebview.api)        | (ws://127.0.0.1:{dynamic_port}/ws?token=xyz)    |
+|                                                 v v                                               |
+|  +---------------------------------------------------------------------------------------------+  |
+|  | [LOCAL GATEWAY & DESKTOP SUPERVISOR] (Python 3.10+ | FastAPI / Uvicorn ASGI | RAM: ~105 MB)   |  |
+|  | - Web Server: Ephemeral Port Listener (127.0.0.1:{dynamic_port})                            |  |
+|  | - Security Guard: Session Token Validator & Strict Localhost Origin Checker                 |  |
+|  | - Desktop Bridge: Native File/Folder Dialogs, Window Min/Max/Close, System Clipboard        |  |
+|  | - Sandbox Guard: Workspace Root Boundary Enforcement (os.path.realpath)                     |  |
+|  +---------------------------------------------------------------------------------------------+  |
++---------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 📂 Documentation Directory
+## 📂 Layer 1 Specifications Directory
 
-Detailed specifications in Roman Urdu and English are located under `docs/`:
+Detailed specifications in Roman Urdu and English are located under `docs/desktop ai studio history/layer 1 technologies/`:
 
-* **System Architecture (HLD & LLD):**
-  * `docs/desktop ai studio history/technologies/HLD/technologies.md`
-  * `docs/desktop ai studio history/technologies/LLD/technologies.md`
-* **Layer 1 Core Specifications:**
-  * **PyWebView Shell:** `docs/desktop ai studio history/layer 1 technologies/pywebview/`
-  * **JavaScript Runtime:** `docs/desktop ai studio history/layer 1 technologies/javascript/`
-  * **Semantic HTML5:** `docs/desktop ai studio history/layer 1 technologies/html5/`
-  * **CSS3 Design System:** `docs/desktop ai studio history/layer 1 technologies/css3/`
-* **Visual Diagrams & Figcraft Canvases:** Available under `designs/`.
+* **PyWebView Shell:**
+  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/pywebview/HLD/pywebview.md)
+  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/pywebview/LLD/pywebview.md)
+* **Vanilla JavaScript Runtime:**
+  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/javascript/HLD/javascript.md)
+  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/javascript/LLD/javascript.md)
+* **Semantic HTML5:**
+  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/html5/HLD/html5.md)
+  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/html5/LLD/html5.md)
+* **CSS3 Design System:**
+  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/css3/HLD/css3.md)
+  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/css3/LLD/css3.md)
+* **Visual Diagrams & Figcraft Canvases:** Available under `designs/desktop ai studio history/layer 1 technologies/`.
 
 ---
 
@@ -71,8 +78,6 @@ Detailed specifications in Roman Urdu and English are located under `docs/`:
 * Linux (Ubuntu 22.04+ / Arch / Debian) or Windows 10/11
 * Python 3.10+
 * WebKit2GTK 2.40+ (Linux) or WebView2 runtime (Windows)
-* NVIDIA GPU with CUDA 12+ (RTX 2070 Super 8GB or higher recommended)
-* [Ollama](https://ollama.com) installed with `qwen2.5-coder:7b`
 
 ### Installation
 ```bash
@@ -83,12 +88,17 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+### Running Contract Tests
+```bash
+python -m unittest discover -s tests
+```
+
 ---
 
 ## 🛡️ Security & Threat Model Summary
-1. **Network Boundary:** Web server listens strictly on `127.0.0.1` on a dynamic port; external LAN/WAN listening is forbidden.
+1. **Network Boundary:** Web server listens strictly on `127.0.0.1` on an ephemeral dynamic port; external network listening is strictly disabled.
 2. **WebSocket Handshake:** Unauthenticated connections without `?token=<secret>` or invalid origins are rejected immediately (HTTP 403 / Close code 1008).
-3. **Command Execution:** Terminal runner runs exclusively with current working directory locked to `workspace_root`.
+3. **Filesystem Boundary:** All file and folder operations canonicalize paths against `workspace_root`.
 4. **Content Security Policy:** `default-src 'self'; script-src 'self'; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'`.
 
 ---
