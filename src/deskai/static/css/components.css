@@ -11,6 +11,19 @@
   padding: 0 var(--space-3);
   z-index: var(--z-header);
   user-select: none;
+  -webkit-app-region: drag;
+}
+
+.pywebview-drag-region {
+  -webkit-app-region: drag;
+}
+
+.header-center,
+.header-right,
+.omnibar-trigger,
+.workspace-pill,
+.win-btn {
+  -webkit-app-region: no-drag;
 }
 
 .header-left {

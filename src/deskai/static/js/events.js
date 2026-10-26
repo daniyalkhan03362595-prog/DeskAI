@@ -120,6 +120,23 @@ export function initGlobalEvents() {
 
   // 5. Dual Resizers Handle Pointer Drag
   initResizers();
+
+  // 6. Header Drag Isolation & Double Click Maximize
+  const noDragElements = document.querySelectorAll(".app-header button, .app-header input, .app-header .workspace-pill");
+  noDragElements.forEach(el => {
+    el.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+  });
+
+  const appHeader = document.getElementById("appHeader");
+  if (appHeader) {
+    appHeader.addEventListener("dblclick", (e) => {
+      if (!e.target.closest("button, input")) {
+        NativeBridge.windowControl("maximize");
+      }
+    });
+  }
 }
 
 function initResizers() {

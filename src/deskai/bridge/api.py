@@ -70,11 +70,24 @@ class DesktopBridgeAPI:
             return True
         elif action == "maximize":
             # Toggle maximize/restore
+            native = getattr(self._window, "native", None)
+            if native and hasattr(native, "is_maximized"):
+                try:
+                    from gi.repository import GLib
+                    if native.is_maximized():
+                        GLib.idle_add(native.unmaximize)
+                    else:
+                        GLib.idle_add(native.maximize)
+                    return True
+                except Exception:
+                    pass
             self._window.toggle_fullscreen()
             return True
         elif action == "close":
-            self._window.destroy()
-            return True
+            if self._manager.lifecycle.confirm_exit():
+                self._window.destroy()
+                return True
+            return False
         return False
 
     def set_dirty_status(self, is_dirty: bool):
