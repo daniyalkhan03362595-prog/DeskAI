@@ -85,10 +85,6 @@ export function initGlobalEvents() {
         window.EditorManager.selectTab(param);
         break;
 
-      case "open-palette":
-        document.getElementById("commandPaletteDialog").showModal();
-        break;
-
       case "open-folder-dialog":
         const dir = await NativeBridge.selectFolder();
         if (dir && dir.path) {
@@ -142,18 +138,7 @@ export function initGlobalEvents() {
     const isCmd = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
 
-    if (isCmd && key === "p") {
-      e.preventDefault();
-      const palette = document.getElementById("commandPaletteDialog");
-      if (palette && typeof palette.showModal === "function") {
-        palette.showModal();
-        const input = document.getElementById("paletteSearchInput");
-        if (input) {
-          input.value = "";
-          input.focus();
-        }
-      }
-    } else if (isCmd && key === "s") {
+    if (isCmd && key === "s") {
       e.preventDefault();
       if (window.EditorManager && typeof window.EditorManager.saveActiveBuffer === "function") {
         window.EditorManager.saveActiveBuffer();
@@ -169,9 +154,6 @@ export function initGlobalEvents() {
       if (form) form.requestSubmit();
     }
   });
-
-  // Wire Command Palette Search (Case-Insensitive)
-  initCommandPalette();
 
   // 5. Dual Resizers Handle Pointer Drag
   initResizers();
@@ -288,64 +270,4 @@ function initResizers() {
       window.addEventListener("mouseup", onMouseUp);
     });
   }
-}
-
-function initCommandPalette() {
-  const searchInput = document.getElementById("paletteSearchInput");
-  const resultsList = document.getElementById("paletteResultsList");
-  const paletteDialog = document.getElementById("commandPaletteDialog");
-  if (!searchInput || !resultsList || !paletteDialog) return;
-
-  const COMMANDS = [
-    { label: "File: Open Project Folder", action: "open-folder-dialog" },
-    { label: "File: New Untitled File", action: "new-file" },
-    { label: "File: Save Active File", action: "save-file" },
-    { label: "File: Close Active Tab", action: "tab-close" },
-    { label: "View: Toggle Output Drawer", action: "toggle-drawer" },
-    { label: "Window: Minimize", action: "win-minimize" },
-    { label: "Window: Maximize / Restore", action: "win-maximize" },
-    { label: "Window: Close Application", action: "win-close" }
-  ];
-
-  function renderList(query = "") {
-    resultsList.replaceChildren();
-    const cleanQuery = query.trim().toLowerCase();
-    const filtered = COMMANDS.filter(cmd =>
-      cmd.label.toLowerCase().includes(cleanQuery) || cmd.action.toLowerCase().includes(cleanQuery)
-    );
-
-    filtered.forEach((cmd, idx) => {
-      const li = document.createElement("li");
-      li.className = "palette-item" + (idx === 0 ? " active" : "");
-      li.setAttribute("role", "option");
-      li.setAttribute("tabindex", "0");
-      li.setAttribute("data-action", cmd.action);
-      li.textContent = cmd.label;
-      resultsList.appendChild(li);
-    });
-  }
-
-  searchInput.addEventListener("input", () => {
-    renderList(searchInput.value);
-  });
-
-  resultsList.addEventListener("click", (e) => {
-    const item = e.target.closest(".palette-item");
-    if (!item) return;
-    const action = item.getAttribute("data-action");
-    if (action) {
-      paletteDialog.close();
-      const trigger = document.createElement("button");
-      trigger.setAttribute("data-action", action);
-      trigger.style.display = "none";
-      const appRoot = document.getElementById("appRoot");
-      if (appRoot) {
-        appRoot.appendChild(trigger);
-        trigger.click();
-        trigger.remove();
-      }
-    }
-  });
-
-  renderList();
 }

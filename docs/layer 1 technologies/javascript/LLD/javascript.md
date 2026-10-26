@@ -556,10 +556,6 @@ export function initGlobalEvents() {
         window.EditorManager.selectTab(param);
         break;
 
-      case "open-palette":
-        document.getElementById("commandPaletteDialog").showModal();
-        break;
-
       case "open-folder-dialog":
         const dir = await NativeBridge.selectFolder();
         if (dir && dir.path) {

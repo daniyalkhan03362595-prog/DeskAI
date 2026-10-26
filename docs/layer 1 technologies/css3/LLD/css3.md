@@ -224,7 +224,6 @@ Jab local Qwen 7B model chat window mein tezi se text chunks stream karta hai, t
 
 /* Hardware Compositing Promotion */
 .uec-card,
-.palette-dialog,
 .telemetry-row {
   transform: translateZ(0);     /* Promotes to dedicated GPU layer */
   backface-visibility: hidden;

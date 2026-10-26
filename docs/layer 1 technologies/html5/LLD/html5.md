@@ -44,12 +44,6 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
         <span class="app-logo">⚡ DeskAI</span>
         <span class="workspace-pill" id="headerWorkspacePill">DeskAI / main</span>
       </div>
-      <div class="header-center">
-        <button class="omnibar-trigger" id="omnibarBtn" data-action="open-palette" aria-label="Open Command Palette (Ctrl+P)">
-          <span class="search-icon">🔍</span>
-          <span class="placeholder-text">Search files, symbols, commands... (Ctrl+P)</span>
-        </button>
-      </div>
       <div class="header-right window-controls" role="group" aria-label="Window Controls">
         <button class="win-btn win-min" data-action="win-minimize" aria-label="Minimize Window">─</button>
         <button class="win-btn win-max" data-action="win-maximize" aria-label="Maximize Window">□</button>
@@ -162,18 +156,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
 
     </main>
 
-    <!-- 4. Native Dialogs & Modals -->
-    <dialog class="palette-dialog" id="commandPaletteDialog" aria-label="Command Palette">
-      <div class="palette-search-box">
-        <span class="palette-icon">🔍</span>
-        <input type="text" id="paletteSearchInput" class="palette-input" placeholder="Type a command or search files..." autofocus>
-      </div>
-      <ul class="palette-list" id="paletteResultsList" role="listbox" aria-label="Command Suggestions">
-        <!-- Filtered commands rendered here with role="option" -->
-      </ul>
-    </dialog>
-
-    <!-- 5. Accessible Announcements & Toast Rack -->
+    <!-- 4. Accessible Announcements & Toast Rack -->
     <div id="screenReaderAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div class="toast-rack" id="toastRack" aria-live="assertive" role="alert"></div>
 

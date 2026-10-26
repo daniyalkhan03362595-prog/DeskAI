@@ -72,7 +72,6 @@ Application interface chaar baray semantic hisson mein taqseem hai:
       </main>
 
       <!-- 3. Modal & Overlay Layer -->
-      <dialog id="commandPaletteDialog" class="palette-dialog"> ... </dialog>
       <div id="toastRack" class="toast-rack" aria-live="assertive"></div>
 
     </div>
