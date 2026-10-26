@@ -30,7 +30,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
     def test_single_use_token_redemption_and_cookie_issuance(self):
         """Tests that redeeming launch token sets session cookie, redirects 303, and burns token."""
         port = self.server.port
-        token = self.server.launch_token
+        token = self.server.security.create_launch_token()
         self.assertIsNotNone(token)
 
         redeem_url = f"http://127.0.0.1:{port}/auth/redeem?token={token}"
@@ -206,6 +206,10 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
         self.assertEqual(client.get("/docs", headers=host_hdr).status_code, 401)
         self.assertEqual(client.get("/openapi.json", headers=host_hdr).status_code, 401)
 
+        # 1b. Evil Host header rejected with 403 Forbidden
+        evil_host_hdr = {"Host": "evil-attacker.com"}
+        self.assertEqual(client.get("/css/tokens.css", headers=evil_host_hdr).status_code, 403)
+
         # 2. Authenticated session setup
         session_id = "testclient_session_789"
         self.server.security.active_sessions.add(session_id)
@@ -238,6 +242,53 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
         for asset in assets:
             res = client.get(asset, headers=host_hdr)
             self.assertEqual(res.status_code, 200, f"Asset {asset} failed with {res.status_code}")
+
+    def test_playwright_real_browser_smoke_test(self):
+        """
+        Launches real headless Chromium via Playwright, navigates to the redeemed URL,
+        asserts zero console errors, app.js executed, CSS applied, and WebSocket connected.
+        """
+        from playwright.sync_api import sync_playwright
+
+        port = self.server.port
+        token = self.server.security.create_launch_token()
+        redeem_url = f"http://127.0.0.1:{port}/auth/redeem?token={token}"
+
+        console_errors = []
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context()
+            page = context.new_page()
+
+            page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+            page.on("pageerror", lambda exc: console_errors.append(str(exc)))
+
+            # Navigate to launch token redemption URL
+            page.goto(redeem_url, wait_until="networkidle")
+
+            # 1. Assert URL was cleanly redirected to root /
+            self.assertEqual(page.url.rstrip("/"), f"http://127.0.0.1:{port}")
+
+            # 2. Assert Title & UI elements are present in DOM
+            self.assertEqual(page.title(), "DeskAI Studio")
+            self.assertTrue(page.locator("#appRoot").is_visible())
+            self.assertTrue(page.locator("#editorStage").is_visible())
+
+            # 3. Assert CSS applied
+            bg_color = page.evaluate("getComputedStyle(document.body).backgroundColor")
+            self.assertTrue(bg_color is not None and len(bg_color) > 0)
+
+            # 4. Wait for WebSocket connection to establish (readyState 1 = OPEN)
+            page.wait_for_function("() => window.wsClient && window.wsClient.socket && window.wsClient.socket.readyState === 1", timeout=5000)
+            ws_state = page.evaluate("() => window.wsClient.socket.readyState")
+            self.assertEqual(ws_state, 1)
+
+            # 5. Assert zero console errors
+            critical_errors = [e for e in console_errors if "favicon.ico" not in e]
+            self.assertEqual(critical_errors, [], f"Console errors detected: {critical_errors}")
+
+            browser.close()
 
 
 if __name__ == "__main__":

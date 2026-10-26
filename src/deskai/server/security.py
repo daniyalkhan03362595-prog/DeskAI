@@ -10,6 +10,11 @@ class SessionSecurityManager:
         self.launch_token: str | None = secrets.token_urlsafe(32)
         self.active_sessions: set[str] = set()
 
+    def create_launch_token(self) -> str:
+        """Generates and sets a new single-use launch token."""
+        self.launch_token = secrets.token_urlsafe(32)
+        return self.launch_token
+
     def redeem_launch_token(self, provided_token: str | None) -> str | None:
         """
         Redeems launch token in constant time.
