@@ -304,6 +304,81 @@ class DesktopBridgeAPI:
             return
         self._manager.lifecycle.has_dirty_tabs = bool(is_dirty)
 
+    def read_file(self, target_path: str) -> dict:
+        """Reads sandboxed file within workspace root. Max 10MB."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "content": None}
+        if not self._is_safe_path(target_path):
+            return {"status": "error", "message": "Access denied: Path outside workspace", "content": None}
+
+        canonical = canonicalize_path(target_path)
+        if not os.path.isfile(canonical):
+            return {"status": "error", "message": "File not found", "content": None}
+
+        if os.path.getsize(canonical) > 10 * 1024 * 1024:
+            return {"status": "error", "message": "File exceeds maximum 10MB size limit", "content": None}
+
+        try:
+            with open(canonical, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"status": "ok", "content": content, "path": canonical}
+        except UnicodeDecodeError:
+            return {"status": "error", "message": "File is not valid UTF-8 text", "content": None}
+        except Exception as e:
+            return {"status": "error", "message": str(e), "content": None}
+
+    def write_file(self, target_path: str, content: str) -> dict:
+        """Atomically writes file within workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin"}
+        if not self._is_safe_path(target_path):
+            return {"status": "error", "message": "Access denied: Path outside workspace"}
+
+        canonical = canonicalize_path(target_path)
+        parent_dir = os.path.dirname(canonical)
+        os.makedirs(parent_dir, exist_ok=True)
+
+        import tempfile
+        try:
+            with tempfile.NamedTemporaryFile("w", dir=parent_dir, encoding="utf-8", delete=False) as tf:
+                tf.write(content)
+                tf.flush()
+                os.fsync(tf.fileno())
+                temp_name = tf.name
+            os.replace(temp_name, canonical)
+            return {"status": "ok", "path": canonical}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def list_dir(self, target_path: str | None = None) -> dict:
+        """Lists directory entries safely inside workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "entries": []}
+
+        path_to_list = target_path if target_path else self.workspace_root
+        if not path_to_list or not self._is_safe_path(path_to_list):
+            return {"status": "error", "message": "Access denied: Path outside workspace", "entries": []}
+
+        canonical = canonicalize_path(path_to_list)
+        if not os.path.isdir(canonical):
+            return {"status": "error", "message": "Directory not found", "entries": []}
+
+        try:
+            entries = []
+            with os.scandir(canonical) as it:
+                for entry in it:
+                    if entry.name.startswith("."):
+                        continue
+                    entries.append({
+                        "name": entry.name,
+                        "is_dir": entry.is_dir(),
+                        "path": canonicalize_path(entry.path),
+                    })
+            entries.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
+            return {"status": "ok", "entries": entries, "path": canonical}
+        except Exception as e:
+            return {"status": "error", "message": str(e), "entries": []}
+
     def _is_safe_path(self, target_path: str) -> bool:
         """Internal sandbox helper."""
         return is_safe_workspace_path(target_path, self.workspace_root)

@@ -58,5 +58,26 @@ export const NativeBridge = {
       return await window.pywebview.api.set_dirty_status(Boolean(isDirty));
     }
     return false;
+  },
+
+  async readFile(filePath) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.read_file) {
+      return await window.pywebview.api.read_file(filePath);
+    }
+    return { status: "error", message: "API unavailable", content: null };
+  },
+
+  async writeFile(filePath, content) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.write_file) {
+      return await window.pywebview.api.write_file(filePath, content);
+    }
+    return { status: "error", message: "API unavailable" };
+  },
+
+  async listDir(dirPath = null) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.list_dir) {
+      return await window.pywebview.api.list_dir(dirPath);
+    }
+    return { status: "error", message: "API unavailable", entries: [] };
   }
 };
