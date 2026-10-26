@@ -2,16 +2,22 @@
 Race-Free Ephemeral Loopback Socket Allocator & Host Verification Helpers.
 """
 import socket
+import sys
 
 
 def bind_ephemeral_loopback_socket() -> tuple[socket.socket, int]:
     """
     Binds a listening loopback socket on an ephemeral port.
     Returns the open socket object and the allocated port number.
-    The socket remains bound and open so another process cannot steal the port.
+    On Windows, uses SO_EXCLUSIVEADDRUSE to prevent local port hijacking.
+    On other platforms, uses SO_REUSEADDR.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":
+        so_exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", -5)
+        sock.setsockopt(socket.SOL_SOCKET, so_exclusive, 1)
+    else:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("127.0.0.1", 0))
     sock.listen(128)
     port = sock.getsockname()[1]

@@ -50,11 +50,13 @@ class DesktopServer:
             # Host Verification
             host = request.headers.get("host")
             if not is_valid_loopback_host(host, self.port):
-                return Response(status_code=403, content="Invalid Host")
+                resp = Response(status_code=403, content="Invalid Host")
+                return self.security.apply_security_headers(resp, is_no_store=True)
 
             session_id = self.security.redeem_launch_token(token)
             if not session_id:
-                return Response(status_code=403, content="Invalid or Expired Launch Token")
+                resp = Response(status_code=403, content="Invalid or Expired Launch Token")
+                return self.security.apply_security_headers(resp, is_no_store=True)
 
             # Redirect to clean root URL with HttpOnly SameSite=Strict cookie
             response = RedirectResponse(url="/", status_code=303)
@@ -65,10 +67,7 @@ class DesktopServer:
                 samesite="strict",
                 path="/"
             )
-            response.headers["Referrer-Policy"] = "no-referrer"
-            response.headers["Content-Security-Policy"] = self.security.get_content_security_policy()
-            response.headers["X-Content-Type-Options"] = "nosniff"
-            return response
+            return self.security.apply_security_headers(response, is_no_store=True)
 
         # 2. HTTP Middleware (Host, Cookie & CSP Guards)
         @self.app.middleware("http")
@@ -82,20 +81,20 @@ class DesktopServer:
             # Host Header Check
             host = request.headers.get("host")
             if not is_valid_loopback_host(host, self.port):
-                return Response(status_code=403, content="Forbidden: Host mismatch")
+                resp = Response(status_code=403, content="Forbidden: Host mismatch")
+                return self.security.apply_security_headers(resp)
 
             # Session Cookie Check
             session_cookie = request.cookies.get("deskai_session")
             if not self.security.is_valid_session(session_cookie):
-                return Response(status_code=401, content="Unauthorized: Valid session required")
+                resp = Response(status_code=401, content="Unauthorized: Valid session required")
+                return self.security.apply_security_headers(resp)
 
             response = await call_next(request)
 
-            # Strict Security Headers
-            response.headers["Content-Security-Policy"] = self.security.get_content_security_policy()
-            response.headers["Referrer-Policy"] = "no-referrer"
-            response.headers["X-Content-Type-Options"] = "nosniff"
-            return response
+            # Strict Security Headers & Cache-Control: no-store for root
+            is_no_store = path in ("/", "/auth/redeem")
+            return self.security.apply_security_headers(response, is_no_store=is_no_store)
 
         # 3. Hardened WebSocket Endpoint (Accepted first, then authorized with 4403/4401)
         @self.app.websocket("/ws")

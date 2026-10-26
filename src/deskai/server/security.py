@@ -90,16 +90,31 @@ class SessionSecurityManager:
         """
         Generates strict exact-port Content Security Policy.
         Disallows wildcards (no ws://127.0.0.1:*).
+        Strictly drops 'unsafe-eval' and 'unsafe-inline'.
         """
-        style_rule = f"'self' 'nonce-{style_nonce}'" if style_nonce else "'self' 'unsafe-inline'"
+        style_rule = f"'self' 'nonce-{style_nonce}'" if style_nonce else "'self'"
         return (
             f"default-src 'self'; "
             f"connect-src 'self' ws://127.0.0.1:{self.port} http://127.0.0.1:{self.port}; "
             f"img-src 'self' data: blob:; "
             f"style-src {style_rule}; "
             f"font-src 'self' data:; "
-            f"script-src 'self' 'unsafe-eval'; "
+            f"script-src 'self'; "
             f"object-src 'none'; "
             f"base-uri 'none'; "
-            f"form-action 'none';"
+            f"form-action 'none'; "
+            f"frame-ancestors 'none';"
         )
+
+    def apply_security_headers(self, response, is_no_store: bool = False):
+        """Applies comprehensive suite of hardening headers to HTTP response."""
+        response.headers["Content-Security-Policy"] = self.get_content_security_policy()
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if is_no_store:
+            response.headers["Cache-Control"] = "no-store"
+        return response
