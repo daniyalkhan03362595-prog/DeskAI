@@ -90,3 +90,80 @@ html, body {
   white-space: nowrap;
   border: 0;
 }
+
+/* Frameless Window Perimeter Resize Handles */
+.window-resize-handles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.resize-handle {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  user-select: none;
+}
+
+.resize-handle.top {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-handle.bottom {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resize-handle.left {
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-handle.right {
+  top: 8px;
+  bottom: 8px;
+  right: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resize-handle.corner {
+  width: 10px;
+  height: 10px;
+  z-index: 10000;
+}
+
+.resize-handle.top-left {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.resize-handle.top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.resize-handle.bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.resize-handle.bottom-right {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}

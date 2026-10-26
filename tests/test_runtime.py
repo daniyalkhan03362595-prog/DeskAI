@@ -274,6 +274,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
             self.assertEqual(page.title(), "DeskAI Studio")
             self.assertTrue(page.locator("#appRoot").is_visible())
             self.assertTrue(page.locator("#editorStage").is_visible())
+            self.assertEqual(page.locator("#windowResizeHandles .resize-handle").count(), 8)
 
             # 3. Assert CSS applied
             bg_color = page.evaluate("getComputedStyle(document.body).backgroundColor")
@@ -289,6 +290,14 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
             self.assertEqual(critical_errors, [], f"Console errors detected: {critical_errors}")
 
             browser.close()
+
+    def test_bridge_resize_window_edge_validation(self):
+        """Tests that DesktopBridgeAPI edge mapping handles valid/invalid values safely."""
+        from deskai.bridge.window import WindowManager
+        wm = WindowManager()
+        # Non-initialized native window or invalid edge returns False safely
+        self.assertFalse(wm.api.resize_window("invalid_edge_direction"))
+        self.assertFalse(wm.api.resize_window("top"))
 
 
 if __name__ == "__main__":

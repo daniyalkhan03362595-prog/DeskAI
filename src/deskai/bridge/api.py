@@ -102,6 +102,48 @@ class DesktopBridgeAPI:
                 return False
         return False
 
+    def resize_window(self, edge: str) -> bool:
+        """Initiates native Wayland/X11 window resize drag via GTK begin_resize_drag."""
+        native = getattr(self._window, "native", None)
+        if native and hasattr(native, "begin_resize_drag"):
+            try:
+                from gi.repository import GLib, Gdk
+                if hasattr(native, "is_maximized") and native.is_maximized():
+                    return False
+
+                edge_map = {
+                    "top": Gdk.WindowEdge.NORTH,
+                    "bottom": Gdk.WindowEdge.SOUTH,
+                    "left": Gdk.WindowEdge.WEST,
+                    "right": Gdk.WindowEdge.EAST,
+                    "top-left": Gdk.WindowEdge.NORTH_WEST,
+                    "top-right": Gdk.WindowEdge.NORTH_EAST,
+                    "bottom-left": Gdk.WindowEdge.SOUTH_WEST,
+                    "bottom-right": Gdk.WindowEdge.SOUTH_EAST,
+                }
+                edge_enum = edge_map.get(edge)
+                if edge_enum is None:
+                    return False
+
+                def _do_resize():
+                    try:
+                        display = Gdk.Display.get_default()
+                        if display:
+                            seat = display.get_default_seat()
+                            if seat:
+                                pointer = seat.get_pointer()
+                                if pointer:
+                                    _, x, y = pointer.get_position()
+                                    native.begin_resize_drag(edge_enum, 1, int(x), int(y), Gdk.CURRENT_TIME)
+                    except Exception as e:
+                        print(f"[DeskAI] Native resize error: {e}")
+                GLib.idle_add(_do_resize)
+                return True
+            except Exception as e:
+                print(f"[DeskAI] Bridge resize error: {e}")
+                return False
+        return False
+
     def window_control(self, action: str) -> bool:
         """Handles native window frame buttons."""
         if action == "minimize":

@@ -136,6 +136,22 @@ export function initGlobalEvents() {
       }
     });
   }
+
+  // 7. Outer Edge & Corner Window Resizing (Native Wayland / GTK)
+  const resizeHandles = document.getElementById("windowResizeHandles");
+  if (resizeHandles) {
+    resizeHandles.addEventListener("mousedown", (e) => {
+      const handle = e.target.closest(".resize-handle");
+      if (handle && e.button === 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const edge = handle.dataset.edge;
+        if (edge) {
+          NativeBridge.resizeWindow(edge);
+        }
+      }
+    });
+  }
 }
 
 function initResizers() {
