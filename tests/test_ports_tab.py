@@ -56,6 +56,27 @@ class TestPortsDrawerTab(unittest.TestCase):
         bridge_js = Path("src/deskai/static/js/bridge.js").read_text(encoding="utf-8")
         self.assertIn("listPorts()", bridge_js)
 
+    def test_horizontal_drawer_resizer_declared_in_index_html(self):
+        """index.html must declare the horizontal resizerRow above bottomDrawer."""
+        index_html = Path("src/deskai/static/index.html").read_text(encoding="utf-8")
+        self.assertIn('id="resizerBottom"', index_html)
+        self.assertIn('class="resizer-row"', index_html)
+        self.assertIn('aria-orientation="horizontal"', index_html)
+
+    def test_resizer_row_defined_in_layout_css(self):
+        """layout.css must define .resizer-row with cursor: row-resize."""
+        layout_css = Path("src/deskai/static/css/layout.css").read_text(encoding="utf-8")
+        self.assertIn(".resizer-row", layout_css)
+        self.assertIn("cursor: row-resize;", layout_css)
+
+    def test_events_js_binds_resizer_bottom(self):
+        """events.js must bind resizerBottom mouse and keyboard events."""
+        events_js = Path("src/deskai/static/js/events.js").read_text(encoding="utf-8")
+        self.assertIn("resizerBottom", events_js)
+        self.assertIn("--bottom-drawer-h", events_js)
+        self.assertIn("ArrowUp", events_js)
+        self.assertIn("ArrowDown", events_js)
+
 
 if __name__ == "__main__":
     unittest.main()

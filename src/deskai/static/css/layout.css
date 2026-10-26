@@ -47,6 +47,24 @@ html, body {
   box-shadow: 0 0 8px var(--color-primary);
 }
 
+.resizer-row {
+  width: 100%;
+  height: 4px;
+  background-color: var(--border-subtle);
+  cursor: row-resize;
+  position: relative;
+  z-index: var(--z-resizer);
+  transition: background-color 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.resizer-row:hover,
+.resizer-row.resizing {
+  background-color: var(--color-primary);
+  box-shadow: 0 0 8px var(--color-primary);
+}
+
 /* Custom Minimalist WebKit Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

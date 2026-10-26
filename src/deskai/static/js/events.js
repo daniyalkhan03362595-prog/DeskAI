@@ -306,4 +306,66 @@ function initResizers() {
       window.addEventListener("mouseup", onMouseUp);
     });
   }
+
+  const resizerBottom = document.getElementById("resizerBottom");
+  const bottomDrawer = document.getElementById("bottomDrawer");
+  const editorStage = document.getElementById("editorStage");
+
+  if (resizerBottom && bottomDrawer && editorStage) {
+    resizerBottom.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      resizerBottom.classList.add("resizing");
+
+      const onMouseMove = (ev) => {
+        const stageRect = editorStage.getBoundingClientRect();
+        const rawH = stageRect.bottom - ev.clientY;
+        const maxH = Math.max(160, editorStage.clientHeight - 80);
+        const newH = Math.max(48, Math.min(maxH, rawH));
+        root.style.setProperty("--bottom-drawer-h", `${newH}px`);
+        resizerBottom.setAttribute("aria-valuenow", String(Math.round(newH)));
+        if (bottomDrawer.classList.contains("collapsed") && newH > 40) {
+          bottomDrawer.classList.remove("collapsed");
+        }
+      };
+
+      const onMouseUp = () => {
+        resizerBottom.classList.remove("resizing");
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    });
+
+    // Keyboard navigation (ArrowUp to enlarge drawer, ArrowDown to shrink)
+    resizerBottom.addEventListener("keydown", (e) => {
+      const step = e.shiftKey ? 50 : 20;
+      const currentH = parseInt(getComputedStyle(root).getPropertyValue("--bottom-drawer-h"), 10) || 220;
+      const maxH = Math.max(160, editorStage.clientHeight - 80);
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const newH = Math.min(maxH, currentH + step);
+        root.style.setProperty("--bottom-drawer-h", `${newH}px`);
+        resizerBottom.setAttribute("aria-valuenow", String(Math.round(newH)));
+        bottomDrawer.classList.remove("collapsed");
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const newH = Math.max(48, currentH - step);
+        root.style.setProperty("--bottom-drawer-h", `${newH}px`);
+        resizerBottom.setAttribute("aria-valuenow", String(Math.round(newH)));
+      }
+    });
+
+    // Double-click to toggle collapse or restore default height
+    resizerBottom.addEventListener("dblclick", () => {
+      if (bottomDrawer.classList.contains("collapsed")) {
+        bottomDrawer.classList.remove("collapsed");
+        root.style.setProperty("--bottom-drawer-h", "220px");
+      } else {
+        bottomDrawer.classList.add("collapsed");
+      }
+    });
+  }
 }
