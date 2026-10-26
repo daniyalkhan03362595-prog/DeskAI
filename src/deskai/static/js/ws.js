@@ -69,7 +69,7 @@ export class WebSocketClient {
     this.socket.onclose = (event) => {
       store.state.connection.isSocketConnected = false;
       
-      // Code 4401/4403/1008: Explicit Security Rejection -> Fatal halt
+      // Code 4401/4403/1008: Explicit Security / Auth Rejection -> Fatal halt
       if (event.code === 4401 || event.code === 4403 || event.code === 1008) {
         this.isFatalClosed = true;
         console.error(`[WS] Fatal: Authentication rejected by server (Code ${event.code}).`);
@@ -77,16 +77,8 @@ export class WebSocketClient {
         return;
       }
 
-      // Code 1006: Handshake rejected or aborted
-      if (event.code === 1006) {
-        this.consecutive1006++;
-        if (this.consecutive1006 >= 3) {
-          this.isFatalClosed = true;
-          console.error("[WS] Fatal: Repeated handshake failures (Code 1006). Halting.");
-          return;
-        }
-      }
-
+      // Code 1006 or normal close: Do not treat server restarts as fatal.
+      // Continue reconnecting with exponential backoff up to maxReconnectDelay.
       this._scheduleReconnect();
     };
   }

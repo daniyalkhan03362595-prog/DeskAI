@@ -133,11 +133,19 @@ class DesktopServer:
                         continue
 
                     msg_type = data.get("type")
+                    if not isinstance(msg_type, str):
+                        await ws.send_json({"type": "error", "code": "ERR_INVALID_FRAME"})
+                        continue
+
                     if msg_type == "client.resync":
                         await ws.send_json({"type": "server.snapshot", "seq": 1, "payload": {}})
                     elif msg_type == "uec.transition":
                         # Return ACK
                         await ws.send_json({"type": "uec.ack", "payload": data.get("payload", {})})
+                    elif msg_type == "uec.approve":
+                        await ws.send_json({"type": "uec.ack", "payload": {"state": "SUCCESS", "approved": True}})
+                    elif msg_type == "uec.reject":
+                        await ws.send_json({"type": "uec.ack", "payload": {"state": "ROLLBACK", "rejected": True}})
             except WebSocketDisconnect:
                 pass
 

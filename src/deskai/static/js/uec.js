@@ -48,11 +48,37 @@ export class UECStateMachine {
   approvePlan() { 
     const current = store.state.execution.state;
     if (current === "PLANNING") return this.transition("EXECUTING");
-    if (current === "REVIEW_DIFF") return this.transition("SUCCESS");
+    if (current === "REVIEW_DIFF") {
+      if (!window.wsClient || !store.state.connection.isSocketConnected) {
+        alert("Cannot accept changes while offline. Please wait for reconnection.");
+        return false;
+      }
+      const sent = window.wsClient.send("uec.approve", {}, { replayable: false });
+      if (!sent) {
+        alert("Cannot accept changes while offline. Please wait for reconnection.");
+        return false;
+      }
+      return true;
+    }
     return false;
   }
 
-  rejectPlan() { return this.transition("ROLLBACK"); }
+  rejectPlan() {
+    const current = store.state.execution.state;
+    if (current === "REVIEW_DIFF") {
+      if (!window.wsClient || !store.state.connection.isSocketConnected) {
+        alert("Cannot reject changes while offline. Please wait for reconnection.");
+        return false;
+      }
+      const sent = window.wsClient.send("uec.reject", {}, { replayable: false });
+      if (!sent) {
+        alert("Cannot reject changes while offline. Please wait for reconnection.");
+        return false;
+      }
+      return true;
+    }
+    return this.transition("ROLLBACK");
+  }
   rollback() { return this.transition("ROLLBACK"); }
   cancel() { return this.transition("CANCELLED"); }
   reset() { return this.transition("IDLE"); }

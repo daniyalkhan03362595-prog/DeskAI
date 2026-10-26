@@ -160,7 +160,84 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
                 data = json.loads(reply)
                 self.assertEqual(data.get("type"), "server.snapshot")
 
+                # E. Malformed JSON frame handling
+                await ws.send("not-valid-json{{{")
+                err_reply = await ws.recv()
+                err_data = json.loads(err_reply)
+                self.assertEqual(err_data.get("code"), "ERR_MALFORMED_JSON")
+
+                # F. Non-dict frame (JSON array) handling
+                await ws.send(json.dumps(["item1", "item2"]))
+                err_arr = await ws.recv()
+                err_arr_data = json.loads(err_arr)
+                self.assertEqual(err_arr_data.get("code"), "ERR_INVALID_FRAME")
+
+                # G. Non-string type handling
+                await ws.send(json.dumps({"type": 12345}))
+                err_type = await ws.recv()
+                err_type_data = json.loads(err_type)
+                self.assertEqual(err_type_data.get("code"), "ERR_INVALID_FRAME")
+
+                # H. Oversized payload handling (> 64KB)
+                oversized_payload = json.dumps({"type": "test", "data": "X" * 70000})
+                await ws.send(oversized_payload)
+                err_size = await ws.recv()
+                err_size_data = json.loads(err_size)
+                self.assertEqual(err_size_data.get("code"), "ERR_PAYLOAD_TOO_LARGE")
+
+                # I. UEC approve & reject ACK handling
+                await ws.send(json.dumps({"type": "uec.approve", "payload": {}}))
+                ack_approve = await ws.recv()
+                self.assertEqual(json.loads(ack_approve).get("payload", {}).get("state"), "SUCCESS")
+
+                await ws.send(json.dumps({"type": "uec.reject", "payload": {}}))
+                ack_reject = await ws.recv()
+                self.assertEqual(json.loads(ack_reject).get("payload", {}).get("state"), "ROLLBACK")
+
         asyncio.run(run_ws_tests())
+
+    def test_starlette_testclient_all_static_assets_and_no_docs_leak(self):
+        """Uses Starlette/FastAPI TestClient to assert all assets resolve 200 OK and docs are 404."""
+        from fastapi.testclient import TestClient
+        client = TestClient(self.server.app)
+        host_hdr = {"Host": f"127.0.0.1:{self.server.port}"}
+
+        # 1. Unauthenticated requests to /docs and /openapi.json are rejected with 401
+        self.assertEqual(client.get("/docs", headers=host_hdr).status_code, 401)
+        self.assertEqual(client.get("/openapi.json", headers=host_hdr).status_code, 401)
+
+        # 2. Authenticated session setup
+        session_id = "testclient_session_789"
+        self.server.security.active_sessions.add(session_id)
+        client.cookies.set("deskai_session", session_id)
+
+        # 3. Authenticated requests to disabled docs endpoints return 404 (No schema leakage)
+        self.assertEqual(client.get("/docs", headers=host_hdr).status_code, 404)
+        self.assertEqual(client.get("/openapi.json", headers=host_hdr).status_code, 404)
+        self.assertEqual(client.get("/redoc", headers=host_hdr).status_code, 404)
+
+        # 4. Assert all 16 static assets resolve 200 OK
+        assets = [
+            "/css/tokens.css",
+            "/css/layout.css",
+            "/css/components.css",
+            "/css/diff.css",
+            "/css/animations.css",
+            "/vendor/purify.min.js",
+            "/vendor/marked.min.js",
+            "/vendor/codemirror.bundle.js",
+            "/js/app.js",
+            "/js/bridge.js",
+            "/js/editor.js",
+            "/js/events.js",
+            "/js/state.js",
+            "/js/stream.js",
+            "/js/uec.js",
+            "/js/ws.js"
+        ]
+        for asset in assets:
+            res = client.get(asset, headers=host_hdr)
+            self.assertEqual(res.status_code, 200, f"Asset {asset} failed with {res.status_code}")
 
 
 if __name__ == "__main__":

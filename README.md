@@ -17,7 +17,7 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
   * **Race-Free Dynamic Port:** Python binds a listening loopback socket (`127.0.0.1:0`) and passes the socket directly to the server.
   * **Token-to-Cookie Redemption:** Launch URL token is redeemed on initial request for an `HttpOnly; SameSite=Strict` cookie, redirecting to a clean URL. Sub-resources (`<link>`, `<script>`) and WebSockets authenticate automatically via cookie.
   * **Host & Origin Validation:** Rejects DNS rebinding and cross-origin attacks by verifying incoming `Host` (`127.0.0.1:{port}`) and `Origin` headers.
-  * **Exact-Port CSP:** Injects dynamic port per launch (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; style-src 'self' 'nonce-{nonce}'; object-src 'none'; base-uri 'none'; form-action 'none'`).
+  * **Exact-Port CSP:** Injects dynamic port per launch (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'none'`).
   * **DOMPurify Sanitization:** All markdown output and external content is strictly sanitized with explicit tag allowlists prior to DOM insertion.
   * **Path Sandboxing (`commonpath`):** Bridge API canonicalizes all file paths against the runtime `workspace_root` with `os.path.commonpath()` (preventing `/DeskAI-secrets` traversal vulnerabilities).
   * **External Link Sandbox:** Web links in chat are intercepted and dispatched to the OS default browser (`webbrowser.open`), preventing off-origin navigation in the desktop shell.

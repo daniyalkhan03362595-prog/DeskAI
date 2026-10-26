@@ -23,6 +23,11 @@ window.wsClient.on("agent.diff", (payload) => {
 window.wsClient.on("agent.failed", (payload) => {
   window.UEC.transition("FAILED", payload);
 });
+window.wsClient.on("uec.ack", (payload) => {
+  if (payload && payload.state) {
+    window.UEC.transition(payload.state, payload);
+  }
+});
 
 // Setup Prompt Input Form
 const promptForm = document.getElementById("promptForm");
