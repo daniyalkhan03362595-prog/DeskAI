@@ -13,6 +13,7 @@ class WindowLifecycleHandler:
     def __init__(self, manager: 'WindowManager'):
         self.manager = manager
         self.has_dirty_tabs: bool = False
+        self._exit_confirmed: bool = False
 
     def attach_hooks(self, window: webview.Window):
         window.events.loaded += self.on_loaded
@@ -79,19 +80,32 @@ class WindowLifecycleHandler:
 
     def confirm_exit(self) -> bool:
         """Prompts confirmation if unsaved changes exist."""
+        if self._exit_confirmed:
+            return True
         if not self.has_dirty_tabs:
+            self._exit_confirmed = True
             return True
 
-        if hasattr(self.manager.window, "create_confirmation_dialog"):
-            result = self.manager.window.create_confirmation_dialog(
+        window = getattr(self.manager, "window", None)
+        if window and hasattr(window, "create_confirmation_dialog"):
+            result = window.create_confirmation_dialog(
                 "Unsaved Changes",
                 "You have unsaved changes in your workspace. Are you sure you want to exit?"
             )
+            if result:
+                self._exit_confirmed = True
             return bool(result)
+        self._exit_confirmed = True
         return True
 
     def on_closing(self) -> bool:
-        return self.confirm_exit()
+        if self._exit_confirmed:
+            return True
+        confirmed = self.confirm_exit()
+        if confirmed:
+            self._exit_confirmed = True
+            return True
+        return False
 
     def on_closed(self):
         print("[DeskAI] Window closed. Stopping desktop supervisor server...")

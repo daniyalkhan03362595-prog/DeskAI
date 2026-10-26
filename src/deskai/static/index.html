@@ -160,6 +160,17 @@
       </ul>
     </dialog>
 
+    <dialog class="confirm-dialog" id="confirmModal" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalDesc">
+      <div class="confirm-dialog-content">
+        <h3 id="confirmModalTitle" class="confirm-dialog-title">Unsaved Changes</h3>
+        <p id="confirmModalDesc" class="confirm-dialog-body">You have unsaved changes in your open editor tabs. Are you sure you want to discard them and exit?</p>
+        <div class="confirm-dialog-actions">
+          <button type="button" class="btn secondary-btn" data-action="cancel-exit">Cancel</button>
+          <button type="button" class="btn danger-btn" data-action="confirm-exit">Discard & Exit</button>
+        </div>
+      </div>
+    </dialog>
+
     <!-- 5. Accessible Announcements & Toast Rack -->
     <div id="screenReaderAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div class="toast-rack" id="toastRack" aria-live="assertive" role="alert"></div>

@@ -25,23 +25,23 @@ export const NativeBridge = {
     return { status: "cancelled", path: null };
   },
 
-  async windowControl(action) {
+  async windowControl(action, direction = null, timestamp = null) {
     if (window.pywebview && window.pywebview.api) {
-      return await window.pywebview.api.window_control(action);
+      return await window.pywebview.api.window_control(action, direction, timestamp);
     }
     return false;
   },
 
-  async dragWindow() {
+  async dragWindow(timestamp = null) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.drag_window) {
-      return await window.pywebview.api.drag_window();
+      return await window.pywebview.api.drag_window(timestamp);
     }
     return false;
   },
 
-  async resizeWindow(edge) {
+  async resizeWindow(edge, timestamp = null) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.resize_window) {
-      return await window.pywebview.api.resize_window(edge);
+      return await window.pywebview.api.resize_window(edge, timestamp);
     }
     return false;
   },

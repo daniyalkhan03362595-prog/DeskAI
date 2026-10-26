@@ -47,9 +47,36 @@ export function initGlobalEvents() {
       case "win-maximize":
         NativeBridge.windowControl("maximize");
         break;
-      case "win-close":
-        NativeBridge.windowControl("close");
+      case "win-close": {
+        const canClose = await NativeBridge.windowControl("close_request");
+        if (!canClose) {
+          const confirmModal = document.getElementById("confirmModal");
+          if (confirmModal && typeof confirmModal.showModal === "function") {
+            confirmModal.showModal();
+          } else {
+            NativeBridge.windowControl("close");
+          }
+        }
         break;
+      }
+
+      case "cancel-exit": {
+        const confirmModal = document.getElementById("confirmModal");
+        if (confirmModal && confirmModal.close) {
+          confirmModal.close();
+        }
+        break;
+      }
+
+      case "confirm-exit": {
+        const confirmModal = document.getElementById("confirmModal");
+        if (confirmModal && confirmModal.close) {
+          confirmModal.close();
+        }
+        await NativeBridge.setDirtyStatus(false);
+        await NativeBridge.windowControl("close");
+        break;
+      }
 
       case "tab-close":
         window.EditorManager.closeTab(param);
@@ -131,12 +158,19 @@ export function initGlobalEvents() {
   // 5. Dual Resizers Handle Pointer Drag
   initResizers();
 
-  // 6. Header Drag (Wayland / GTK native move drag) & Double Click Maximize
+  // 6. Header Drag (Wayland / GTK / Windows native move drag) & Double Click Maximize
   const appHeader = document.getElementById("appHeader");
   if (appHeader) {
+    let lastHeaderMouseDown = 0;
     appHeader.addEventListener("mousedown", (e) => {
       if (e.button === 0 && !e.target.closest("button, input, textarea, .workspace-pill")) {
-        NativeBridge.dragWindow();
+        const now = e.timeStamp || Date.now();
+        if (now - lastHeaderMouseDown < 350 || e.detail > 1) {
+          lastHeaderMouseDown = now;
+          return;
+        }
+        lastHeaderMouseDown = now;
+        NativeBridge.windowControl("drag_start", null, now);
       }
     });
 
@@ -147,7 +181,7 @@ export function initGlobalEvents() {
     });
   }
 
-  // 7. Outer Edge & Corner Window Resizing (Native Wayland / GTK)
+  // 7. Outer Edge & Corner Window Resizing (Native Wayland / GTK / Windows)
   const resizeHandles = document.getElementById("windowResizeHandles");
   if (resizeHandles) {
     resizeHandles.addEventListener("mousedown", (e) => {
@@ -157,7 +191,7 @@ export function initGlobalEvents() {
         e.stopPropagation();
         const edge = handle.dataset.edge;
         if (edge) {
-          NativeBridge.resizeWindow(edge);
+          NativeBridge.windowControl("resize_start", edge, e.timeStamp || Date.now());
         }
       }
     });
