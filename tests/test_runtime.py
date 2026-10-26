@@ -2,13 +2,13 @@
 Runtime Integration & End-to-End Server Verification Suite for DeskAI Layer 1
 Directly probes the live DesktopServer instance over loopback HTTP & WebSocket.
 """
+
 import asyncio
 import json
 import time
 import unittest
 import urllib.request
 import urllib.error
-from urllib.parse import urlparse
 import websockets
 from websockets.exceptions import ConnectionClosed
 
@@ -37,6 +37,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
 
         # 1. First redemption attempt
         req = urllib.request.Request(redeem_url, headers={"Host": f"127.0.0.1:{port}"})
+
         class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
                 return None
@@ -72,11 +73,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
 
         # 4. Request with valid session cookie returns 200 OK HTML
         auth_root_req = urllib.request.Request(
-            f"http://127.0.0.1:{port}/",
-            headers={
-                "Host": f"127.0.0.1:{port}",
-                "Cookie": f"deskai_session={cookie_val}"
-            }
+            f"http://127.0.0.1:{port}/", headers={"Host": f"127.0.0.1:{port}", "Cookie": f"deskai_session={cookie_val}"}
         )
         auth_resp = urllib.request.urlopen(auth_root_req)
         self.assertEqual(auth_resp.status, 200)
@@ -88,10 +85,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
         for asset_path in ["/css/tokens.css", "/css/layout.css", "/js/app.js", "/vendor/purify.min.js"]:
             asset_req = urllib.request.Request(
                 f"http://127.0.0.1:{port}{asset_path}",
-                headers={
-                    "Host": f"127.0.0.1:{port}",
-                    "Cookie": f"deskai_session={cookie_val}"
-                }
+                headers={"Host": f"127.0.0.1:{port}", "Cookie": f"deskai_session={cookie_val}"},
             )
             asset_resp = urllib.request.urlopen(asset_req)
             self.assertEqual(asset_resp.status, 200, f"Asset {asset_path} failed to return 200")
@@ -111,8 +105,8 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
                     additional_headers={
                         "Host": f"127.0.0.1:{port}",
                         "Origin": "http://evil-site.com",
-                        "Cookie": f"deskai_session={test_session}"
-                    }
+                        "Cookie": f"deskai_session={test_session}",
+                    },
                 ) as ws:
                     await ws.recv()
             except ConnectionClosed as e:
@@ -125,8 +119,8 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
                     additional_headers={
                         "Host": f"127.0.0.1:{port}",
                         "Origin": "null",
-                        "Cookie": f"deskai_session={test_session}"
-                    }
+                        "Cookie": f"deskai_session={test_session}",
+                    },
                 ) as ws:
                     await ws.recv()
             except ConnectionClosed as e:
@@ -135,11 +129,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
             # C. Missing Cookie rejected with 4401
             try:
                 async with websockets.connect(
-                    ws_url,
-                    additional_headers={
-                        "Host": f"127.0.0.1:{port}",
-                        "Origin": f"http://127.0.0.1:{port}"
-                    }
+                    ws_url, additional_headers={"Host": f"127.0.0.1:{port}", "Origin": f"http://127.0.0.1:{port}"}
                 ) as ws:
                     await ws.recv()
             except ConnectionClosed as e:
@@ -151,8 +141,8 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
                 additional_headers={
                     "Host": f"127.0.0.1:{port}",
                     "Origin": f"http://127.0.0.1:{port}",
-                    "Cookie": f"deskai_session={test_session}"
-                }
+                    "Cookie": f"deskai_session={test_session}",
+                },
             ) as ws:
                 # Send resync frame
                 await ws.send(json.dumps({"type": "client.resync", "seq": 1}))
@@ -185,10 +175,35 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
                 err_size_data = json.loads(err_size)
                 self.assertEqual(err_size_data.get("code"), "ERR_PAYLOAD_TOO_LARGE")
 
-                # I. UEC approve & reject ACK handling
+                # I. UEC approve & reject ACK handling (guarded by state machine)
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "IDLE", "to": "PLANNING"}}))
+                await ws.recv()
+                await ws.send(
+                    json.dumps({"type": "uec.transition", "payload": {"from": "PLANNING", "to": "EXECUTING"}})
+                )
+                await ws.recv()
+                await ws.send(
+                    json.dumps({"type": "uec.transition", "payload": {"from": "EXECUTING", "to": "REVIEW_DIFF"}})
+                )
+                await ws.recv()
+
                 await ws.send(json.dumps({"type": "uec.approve", "payload": {}}))
                 ack_approve = await ws.recv()
                 self.assertEqual(json.loads(ack_approve).get("payload", {}).get("state"), "SUCCESS")
+
+                # Reset to IDLE -> step to REVIEW_DIFF -> test reject
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "SUCCESS", "to": "IDLE"}}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "IDLE", "to": "PLANNING"}}))
+                await ws.recv()
+                await ws.send(
+                    json.dumps({"type": "uec.transition", "payload": {"from": "PLANNING", "to": "EXECUTING"}})
+                )
+                await ws.recv()
+                await ws.send(
+                    json.dumps({"type": "uec.transition", "payload": {"from": "EXECUTING", "to": "REVIEW_DIFF"}})
+                )
+                await ws.recv()
 
                 await ws.send(json.dumps({"type": "uec.reject", "payload": {}}))
                 ack_reject = await ws.recv()
@@ -199,6 +214,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
     def test_starlette_testclient_all_static_assets_and_no_docs_leak(self):
         """Uses Starlette/FastAPI TestClient to assert all assets resolve 200 OK and docs are 404."""
         from fastapi.testclient import TestClient
+
         client = TestClient(self.server.app)
         host_hdr = {"Host": f"127.0.0.1:{self.server.port}"}
 
@@ -237,7 +253,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
             "/js/state.js",
             "/js/stream.js",
             "/js/uec.js",
-            "/js/ws.js"
+            "/js/ws.js",
         ]
         for asset in assets:
             res = client.get(asset, headers=host_hdr)
@@ -281,7 +297,10 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
             self.assertTrue(bg_color is not None and len(bg_color) > 0)
 
             # 4. Wait for WebSocket connection to establish (readyState 1 = OPEN)
-            page.wait_for_function("() => window.wsClient && window.wsClient.socket && window.wsClient.socket.readyState === 1", timeout=5000)
+            page.wait_for_function(
+                "() => window.wsClient && window.wsClient.socket && window.wsClient.socket.readyState === 1",
+                timeout=5000,
+            )
             ws_state = page.evaluate("() => window.wsClient.socket.readyState")
             self.assertEqual(ws_state, 1)
 
@@ -294,6 +313,7 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
     def test_bridge_resize_window_edge_validation(self):
         """Tests that DesktopBridgeAPI edge mapping handles valid/invalid values safely."""
         from deskai.bridge.window import WindowManager
+
         wm = WindowManager()
         # Non-initialized native window or invalid edge returns False safely
         self.assertFalse(wm.api.resize_window("invalid_edge_direction"))

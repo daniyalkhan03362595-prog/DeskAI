@@ -27,6 +27,14 @@ class DesktopServer:
         self.security = SessionSecurityManager(self.port)
         self.launch_token = self.security.launch_token
 
+        # Load shared UEC transition matrix
+        transitions_file = self.static_dir / "transitions.json"
+        if transitions_file.exists():
+            with open(transitions_file, "r", encoding="utf-8") as f:
+                self.transitions_table = json.load(f)
+        else:
+            self.transitions_table = {}
+
         # 2. FastAPI Application (Disabled OpenAPI schema leakage)
         self.app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         self.uvicorn_server: uvicorn.Server | None = None
@@ -111,8 +119,10 @@ class DesktopServer:
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
-            # Frame Handling Loop with Monotonically Increasing Connection Sequence
+            # Frame Handling Loop with Monotonically Increasing Connection Sequence & UEC State Machine
             conn_seq = 1
+            uec_state = "IDLE"
+            processed_requests = set()
 
             async def send_frame(frame_type: str, payload: dict = None, **extra):
                 nonlocal conn_seq
@@ -150,14 +160,86 @@ class DesktopServer:
                         continue
 
                     if msg_type == "client.resync":
-                        await send_frame("server.snapshot", payload={})
+                        await send_frame("server.snapshot", payload={"uec_state": uec_state})
                     elif msg_type == "uec.transition":
-                        # Return ACK
-                        await send_frame("uec.ack", payload=data.get("payload", {}))
+                        payload = data.get("payload") or {}
+                        target_state = payload.get("to")
+                        allowed = self.transitions_table.get(uec_state, [])
+                        if target_state in allowed:
+                            uec_state = target_state
+                            await send_frame("uec.ack", payload={"state": uec_state})
+                        else:
+                            await send_frame(
+                                "error",
+                                code="ERR_INVALID_TRANSITION",
+                                message=f"Transition from {uec_state} to {target_state} not allowed"
+                            )
                     elif msg_type == "uec.approve":
-                        await send_frame("uec.ack", payload={"state": "SUCCESS", "approved": True})
+                        req_id = data.get("request_id") or data.get("idempotency_key")
+                        if req_id and req_id in processed_requests:
+                            await send_frame(
+                                "uec.ack",
+                                payload={"state": uec_state, "approved": True, "idempotent": True}
+                            )
+                            continue
+
+                        if uec_state == "PLANNING":
+                            next_state = "EXECUTING"
+                        elif uec_state == "REVIEW_DIFF":
+                            next_state = "SUCCESS"
+                        else:
+                            await send_frame(
+                                "error",
+                                code="ERR_INVALID_TRANSITION",
+                                message=f"Cannot approve in state {uec_state}"
+                            )
+                            continue
+
+                        allowed = self.transitions_table.get(uec_state, [])
+                        if next_state in allowed:
+                            uec_state = next_state
+                            if req_id:
+                                processed_requests.add(req_id)
+                            await send_frame("uec.ack", payload={"state": uec_state, "approved": True})
+                        else:
+                            await send_frame(
+                                "error",
+                                code="ERR_INVALID_TRANSITION",
+                                message=f"Transition from {uec_state} to {next_state} not allowed"
+                            )
                     elif msg_type == "uec.reject":
-                        await send_frame("uec.ack", payload={"state": "ROLLBACK", "rejected": True})
+                        req_id = data.get("request_id") or data.get("idempotency_key")
+                        if req_id and req_id in processed_requests:
+                            await send_frame(
+                                "uec.ack",
+                                payload={"state": uec_state, "rejected": True, "idempotent": True}
+                            )
+                            continue
+
+                        if uec_state == "REVIEW_DIFF":
+                            next_state = "ROLLBACK"
+                        elif uec_state in ("PLANNING", "EXECUTING"):
+                            next_state = "CANCELLED"
+                        else:
+                            await send_frame(
+                                "error",
+                                code="ERR_INVALID_TRANSITION",
+                                message=f"Cannot reject in state {uec_state}"
+                            )
+                            continue
+
+                        allowed = self.transitions_table.get(uec_state, [])
+                        if next_state in allowed:
+                            uec_state = next_state
+                            if req_id:
+                                processed_requests.add(req_id)
+                            await send_frame("uec.ack", payload={"state": uec_state, "rejected": True})
+                        else:
+                            await send_frame(
+                                "error",
+                                code="ERR_INVALID_TRANSITION",
+                                message=f"Transition from {uec_state} to {next_state} not allowed"
+                            )
             except WebSocketDisconnect:
                 pass
 

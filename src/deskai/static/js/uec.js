@@ -12,30 +12,70 @@ export class UECStateMachine {
       CANCELLED: ["IDLE"],
       SUCCESS: ["IDLE"]
     };
+    this._loadTransitions();
+  }
+
+  async _loadTransitions() {
+    try {
+      if (typeof fetch === "function") {
+        const res = await fetch("/transitions.json");
+        if (res.ok) {
+          this.transitions = await res.json();
+        }
+      }
+    } catch {
+      // Retain in-memory fallback
+    }
+  }
+
+  _showError(message) {
+    if (typeof document === "undefined") return;
+    const banner = document.getElementById("connectionBanner");
+    if (banner) {
+      banner.textContent = message;
+      banner.className = "connection-banner warning";
+      banner.style.display = "block";
+      setTimeout(() => {
+        if (banner.textContent === message) banner.style.display = "none";
+      }, 4000);
+    } else {
+      console.error(message);
+    }
+  }
+
+  _ensureUecMounted() {
+    if (typeof document === "undefined") return null;
+    const container = document.getElementById("uecContainer");
+    if (!container) return null;
+    let card = container.querySelector(".uec-card");
+    if (!card) {
+      const tpl = document.getElementById("tplUecCard");
+      if (tpl) {
+        container.appendChild(tpl.content.cloneNode(true));
+        card = container.querySelector(".uec-card");
+      }
+    }
+    return card;
   }
 
   transition(nextState, payload = {}) {
-    const current = store.state.execution.state;
+    const current = store && store.state && store.state.execution ? store.state.execution.state : "IDLE";
     const allowed = this.transitions[current];
     if (!allowed || !allowed.includes(nextState)) {
-      console.error(`Invalid UEC transition from ${current} to ${nextState}`);
+      const errMsg = `Invalid UEC transition from ${current} to ${nextState}`;
+      console.error(errMsg);
+      this._showError(errMsg);
       return false;
     }
 
-    // Network guard: If transitioning via user approval, verify socket is connected
-    if (nextState === "SUCCESS" && current === "REVIEW_DIFF") {
-      const sent = window.wsClient.send("uec.approve", payload, { replayable: false });
-      if (!sent) {
-        alert("Cannot accept changes while offline. Please wait for reconnection.");
-        return false;
-      }
+    if (store && store.state && store.state.execution) {
+      store.state.execution.state = nextState;
     }
-
-    store.state.execution.state = nextState;
     this.renderButtons(nextState);
-    
-    // Broadcast transition to backend
-    if (window.wsClient && nextState !== "SUCCESS") {
+
+    // Broadcast client-initiated transitions to backend (e.g. PLANNING, CANCELLED)
+    // Server ACKs for SUCCESS / ROLLBACK are the authority and never re-broadcast
+    if (window.wsClient && nextState !== "SUCCESS" && nextState !== "ROLLBACK") {
       window.wsClient.send("uec.transition", { from: current, to: nextState, payload }, { replayable: false });
     }
 
@@ -45,17 +85,17 @@ export class UECStateMachine {
     return true;
   }
 
-  approvePlan() { 
-    const current = store.state.execution.state;
-    if (current === "PLANNING") return this.transition("EXECUTING");
-    if (current === "REVIEW_DIFF") {
+  approvePlan() {
+    const current = store && store.state && store.state.execution ? store.state.execution.state : "IDLE";
+    if (current === "PLANNING" || current === "REVIEW_DIFF") {
       if (!window.wsClient || !store.state.connection.isSocketConnected) {
-        alert("Cannot accept changes while offline. Please wait for reconnection.");
+        this._showError("Cannot accept changes while offline. Please wait for reconnection.");
         return false;
       }
-      const sent = window.wsClient.send("uec.approve", {}, { replayable: false });
+      const requestId = crypto.randomUUID();
+      const sent = window.wsClient.send("uec.approve", { request_id: requestId }, { replayable: false });
       if (!sent) {
-        alert("Cannot accept changes while offline. Please wait for reconnection.");
+        this._showError("Cannot accept changes while offline. Please wait for reconnection.");
         return false;
       }
       return true;
@@ -64,26 +104,29 @@ export class UECStateMachine {
   }
 
   rejectPlan() {
-    const current = store.state.execution.state;
-    if (current === "REVIEW_DIFF") {
+    const current = store && store.state && store.state.execution ? store.state.execution.state : "IDLE";
+    if (current === "REVIEW_DIFF" || current === "PLANNING" || current === "EXECUTING") {
       if (!window.wsClient || !store.state.connection.isSocketConnected) {
-        alert("Cannot reject changes while offline. Please wait for reconnection.");
+        this._showError("Cannot reject changes while offline. Please wait for reconnection.");
         return false;
       }
-      const sent = window.wsClient.send("uec.reject", {}, { replayable: false });
+      const requestId = crypto.randomUUID();
+      const sent = window.wsClient.send("uec.reject", { request_id: requestId }, { replayable: false });
       if (!sent) {
-        alert("Cannot reject changes while offline. Please wait for reconnection.");
+        this._showError("Cannot reject changes while offline. Please wait for reconnection.");
         return false;
       }
       return true;
     }
-    return this.transition("ROLLBACK");
+    return false;
   }
+
   rollback() { return this.transition("ROLLBACK"); }
   cancel() { return this.transition("CANCELLED"); }
   reset() { return this.transition("IDLE"); }
 
   renderButtons(state) {
+    this._ensureUecMounted();
     const actionsContainer = document.querySelector("#uecContainer .uec-actions");
     if (!actionsContainer) return;
 
