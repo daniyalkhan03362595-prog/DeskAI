@@ -1,6 +1,6 @@
 # Layer 1 Technology LLD: HTML5 Semantic DOM, Component Layout & Template Engine
 
-Yeh document **DeskAI** ke **Layer 1 (Presentation & Layout)** mein use hone wali **Semantic HTML5** specifications, master DOM tree, CSP-compliant structure, ARIA accessibility attributes, CodeMirror 6 host, aur reusable templates ko **Roman Urdu** mein tafseel se bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Layout)** mein use hone wali **Semantic HTML5** specifications, master DOM tree, CSP-compliant structure, vendor scripts loading, ARIA accessibility attributes, CodeMirror 6 host, aur reusable templates ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
@@ -9,10 +9,10 @@ Yeh document **DeskAI** ke **Layer 1 (Presentation & Layout)** mein use hone wal
 DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur WCAG accessibility constraints ke mutabiq design kiya gaya hai:
 
 ### Low-Level Technical Constraints:
-1. **Zero Inline Styles:** CSP violations se bachne ke liye koi inline `style="..."` attribute use nahi hota. Tamam dimensions CSS classes aur CSS variables se handle hoti hain.
-2. **Complete Action Coverage:** Master DOM ke tamam 15 buttons `data-action` attribute use karte hain jo JavaScript event router ke sath 100% synchronized hain.
-3. **Full ARIA Accessibility:** Native tablist, tab, tabpanel aur tree roles with dynamic `aria-selected` aur `aria-expanded`.
-4. **CodeMirror 6 Host Node:** Modular container `<div class="codemirror-host" id="codeEditorHost" role="region" aria-label="Code Editor"></div>`.
+1. **Explicit Vendor Loading:** Vendor singletons (`DOMPurify`, `marked`, `CodeMirror 6`) module scripts se pehle synchronously load hotay hain taake execution ke waqt `ReferenceError` na aaye.
+2. **Accessible Screen Reader Announcement:** Rapid streaming container se `aria-live` hata kar dedicated announcer element banaya gaya hai jo sirf stream complete hone par polite announce karta hai.
+3. **Complete Action Coverage:** Master DOM aur UEC buttons ke tamam 16 actions `data-action` attribute use karte hain jo JavaScript event router ke sath 100% synchronized hain.
+4. **Full ARIA Hierarchy:** Native `tablist`, `tab`, `tabpanel`, `tree`, aur `treeitem` with dynamic `aria-selected` aur `aria-expanded`.
 
 ---
 
@@ -29,11 +29,16 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
+
+  <!-- 1. Vendor Singletons (Synchronous Loading Before Modules) -->
+  <script src="vendor/purify.min.js"></script>
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/codemirror.bundle.js"></script>
 </head>
 <body>
   <div class="app-root" id="appRoot">
     
-    <!-- 1. Top Navigation & Window Control Bar -->
+    <!-- 2. Top Navigation & Window Control Bar -->
     <header class="app-header" id="appHeader" role="banner">
       <div class="header-left">
         <span class="app-logo">⚡ DeskAI</span>
@@ -52,7 +57,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
       </div>
     </header>
 
-    <!-- 2. Main 3-Column IDE Body -->
+    <!-- 3. Main 3-Column IDE Body -->
     <main class="app-body" id="appBody" role="main">
       
       <!-- Left Column: File Explorer & Hardware Dock -->
@@ -142,7 +147,8 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
           <span class="model-pill" id="headerModelPill">Ready</span>
         </div>
 
-        <div class="chat-thread" id="chatThread" role="log" aria-live="polite" aria-label="Chat Message History">
+        <!-- Rapid streaming container (without aria-live to prevent reader spam) -->
+        <div class="chat-thread" id="chatThread" role="log" aria-label="Chat Message History">
           <!-- DOMPurify-Sanitized Chat Bubbles Rendered Here -->
         </div>
 
@@ -162,7 +168,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
 
     </main>
 
-    <!-- 3. Native Dialogs & Modals -->
+    <!-- 4. Native Dialogs & Modals -->
     <dialog class="palette-dialog" id="commandPaletteDialog" aria-label="Command Palette">
       <div class="palette-search-box">
         <span class="palette-icon">🔍</span>
@@ -173,9 +179,11 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
       </ul>
     </dialog>
 
+    <!-- 5. Accessible Announcements & Toast Rack -->
+    <div id="screenReaderAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div class="toast-rack" id="toastRack" aria-live="assertive" role="alert"></div>
 
-    <!-- 4. Reusable HTML5 Component Templates -->
+    <!-- 6. Reusable HTML5 Component Templates -->
     <div id="templateStore" hidden aria-hidden="true">
       
       <!-- Template: Tree Item -->
@@ -226,6 +234,7 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
     </div>
 
   </div>
+  <!-- Application Entrypoint Module -->
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

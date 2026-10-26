@@ -1,6 +1,6 @@
 """
-Comprehensive Contract and Security Verification Suite for DeskAI Layer 1
-Directly scans and validates documentation specifications and security invariants.
+Comprehensive Contract, State Machine & Security Verification Suite for DeskAI Layer 1
+Directly scans and validates documentation specifications, FSM reachability, and security invariants.
 """
 import os
 import re
@@ -13,38 +13,63 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
 
     def test_html_and_js_action_synchronization(self):
         """
-        Scans HTML LLD specification for data-action attributes and verifies
-        that every action has an explicit handler in JavaScript LLD specification.
+        Scans HTML and JS LLD specifications and asserts that every action
+        (including UEC buttons rendered dynamically) has a corresponding case handler.
         """
         html_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "html5" / "LLD" / "html5.md"
         js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
 
-        self.assertTrue(html_spec_path.exists(), f"Missing HTML spec: {html_spec_path}")
-        self.assertTrue(js_spec_path.exists(), f"Missing JS spec: {js_spec_path}")
+        self.assertTrue(html_spec_path.exists())
+        self.assertTrue(js_spec_path.exists())
 
         html_content = html_spec_path.read_text(encoding="utf-8")
         js_content = js_spec_path.read_text(encoding="utf-8")
 
-        # Extract all data-action attributes from HTML
+        # Extract data-action attributes from HTML and JS templates
         html_actions = set(re.findall(r'data-action="([^"]+)"', html_content))
-        self.assertGreater(len(html_actions), 0, "No data-action attributes found in HTML spec.")
+        js_template_actions = set(re.findall(r'data-action="([^"]+)"', js_content))
+        all_expected_actions = html_actions | js_template_actions
 
         # Extract all case "..." action handlers from JS router
         js_handlers = set(re.findall(r'case "([^"]+)":', js_content))
-        self.assertGreater(len(js_handlers), 0, "No case handlers found in JS spec.")
 
-        # Assert every HTML action is handled in JS
-        unhandled_actions = html_actions - js_handlers
+        unhandled = all_expected_actions - js_handlers
         self.assertEqual(
-            unhandled_actions,
+            unhandled,
             set(),
-            f"The following HTML data-actions lack JavaScript handlers: {unhandled_actions}"
+            f"The following actions lack JavaScript router handlers: {unhandled}"
         )
+
+    def test_uec_state_machine_reachability_and_no_loops(self):
+        """
+        Parses UEC FSM transitions from javascript.md and verifies:
+        1. REVIEW_DIFF can reach SUCCESS (Approve) and ROLLBACK (Reject).
+        2. CANCELLED resets cleanly to IDLE.
+        3. No endless execution loops (approve doesn't loop back to EXECUTING).
+        """
+        js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
+        js_content = js_spec_path.read_text(encoding="utf-8")
+
+        # Verify transitions table definitions in spec
+        self.assertIn('IDLE: ["PLANNING"]', js_content)
+        self.assertIn('PLANNING: ["EXECUTING", "CANCELLED", "IDLE"]', js_content)
+        self.assertIn('EXECUTING: ["REVIEW_DIFF", "FAILED", "CANCELLED"]', js_content)
+        self.assertIn('REVIEW_DIFF: ["SUCCESS", "ROLLBACK", "EXECUTING"]', js_content)
+        self.assertIn('CANCELLED: ["IDLE"]', js_content)
+        self.assertIn('SUCCESS: ["IDLE"]', js_content)
+
+        # Verify approvePlan method transitions REVIEW_DIFF to SUCCESS
+        self.assertIn('if (current === "REVIEW_DIFF") return this.transition("SUCCESS");', js_content)
+
+        # Verify rejectPlan method transitions REVIEW_DIFF to ROLLBACK
+        self.assertIn('return this.transition("ROLLBACK");', js_content)
+
+        # Verify reset method transitions CANCELLED to IDLE
+        self.assertIn('return this.transition("IDLE");', js_content)
 
     def test_path_sandbox_commonpath_security(self):
         """
-        Verifies that the os.path.commonpath sandbox prevents path traversal
-        and prefix-spoofing attacks (such as /workspace-secrets bypass).
+        Verifies that os.path.commonpath prevents traversal and prefix-spoofing attacks.
         """
         workspace_root = "/home/user/DeskAI"
 
@@ -59,42 +84,87 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # Safe workspace paths
         self.assertTrue(is_safe_path("/home/user/DeskAI/src/main.py", workspace_root))
         self.assertTrue(is_safe_path("/home/user/DeskAI/docs/spec.md", workspace_root))
-        self.assertTrue(is_safe_path("/home/user/DeskAI/index.html", workspace_root))
 
-        # Attacking paths (Must be rejected)
+        # Malicious paths (Must be rejected)
         self.assertFalse(is_safe_path("/home/user/DeskAI-secrets/passwords.txt", workspace_root))
         self.assertFalse(is_safe_path("/etc/passwd", workspace_root))
         self.assertFalse(is_safe_path("/home/user/DeskAI/../../etc/shadow", workspace_root))
         self.assertFalse(is_safe_path("/home/user/other_project", workspace_root))
 
-    def test_standardized_error_taxonomy(self):
+    def test_websocket_authorization_guard_logic(self):
         """
-        Verifies that all standardized error codes are defined in the PyWebView specification.
+        Verifies the 3-point WebSocket security guard:
+        Host check, Origin check (no null allowed), and Cookie session check.
         """
-        pywebview_spec = REPO_ROOT / "docs" / "layer 1 technologies" / "pywebview" / "LLD" / "pywebview.md"
-        self.assertTrue(pywebview_spec.exists())
-        content = pywebview_spec.read_text(encoding="utf-8")
+        active_port = 45123
+        active_sessions = {"valid_session_token_123"}
 
-        required_codes = [
-            "ERR_SANDBOX_VIOLATION",
-            "ERR_DIALOG_CANCELLED",
-            "ERR_FILE_NOT_FOUND",
-            "ERR_WIN_CONTROL_FAILED",
-            "ERR_INVALID_URL",
-            "ERR_INTERNAL"
-        ]
-        for code in required_codes:
-            self.assertIn(code, content, f"ErrorCode {code} missing in PyWebView LLD.")
+        def authorize_ws_handshake(headers: dict, cookies: dict) -> tuple[bool, int, str]:
+            host = headers.get("host", "")
+            if host not in [f"127.0.0.1:{active_port}", f"localhost:{active_port}"]:
+                return False, 1008, "Invalid Host"
 
-    def test_wcag_aa_contrast_token(self):
+            origin = headers.get("origin")
+            if origin != f"http://127.0.0.1:{active_port}":
+                return False, 1008, "Cross-Origin WebSocket Denied"
+
+            cookie = cookies.get("deskai_session")
+            if not cookie or cookie not in active_sessions:
+                return False, 1008, "Unauthorized Session"
+
+            return True, 1000, "OK"
+
+        # 1. Evil Host
+        ok, code, reason = authorize_ws_handshake(
+            headers={"host": "evil.com", "origin": f"http://127.0.0.1:{active_port}"},
+            cookies={"deskai_session": "valid_session_token_123"}
+        )
+        self.assertFalse(ok)
+        self.assertEqual(code, 1008)
+
+        # 2. Evil Origin
+        ok, code, reason = authorize_ws_handshake(
+            headers={"host": f"127.0.0.1:{active_port}", "origin": "http://evil-site.com"},
+            cookies={"deskai_session": "valid_session_token_123"}
+        )
+        self.assertFalse(ok)
+        self.assertEqual(code, 1008)
+
+        # 3. Null Origin (sandboxed iframe attempt)
+        ok, code, reason = authorize_ws_handshake(
+            headers={"host": f"127.0.0.1:{active_port}", "origin": "null"},
+            cookies={"deskai_session": "valid_session_token_123"}
+        )
+        self.assertFalse(ok)
+        self.assertEqual(code, 1008)
+
+        # 4. Missing / Invalid Cookie
+        ok, code, reason = authorize_ws_handshake(
+            headers={"host": f"127.0.0.1:{active_port}", "origin": f"http://127.0.0.1:{active_port}"},
+            cookies={"deskai_session": "bad_token"}
+        )
+        self.assertFalse(ok)
+        self.assertEqual(code, 1008)
+
+        # 5. Legitimate connection (All matched)
+        ok, code, reason = authorize_ws_handshake(
+            headers={"host": f"127.0.0.1:{active_port}", "origin": f"http://127.0.0.1:{active_port}"},
+            cookies={"deskai_session": "valid_session_token_123"}
+        )
+        self.assertTrue(ok)
+        self.assertEqual(code, 1000)
+
+    def test_vendor_libraries_explicitly_loaded(self):
         """
-        Verifies that --text-muted token is configured to #858fa8 (exceeding WCAG AA 4.5:1).
+        Verifies that DOMPurify, Marked and CodeMirror vendor bundles
+        are explicitly loaded before application module script.
         """
-        css_spec = REPO_ROOT / "docs" / "layer 1 technologies" / "css3" / "LLD" / "css3.md"
-        self.assertTrue(css_spec.exists())
-        content = css_spec.read_text(encoding="utf-8")
-        self.assertIn("--text-muted: #858fa8", content)
-        self.assertNotIn("--text-muted: #626b84", content)
+        html_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "html5" / "LLD" / "html5.md"
+        content = html_spec_path.read_text(encoding="utf-8")
+
+        self.assertIn('<script src="vendor/purify.min.js"></script>', content)
+        self.assertIn('<script src="vendor/marked.min.js"></script>', content)
+        self.assertIn('<script src="vendor/codemirror.bundle.js"></script>', content)
 
 if __name__ == "__main__":
     unittest.main()

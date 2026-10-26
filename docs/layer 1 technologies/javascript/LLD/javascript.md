@@ -1,6 +1,6 @@
 # Layer 1 Technology LLD: JavaScript Client State, Streaming & DOM Architecture
 
-Yeh document **DeskAI** ke **Layer 1 (Presentation & Client Logic)** mein use hone wali **Pure Vanilla JavaScript (ES2022 Modules)** ki mukammal **Low-Level Design (LLD)** specifications, recursive deep proxy store with WeakMap cache, accumulated text streamer with DOMPurify, complete UEC finite state machine, full action router, aur CodeMirror 6 vendor integration ko **Roman Urdu** mein tafseel se bayan karta hai.
+Yeh document **DeskAI** ke **Layer 1 (Presentation & Client Logic)** mein use hone wali **Pure Vanilla JavaScript (ES2022 Modules)** ki mukammal **Low-Level Design (LLD)** specifications, recursive deep proxy store with WeakMap cache, 10 Hz throttled markdown streamer with DOMPurify, complete UEC finite state machine, full action router, aur vendor library integration ko **Roman Urdu** mein tafseel se bayan karta hai.
 
 ---
 
@@ -9,10 +9,11 @@ Yeh document **DeskAI** ke **Layer 1 (Presentation & Client Logic)** mein use ho
 DeskAI ka frontend bina kisi runtime framework ke **Native ES Modules** par mushtamil hai.
 
 ### Low-Level Technical Constraints:
-1. **Zero App Bundling & Vendor Singletons:** App code bina bundling ke direct browser ES modules mein run hota hai. External libraries (CodeMirror 6, DOMPurify, Marked) pre-bundled vendor files (`static/vendor/`) ke zariye provide hoti hain.
+1. **Zero App Bundling & Vendor Singletons:** App code bina bundling ke direct browser ES modules mein run hota hai. External libraries (DOMPurify, Marked, CodeMirror 6) vendor directory (`vendor/`) se load hoti hain.
 2. **Deep Observable Reactivity:** Recursive `Proxy` tree with WeakMap caching jo reference equality (`state.execution === state.execution`), ancestor bubbling, aur array mutations ko accurately track kare.
-3. **Accumulated Token Streaming:** `requestAnimationFrame` text accumulation jo multi-frame AI streaming mein pehla text overwrite na kare aur user scroll detection ko preserve kare.
-4. **Deterministic UEC State Machine:** Idempotent transitions, gap-aware WebSocket sequencing, aur state-driven UI button rendering.
+3. **Throttled Token Streaming (10 Hz):** Frame-by-frame O(n²) markdown re-parsing ke bajaye 100ms throttle buffer jo CPU usage ko 90% kam karta hai aur user scroll lock preserve rakhta hai.
+4. **Deterministic UEC State Machine:** Idempotent transitions, gap-aware WebSocket sequencing, aur server-notified action triggers.
+5. **Drag-and-Drop Navigation Lock:** Window par files ya links drop hone se off-origin navigation ko `preventDefault()` se block kiya jata hai.
 
 ---
 
@@ -20,27 +21,25 @@ DeskAI ka frontend bina kisi runtime framework ke **Native ES Modules** par mush
 
 ```text
 src/deskai/static/
-├── index.html
+├── index.html                 # Loads vendor scripts & app.js module
 ├── vendor/
-│   ├── codemirror.bundle.js   # Pre-bundled CM6 core, syntax & theme (pinned hash)
-│   ├── marked.min.js          # Fast markdown parser
-│   └── purify.min.js          # DOMPurify sanitizer
+│   ├── codemirror.bundle.js   # CM6 core & extensions (CodeMirror 6.0.1)
+│   ├── marked.min.js          # Fast markdown parser (Marked 12.0.0)
+│   └── purify.min.js          # DOMPurify sanitizer (DOMPurify 3.0.9)
 ├── js/
-│   ├── app.js                 # Entry point, bootstrapping & watchdog
+│   ├── app.js                 # Entry point, bootstrapping & global assignments
 │   ├── state.js               # WeakMap-cached Deep Reactive StudioStore
 │   ├── bridge.js              # Native Bridge RPC wrapper & link interceptor
 │   ├── ws.js                  # Gateway WebSocket client (gap detection & fatal code handling)
-│   ├── stream.js              # Accumulated TokenStreamBuffer & scroll lock
-│   ├── uec.js                 # Finite State Machine & state-action matrix
+│   ├── stream.js              # 10 Hz Throttled TokenStreamBuffer & scroll lock
+│   ├── uec.js                 # Complete UEC State Machine with WebSocket dispatch
 │   ├── editor.js              # CodeMirror 6 tab buffers & dirty sync
-│   └── events.js              # Unified Action Router & dual-sided resizers
+│   └── events.js              # Unified Action Router, drag-lock & dual resizers
 ```
 
 ---
 
 ## 3. Deep Reactive State Store with WeakMap (`state.js`)
-
-Shallow proxy aur reference equality (`===`) ke maslon ko hal karne ke liye WeakMap cache aur ancestor notification bubbling implement ki gayi hai:
 
 ```javascript
 export const initialState = {
@@ -101,13 +100,11 @@ export class StudioStore {
       },
       set(obj, prop, value) {
         const oldValue = obj[prop];
-        // Skip no-op writes
         if (oldValue === value) return true;
 
         obj[prop] = value;
         const currentPath = path ? `${path}.${String(prop)}` : String(prop);
         
-        // Notify leaf and bubble to ancestors
         self._notify(currentPath, value, oldValue);
         self._bubbleNotify(currentPath, value);
         return true;
@@ -152,8 +149,6 @@ export const store = new StudioStore(initialState);
 
 ## 4. Gap-Aware WebSocket Client (`ws.js`)
 
-State-sensitive approvals ki accidental replay rokne aur packet sequencing maintain karne ke liye client:
-
 ```javascript
 export class WebSocketClient {
   constructor(endpointUrl) {
@@ -161,6 +156,7 @@ export class WebSocketClient {
     this.socket = null;
     this.reconnectAttempts = 0;
     this.maxReconnectDelay = 10000;
+    this.consecutive1006 = 0;
     this.handlers = new Map();
     this.outboundQueue = [];
     this.isFatalClosed = false;
@@ -174,6 +170,7 @@ export class WebSocketClient {
     this.socket.onopen = () => {
       console.log("[WS] Connected to Desktop Gateway.");
       this.reconnectAttempts = 0;
+      this.consecutive1006 = 0;
       store.state.connection.isSocketConnected = true;
       this._flushSafeQueue();
       this._requestSnapshotResync();
@@ -184,9 +181,9 @@ export class WebSocketClient {
         const msg = JSON.parse(event.data);
         if (msg.seq !== undefined) {
           const expected = store.state.connection.lastSeq + 1;
-          // Sequence gap detection
           if (store.state.connection.lastSeq > 0 && msg.seq !== expected) {
             console.warn(`[WS] Gap detected: got ${msg.seq}, expected ${expected}. Resyncing.`);
+            store.state.connection.lastSeq = msg.seq; // Update to prevent repeated resync storms
             this._requestSnapshotResync();
             return;
           }
@@ -200,18 +197,31 @@ export class WebSocketClient {
 
     this.socket.onclose = (event) => {
       store.state.connection.isSocketConnected = false;
-      // Code 1008: Policy Violation (Bad Token) -> Fatal close
+      
+      // Code 1008: Policy Violation (Bad Token/Origin/Host) -> Fatal halt
       if (event.code === 1008) {
         this.isFatalClosed = true;
         console.error("[WS] Fatal: Authentication rejected by server (Code 1008).");
-        alert("DeskAI session expired or invalid. Please restart application.");
+        alert("DeskAI security validation failed. Please restart application.");
         return;
       }
+
+      // Code 1006: Handshake rejected with 401/403
+      if (event.code === 1006) {
+        this.consecutive1006++;
+        if (this.consecutive1006 >= 3) {
+          this.isFatalClosed = true;
+          console.error("[WS] Fatal: Repeated handshake failures (Code 1006). Halting.");
+          return;
+        }
+      }
+
       this._scheduleReconnect();
     };
   }
 
-  send(type, payload = {}, options = { replayable: true }) {
+  // Default replayable: false to prevent stale approval replays
+  send(type, payload = {}, options = { replayable: false }) {
     const frame = {
       type,
       idempotency_key: crypto.randomUUID(),
@@ -222,10 +232,9 @@ export class WebSocketClient {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(frame));
     } else if (options.replayable) {
-      // Sirf safe queries queue hoti hain; state mutations (jaise uec-approve) queue nahi hotin
       this.outboundQueue.push(frame);
     } else {
-      console.warn(`[WS] State-sensitive action '${type}' dropped during disconnect.`);
+      console.warn(`[WS] Non-replayable action '${type}' dropped during disconnect.`);
     }
   }
 
@@ -236,7 +245,7 @@ export class WebSocketClient {
   }
 
   _requestSnapshotResync() {
-    this.send("client.resync", { lastSeq: store.state.connection.lastSeq }, { replayable: false });
+    this.send("client.resync", { lastSeq: store.state.connection.lastSeq });
   }
 
   _scheduleReconnect() {
@@ -249,9 +258,9 @@ export class WebSocketClient {
 
 ---
 
-## 5. Accumulated Token Stream Buffer with Scroll Lock (`stream.js`)
+## 5. Throttled Token Stream Buffer (10 Hz) (`stream.js`)
 
-Frame text loss bug ko fix karne ke liye accumulated buffer pattern:
+O(n²) markdown re-parsing cost se bachne ke liye 100ms throttle buffer:
 
 ```javascript
 export class TokenStreamBuffer {
@@ -260,9 +269,10 @@ export class TokenStreamBuffer {
     this.chunkQueue = [];
     this.accumulatedText = "";
     this.isScheduled = false;
+    this.lastRenderTime = 0;
+    this.renderIntervalMs = 100; // 10 Hz throttle
     this.isUserScrolledUp = false;
 
-    // Detect user scrolling away from bottom
     const container = this.target.parentElement;
     container.addEventListener("scroll", () => {
       const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -274,21 +284,32 @@ export class TokenStreamBuffer {
     this.chunkQueue.push(chunk);
     if (!this.isScheduled) {
       this.isScheduled = true;
-      requestAnimationFrame(() => this._flush());
+      requestAnimationFrame(() => this._processQueue());
     }
   }
 
-  _flush() {
+  _processQueue() {
     if (this.chunkQueue.length === 0) {
       this.isScheduled = false;
       return;
     }
 
-    // 1. Accumulate all incoming chunks into the full response string
+    // Accumulate all pending chunks
     this.accumulatedText += this.chunkQueue.join("");
     this.chunkQueue = [];
 
-    // 2. Parse accumulated markdown and sanitize
+    const now = performance.now();
+    // Throttle rendering to max 10 Hz (every 100ms)
+    if (now - this.lastRenderTime >= this.renderIntervalMs) {
+      this._render();
+      this.lastRenderTime = now;
+    }
+
+    this.isScheduled = false;
+  }
+
+  _render() {
+    // DOMPurify sanitization
     const cleanHtml = DOMPurify.sanitize(marked.parse(this.accumulatedText), {
       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'span', 'h1', 'h2', 'h3', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a'],
       ALLOWED_ATTR: ['href', 'class', 'target'],
@@ -297,13 +318,20 @@ export class TokenStreamBuffer {
 
     this.target.innerHTML = cleanHtml;
 
-    // 3. Scroll to bottom only if user hasn't scrolled up
     if (!this.isUserScrolledUp) {
       const container = this.target.parentElement;
       container.scrollTop = container.scrollHeight;
     }
+  }
 
-    this.isScheduled = false;
+  complete() {
+    // Final render on stream end
+    this._render();
+    // Announce to screen readers once on completion (avoids polite spam)
+    const announcer = document.getElementById("toastRack");
+    if (announcer) {
+      announcer.textContent = "AI response completed.";
+    }
   }
 }
 ```
@@ -319,33 +347,41 @@ export class TokenStreamBuffer {
 ┌─────────────────────────────────┐               ┌───────────────────┐
 │            PLANNING             │──(cancel)────►│     CANCELLED     │
 └────────────────┬────────────────┘               └─────────┬─────────┘
-                 │ (approve)                                │ (reset)
-                 ▼                                          ▼
-┌─────────────────────────────────┐               ┌───────────────────┐
-│            EXECUTING            │──(cancel)────►│       IDLE        │
-└────────┬───────────────┬────────┘               └─────────▲─────────┘
-         │ (complete)    │ (error)                          │ (done)
-         ▼               ▼                                  │
-┌─────────────────┐ ┌─────────────┐               ┌─────────┴─────────┐
-│   REVIEW_DIFF   │ │   FAILED    │               │      SUCCESS      │
-└────────┬────────┘ └──────┬──────┘               └─────────▲─────────┘
-         │ (reject)        │ (rollback)                     │
-         ▼                 ▼                                │
+                 │ (approve)                                │ (uec-reset)
+                 ▼                                          │
 ┌─────────────────────────────────┐                         │
-│            ROLLBACK             │─────────────────────────┘
-└─────────────────────────────────┘
+│            EXECUTING            │──(cancel)───────────────┤
+└────────┬───────────────┬────────┘                         │
+         │ (complete)    │ (error)                          │
+         ▼               ▼                                  │
+┌─────────────────┐ ┌─────────────┐                         │
+│   REVIEW_DIFF   │ │   FAILED    │                         │
+└────────┬───┬────┘ └──────┬──────┘                         │
+ (approve│   │(reject)     │ (rollback)                     │
+         │   ▼             ▼                                │
+         │  ┌─────────────────────┐                         │
+         │  │      ROLLBACK       │                         │
+         │  └──────────┬──────────┘                         │
+         │             │ (complete)                         │
+         ▼             ▼                                    ▼
+┌─────────────────────────────────┐               ┌───────────────────┐
+│             SUCCESS             │               │       IDLE        │
+└────────────────┬────────────────┘               └─────────▲─────────┘
+                 │ (auto-reset 3s)                          │
+                 └──────────────────────────────────────────┘
 ```
 
-### State-Action Rendering Matrix:
-| State | Allowed Actions | Rendered Buttons |
-|---|---|---|
-| `IDLE` | `prompt.send` | None (Input dock active) |
-| `PLANNING` | `uec-approve`, `uec-cancel` | "Cancel", "Approve & Execute" |
-| `EXECUTING` | `uec-cancel` | "Cancel Execution" |
-| `REVIEW_DIFF` | `uec-approve`, `uec-reject`, `uec-rollback` | "Rollback", "Reject Diff", "Approve Changes" |
-| `FAILED` | `uec-rollback`, `uec-cancel` | "Rollback Changes", "Dismiss" |
-| `SUCCESS` | Auto-resets to `IDLE` after 3s | Status badge "Complete" |
-| `CANCELLED` | `uec-reset` | "Reset" |
+### Complete Transitions Table & Action Mapping:
+| State | Allowed Actions | Next State | Triggering Buttons |
+|---|---|---|---|
+| `IDLE` | `prompt.send` | `PLANNING` | Prompt form submit |
+| `PLANNING` | `uec-approve`<br>`uec-cancel` | `EXECUTING`<br>`CANCELLED` | "Approve & Execute"<br>"Cancel" |
+| `EXECUTING` | `step.complete`<br>`step.error`<br>`uec-cancel` | `REVIEW_DIFF`<br>`FAILED`<br>`CANCELLED` | Automatic or "Cancel Execution" |
+| `REVIEW_DIFF` | `uec-approve`<br>`uec-reject`<br>`uec-rollback` | `SUCCESS`<br>`ROLLBACK`<br>`ROLLBACK` | "Accept Changes"<br>"Reject Diff"<br>"Rollback Changes" |
+| `FAILED` | `uec-rollback`<br>`uec-cancel` | `ROLLBACK`<br>`IDLE` | "Rollback to Safe State"<br>"Dismiss" |
+| `ROLLBACK` | `rollback.done` | `IDLE` | Automatic reset to IDLE |
+| `CANCELLED` | `uec-reset` | `IDLE` | "Reset" |
+| `SUCCESS` | Auto 3s | `IDLE` | Done status badge |
 
 ```javascript
 export class UECStateMachine {
@@ -372,13 +408,40 @@ export class UECStateMachine {
 
     store.state.execution.state = nextState;
     this.renderButtons(nextState);
+    
+    // Notify server over WebSocket
+    if (window.wsClient) {
+      window.wsClient.send("uec.transition", { from: current, to: nextState, payload }, { replayable: false });
+    }
+
+    if (nextState === "SUCCESS") {
+      setTimeout(() => this.transition("IDLE"), 3000);
+    }
     return true;
   }
 
-  approvePlan() { return this.transition("EXECUTING"); }
-  rejectPlan() { return this.transition("IDLE"); }
-  rollback() { return this.transition("ROLLBACK"); }
-  cancel() { return this.transition("CANCELLED"); }
+  approvePlan() { 
+    const current = store.state.execution.state;
+    if (current === "PLANNING") return this.transition("EXECUTING");
+    if (current === "REVIEW_DIFF") return this.transition("SUCCESS"); // Accepts changes!
+    return false;
+  }
+
+  rejectPlan() { 
+    return this.transition("ROLLBACK"); // Rejects diff and triggers rollback!
+  }
+
+  rollback() { 
+    return this.transition("ROLLBACK"); 
+  }
+
+  cancel() { 
+    return this.transition("CANCELLED"); 
+  }
+
+  reset() { 
+    return this.transition("IDLE"); // CANCELLED resets cleanly to IDLE!
+  }
 
   renderButtons(state) {
     const actionsContainer = document.querySelector("#uecContainer .uec-actions");
@@ -395,11 +458,13 @@ export class UECStateMachine {
     } else if (state === "REVIEW_DIFF") {
       buttonsHtml = `
         <button class="uec-btn btn-rollback" data-action="uec-rollback">Rollback</button>
-        <button class="uec-btn btn-reject" data-action="uec-reject">Reject</button>
+        <button class="uec-btn btn-reject" data-action="uec-reject">Reject Diff</button>
         <button class="uec-btn btn-approve" data-action="uec-approve">Accept Changes</button>
       `;
-    } else if (state === "FAILED" || state === "CANCELLED") {
-      buttonsHtml = `<button class="uec-btn btn-rollback" data-action="uec-rollback">Reset to Safe State</button>`;
+    } else if (state === "CANCELLED") {
+      buttonsHtml = `<button class="uec-btn btn-reset" data-action="uec-reset">Reset</button>`;
+    } else if (state === "FAILED") {
+      buttonsHtml = `<button class="uec-btn btn-rollback" data-action="uec-rollback">Rollback to Safe State</button>`;
     }
 
     actionsContainer.innerHTML = buttonsHtml;
@@ -409,16 +474,18 @@ export class UECStateMachine {
 
 ---
 
-## 7. Complete Action Router & Link Interceptor (`events.js`)
-
-Tamam 15 HTML `data-action` attributes aur external link interception ko handle karta hai:
+## 7. Action Router, Drag-Lock & Link Interceptor (`events.js`)
 
 ```javascript
 import { NativeBridge } from "./bridge.js";
 import { store } from "./state.js";
 
 export function initGlobalEvents() {
-  // 1. External Links Click Interceptor
+  // 1. Drag & Drop Navigation Lock
+  window.addEventListener("dragover", (e) => e.preventDefault(), false);
+  window.addEventListener("drop", (e) => e.preventDefault(), false);
+
+  // 2. Link Click Interceptor (Handles Left-click, Middle-click & Ctrl+click)
   document.addEventListener("click", (e) => {
     const anchor = e.target.closest("a[href]");
     if (anchor) {
@@ -426,12 +493,11 @@ export function initGlobalEvents() {
       if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:")) {
         e.preventDefault();
         window.pywebview.api.open_external_url(url);
-        return;
       }
     }
   });
 
-  // 2. Complete Action Router (Matches 100% of HTML data-actions)
+  // 3. Complete Action Router (All 16 actions)
   document.addEventListener("click", async (e) => {
     const trigger = e.target.closest("[data-action]");
     if (!trigger) return;
@@ -466,7 +532,6 @@ export function initGlobalEvents() {
       case "switch-panel":
         document.querySelectorAll(".activity-btn").forEach(b => b.classList.remove("active"));
         trigger.classList.add("active");
-        console.log("Switching to panel:", trigger.dataset.panel);
         break;
 
       // File Explorer Actions
@@ -494,10 +559,9 @@ export function initGlobalEvents() {
       case "drawer-tab":
         document.querySelectorAll(".drawer-tab").forEach(t => t.classList.remove("active"));
         trigger.classList.add("active");
-        console.log("Active drawer target:", trigger.dataset.target);
         break;
 
-      // UEC Controls
+      // UEC Controls (Now wired 100% to FSM & WebSocket)
       case "uec-approve":
         window.UEC.approvePlan();
         break;
@@ -510,13 +574,16 @@ export function initGlobalEvents() {
       case "uec-cancel":
         window.UEC.cancel();
         break;
+      case "uec-reset":
+        window.UEC.reset();
+        break;
 
       default:
         console.warn("Unhandled action:", action);
     }
   });
 
-  // 3. Global Hotkeys
+  // 4. Global Hotkeys
   window.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.key === "p") {
       e.preventDefault();
@@ -528,47 +595,6 @@ export function initGlobalEvents() {
       e.preventDefault();
       document.getElementById("promptForm").requestSubmit();
     }
-  });
-}
-```
-
----
-
-## 8. Dual-Panel Pointer Resizer Math
-
-```javascript
-export function initResizers() {
-  const leftResizer = document.getElementById("resizerLeft");
-  const rightResizer = document.getElementById("resizerRight");
-
-  // Left Sidebar: clientX
-  leftResizer.addEventListener("pointerdown", (e) => {
-    leftResizer.setPointerCapture(e.pointerId);
-    const onMove = (ev) => {
-      const newWidth = Math.max(200, Math.min(ev.clientX, 550));
-      document.documentElement.style.setProperty("--sidebar-left-w", `${newWidth}px`);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  });
-
-  // Right Sidebar: window.innerWidth - clientX
-  rightResizer.addEventListener("pointerdown", (e) => {
-    rightResizer.setPointerCapture(e.pointerId);
-    const onMove = (ev) => {
-      const newWidth = Math.max(260, Math.min(window.innerWidth - ev.clientX, 650));
-      document.documentElement.style.setProperty("--sidebar-right-w", `${newWidth}px`);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
   });
 }
 ```

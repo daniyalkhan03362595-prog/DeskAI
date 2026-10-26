@@ -58,7 +58,7 @@ Poori application `:root` variables ke zariye dynamically adapt hoti hai:
   --color-teal: #1abc9c;        /* Brand logo & bridge indicators */
   --color-success: #2ecc71;     /* GPU active & diff additions */
   --color-warning: #f39c12;     /* In-progress & review diffs */
-  --color-danger: #e74c3c;      /* Errors, diff deletions & close button */
+  --color-danger: #ff6b6b;      /* Contrast 5.8:1 on card (Exceeds WCAG AA) */
 
   /* Text Colors */
   --text-primary: #e6eaf2;
