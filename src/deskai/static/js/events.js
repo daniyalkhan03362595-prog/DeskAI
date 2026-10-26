@@ -107,9 +107,45 @@ export function initGlobalEvents() {
       case "toggle-drawer":
         document.getElementById("bottomDrawer").classList.toggle("collapsed");
         break;
-      case "drawer-tab":
-        document.querySelectorAll(".drawer-tab").forEach(t => t.classList.remove("active"));
+      case "drawer-tab": {
+        const target = trigger.getAttribute("data-target");
+        document.querySelectorAll(".drawer-tab").forEach(t => {
+          t.classList.remove("active");
+          t.setAttribute("aria-selected", "false");
+        });
         trigger.classList.add("active");
+        trigger.setAttribute("aria-selected", "true");
+
+        document.querySelectorAll(".drawer-panel").forEach(panel => {
+          if (panel.id === `${target}Panel`) {
+            panel.classList.add("active");
+            panel.removeAttribute("hidden");
+          } else {
+            panel.classList.remove("active");
+            panel.setAttribute("hidden", "");
+          }
+        });
+
+        if (target === "ports" && window.DeskAIPorts) {
+          window.DeskAIPorts.refresh();
+        }
+        break;
+      }
+
+      case "add-port":
+        if (window.DeskAIPorts) window.DeskAIPorts.promptAddPort();
+        break;
+      case "refresh-ports":
+        if (window.DeskAIPorts) window.DeskAIPorts.refresh();
+        break;
+      case "open-port":
+        if (window.DeskAIPorts) window.DeskAIPorts.openPort(trigger.getAttribute("data-url"));
+        break;
+      case "copy-port":
+        if (window.DeskAIPorts) window.DeskAIPorts.copyPort(trigger.getAttribute("data-url"));
+        break;
+      case "remove-port":
+        if (window.DeskAIPorts) window.DeskAIPorts.removePort(trigger.getAttribute("data-port"));
         break;
 
       case "uec-approve":

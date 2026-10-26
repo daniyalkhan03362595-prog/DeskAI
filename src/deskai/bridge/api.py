@@ -432,6 +432,65 @@ class DesktopBridgeAPI:
 
         return {"status": "ok", "telemetry": telemetry}
 
+    def get_listening_ports(self) -> dict:
+        """
+        Enumerates active local listening ports on loopback and host interfaces.
+        Always includes the DeskAI supervisor port.
+        """
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "ports": []}
+
+        ports = []
+        seen_ports = set()
+        supervisor_port = getattr(getattr(self._manager, "server", None), "port", None)
+        if supervisor_port:
+            seen_ports.add(supervisor_port)
+            ports.append(
+                {
+                    "port": supervisor_port,
+                    "protocol": "HTTP",
+                    "address": f"http://127.0.0.1:{supervisor_port}",
+                    "process": "DeskAI Supervisor",
+                    "status": "Listening",
+                    "origin": "System",
+                }
+            )
+
+        try:
+            import psutil
+
+            for conn in psutil.net_connections(kind="inet"):
+                if conn.status == "LISTEN" and conn.laddr:
+                    ip = conn.laddr.ip
+                    port = conn.laddr.port
+                    if port in seen_ports:
+                        continue
+                    if ip in ("127.0.0.1", "::1", "0.0.0.0", "::") and port >= 1024:
+                        seen_ports.add(port)
+                        proc_name = "Process"
+                        if conn.pid:
+                            try:
+                                proc = psutil.Process(conn.pid)
+                                proc_name = proc.name()
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                proc_name = f"PID {conn.pid}"
+
+                        ports.append(
+                            {
+                                "port": port,
+                                "protocol": "HTTP",
+                                "address": f"http://localhost:{port}",
+                                "process": proc_name,
+                                "status": "Listening",
+                                "origin": "Local",
+                            }
+                        )
+        except Exception:
+            pass
+
+        ports.sort(key=lambda x: x["port"])
+        return {"status": "ok", "ports": ports}
+
     def _is_safe_path(self, target_path: str) -> bool:
         """Internal sandbox helper."""
         return is_safe_workspace_path(target_path, self.workspace_root)

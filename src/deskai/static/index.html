@@ -98,11 +98,63 @@
               <button class="drawer-tab active" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true">Terminal</button>
               <button class="drawer-tab" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false">Output</button>
               <button class="drawer-tab" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false">Problems</button>
+              <button class="drawer-tab" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false">Ports</button>
             </div>
             <button class="icon-btn close-drawer-btn" data-action="toggle-drawer" aria-label="Toggle Drawer">─</button>
           </div>
           <div class="drawer-content" id="drawerContent">
-            <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
+            <!-- Terminal Panel -->
+            <div class="drawer-panel active" id="terminalPanel">
+              <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
+            </div>
+
+            <!-- Output Channel Panel -->
+            <div class="drawer-panel" id="outputPanel" hidden>
+              <pre class="terminal-view" id="channelOutput"><code>[DeskAI System] Supervisor active on loopback. Ready for tasks.</code></pre>
+            </div>
+
+            <!-- Problems Panel -->
+            <div class="drawer-panel" id="problemsPanel" hidden>
+              <div class="problems-view">
+                <span class="problems-empty">No problems have been detected in the workspace.</span>
+              </div>
+            </div>
+
+            <!-- Ports Panel -->
+            <div class="drawer-panel" id="portsPanel" hidden>
+              <div class="ports-toolbar">
+                <div class="ports-toolbar-left">
+                  <span class="ports-title">Forwarded &amp; Local Ports</span>
+                  <span class="ports-count" id="portsCountBadge">0 active</span>
+                </div>
+                <div class="ports-toolbar-right">
+                  <button class="ports-btn" id="addPortBtn" data-action="add-port" title="Forward a Port">
+                    <span class="ports-btn-icon">+</span> Forward Port
+                  </button>
+                  <button class="ports-btn icon-only" id="refreshPortsBtn" data-action="refresh-ports" title="Refresh Ports" aria-label="Refresh Ports">
+                    ↻
+                  </button>
+                </div>
+              </div>
+              <div class="ports-table-container">
+                <table class="ports-table" id="portsTable">
+                  <thead>
+                    <tr>
+                      <th scope="col">Port</th>
+                      <th scope="col">Protocol</th>
+                      <th scope="col">Local Address</th>
+                      <th scope="col">Process / Service</th>
+                      <th scope="col">Origin</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="portsTableBody">
+                    <!-- Populated dynamically by ports.js -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </section>
       </section>

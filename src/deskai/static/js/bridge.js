@@ -86,5 +86,24 @@ export const NativeBridge = {
       return await window.pywebview.api.list_dir(dirPath);
     }
     return { status: "error", message: "API unavailable", entries: [] };
+  },
+
+  async listPorts() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_listening_ports) {
+      return await window.pywebview.api.get_listening_ports();
+    }
+    // Browser fallback: detect current origin port
+    const fallbackPorts = [];
+    if (location.port) {
+      fallbackPorts.push({
+        port: parseInt(location.port, 10),
+        protocol: location.protocol.replace(":", "").toUpperCase(),
+        address: `${location.protocol}//${location.hostname}:${location.port}`,
+        process: "DeskAI Supervisor",
+        status: "Listening",
+        origin: "System"
+      });
+    }
+    return { status: "ok", ports: fallbackPorts };
   }
 };

@@ -366,6 +366,189 @@
   margin: 0;
 }
 
+.drawer-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-panel[hidden] {
+  display: none !important;
+}
+
+.problems-view {
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.problems-empty {
+  color: var(--text-muted);
+}
+
+/* Ports Panel */
+.ports-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-1);
+}
+
+.ports-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ports-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ports-count {
+  font-size: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-regular);
+  color: var(--color-primary);
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+
+.ports-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ports-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-regular);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: all 0.15s ease;
+}
+
+.ports-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-input);
+}
+
+.ports-btn.icon-only {
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.ports-btn-icon {
+  font-weight: bold;
+}
+
+.ports-table-container {
+  flex: 1;
+  overflow: auto;
+}
+
+.ports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+.ports-table th {
+  padding: 6px var(--space-2);
+  color: var(--text-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-header);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ports-table td {
+  padding: 6px var(--space-2);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  vertical-align: middle;
+}
+
+.ports-table tr:hover td {
+  background: var(--bg-hover);
+}
+
+.port-num-badge {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.port-protocol-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-regular);
+  color: var(--text-secondary);
+}
+
+.port-addr-cell {
+  color: var(--text-secondary);
+}
+
+.port-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 10.5px;
+  color: var(--color-success);
+}
+
+.port-status-pill::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.port-action-btn {
+  background: transparent;
+  border: 1px solid var(--border-regular);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  cursor: pointer;
+  margin-right: 4px;
+  transition: all 0.15s ease;
+}
+
+.port-action-btn:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.ports-empty {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 /* ==========================================================================
    Right Sidebar: Chat & UEC Container
    ========================================================================== */

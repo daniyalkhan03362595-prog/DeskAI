@@ -4,12 +4,14 @@ import { EditorManager } from "./editor.js";
 import { store } from "./state.js";
 import { initGlobalEvents } from "./events.js";
 import { TokenStreamBuffer } from "./stream.js";
+import { initPorts } from "./ports.js";
 
 // Global singletons instantiated and wired
 window.store = store;
 window.wsClient = new WebSocketClient(`ws://${location.host}/ws`);
 window.UEC = new UECStateMachine();
 window.EditorManager = new EditorManager();
+window.DeskAIPorts = initPorts();
 
 // Wire incoming server push events to UEC state machine
 window.wsClient.on("agent.plan", (payload) => {
