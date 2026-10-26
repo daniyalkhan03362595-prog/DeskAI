@@ -19,13 +19,18 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
     def test_disallowed_system_prefixes_and_home_root(self):
         """Disallowed roots must reject system bins, opt, srv, sensitive dirs, and home root itself."""
         # Linux system prefixes
-        self.assertTrue(is_disallowed_workspace_root("/bin"))
-        self.assertTrue(is_disallowed_workspace_root("/sbin"))
-        self.assertTrue(is_disallowed_workspace_root("/opt"))
-        self.assertTrue(is_disallowed_workspace_root("/srv"))
-        self.assertTrue(is_disallowed_workspace_root("/snap"))
-        self.assertTrue(is_disallowed_workspace_root("/lib"))
-        self.assertTrue(is_disallowed_workspace_root("/lib64"))
+        if os.name != "nt":
+            self.assertTrue(is_disallowed_workspace_root("/bin"))
+            self.assertTrue(is_disallowed_workspace_root("/sbin"))
+            self.assertTrue(is_disallowed_workspace_root("/opt"))
+            self.assertTrue(is_disallowed_workspace_root("/srv"))
+            self.assertTrue(is_disallowed_workspace_root("/snap"))
+            self.assertTrue(is_disallowed_workspace_root("/lib"))
+            self.assertTrue(is_disallowed_workspace_root("/lib64"))
+        else:
+            self.assertTrue(is_disallowed_workspace_root("C:\\Windows"))
+            self.assertTrue(is_disallowed_workspace_root("C:\\Program Files"))
+            self.assertTrue(is_disallowed_workspace_root("C:\\ProgramData"))
 
         # User home root must be disallowed
         home = os.path.realpath(os.path.expanduser("~"))
@@ -42,7 +47,8 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
 
     def test_select_folder_rejects_disallowed_system_root(self):
         """select_folder must reject picking disallowed system directories like /etc or /bin."""
-        self.mock_window.create_file_dialog.return_value = ["/etc"]
+        disallowed = "C:\\Windows" if os.name == "nt" else "/etc"
+        self.mock_window.create_file_dialog.return_value = [disallowed]
         res = self.api.select_folder()
         self.assertEqual(res.get("status"), "error")
         self.assertIn("Disallowed system directory", res.get("message", ""))

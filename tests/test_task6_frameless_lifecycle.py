@@ -107,6 +107,10 @@ class TestFramelessWindowAndLifecycle(unittest.TestCase):
 
     def test_linux_native_frameless_resize_setup(self):
         """_setup_linux_frameless_resize connects button-press-event to WebKit view."""
+        import sys
+
+        if not sys.platform.startswith("linux"):
+            self.skipTest("Linux GTK test")
         mock_native = MagicMock()
         mock_wv = MagicMock()
         mock_native.get_children.return_value = [mock_wv]
