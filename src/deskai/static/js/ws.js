@@ -10,6 +10,8 @@ export class WebSocketClient {
     this.handlers = new Map();
     this.outboundQueue = [];
     this.isFatalClosed = false;
+    this.resyncInFlight = false;
+    this.lastResyncTime = 0;
   }
 
   on(actionType, handler) {
@@ -33,6 +35,37 @@ export class WebSocketClient {
     }
   }
 
+  _showBanner(message, isFatal = false) {
+    if (typeof document === "undefined") return;
+    let banner = document.getElementById("connectionBanner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "connectionBanner";
+      banner.className = "connection-banner";
+      banner.setAttribute("role", "alert");
+      const appRoot = document.getElementById("appRoot") || document.body;
+      const appHeader = document.getElementById("appHeader");
+      if (appHeader && appHeader.nextSibling) {
+        appRoot.insertBefore(banner, appHeader.nextSibling);
+      } else if (appRoot) {
+        appRoot.prepend(banner);
+      }
+    }
+    if (banner) {
+      banner.textContent = message;
+      banner.className = isFatal ? "connection-banner fatal" : "connection-banner warning";
+      banner.style.display = "block";
+    }
+  }
+
+  _hideBanner() {
+    if (typeof document === "undefined") return;
+    const banner = document.getElementById("connectionBanner");
+    if (banner) {
+      banner.style.display = "none";
+    }
+  }
+
   connect() {
     if (this.isFatalClosed) return;
 
@@ -42,7 +75,16 @@ export class WebSocketClient {
       console.log("[WS] Connected to Desktop Gateway.");
       this.reconnectAttempts = 0;
       this.consecutive1006 = 0;
-      store.state.connection.isSocketConnected = true;
+      this.resyncInFlight = false;
+      this.lastResyncTime = 0;
+      this._hideBanner();
+
+      // Reset sequence tracker on fresh connection before initial snapshot
+      if (store && store.state && store.state.connection) {
+        store.state.connection.lastSeq = 0;
+        store.state.connection.isSocketConnected = true;
+      }
+
       this._flushSafeQueue();
       this._requestSnapshotResync();
     };
@@ -50,11 +92,17 @@ export class WebSocketClient {
     this.socket.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.seq !== undefined) {
-          const expected = store.state.connection.lastSeq + 1;
-          if (store.state.connection.lastSeq > 0 && msg.seq !== expected) {
-            console.warn(`[WS] Gap detected: got ${msg.seq}, expected ${expected}. Resyncing.`);
+        if (msg.type === "server.snapshot") {
+          // On snapshot, adopt server sequence directly without gap detection
+          if (msg.seq !== undefined && store && store.state && store.state.connection) {
             store.state.connection.lastSeq = msg.seq;
+          }
+          this.resyncInFlight = false;
+        } else if (msg.seq !== undefined && store && store.state && store.state.connection) {
+          const currentLast = store.state.connection.lastSeq;
+          const expected = currentLast + 1;
+          if (currentLast > 0 && msg.seq !== expected) {
+            console.warn(`[WS] Gap detected: got ${msg.seq}, expected ${expected}. Resyncing.`);
             this._requestSnapshotResync();
             return;
           }
@@ -67,18 +115,21 @@ export class WebSocketClient {
     };
 
     this.socket.onclose = (event) => {
-      store.state.connection.isSocketConnected = false;
-      
+      if (store && store.state && store.state.connection) {
+        store.state.connection.isSocketConnected = false;
+      }
+      this.resyncInFlight = false;
+
       // Code 4401/4403/1008: Explicit Security / Auth Rejection -> Fatal halt
       if (event.code === 4401 || event.code === 4403 || event.code === 1008) {
         this.isFatalClosed = true;
         console.error(`[WS] Fatal: Authentication rejected by server (Code ${event.code}).`);
-        alert("DeskAI security validation failed. Please restart application.");
+        this._showBanner("Security validation failed. Please restart DeskAI.", true);
         return;
       }
 
       // Code 1006 or normal close: Do not treat server restarts as fatal.
-      // Continue reconnecting with exponential backoff up to maxReconnectDelay.
+      this._showBanner("Disconnected from supervisor. Reconnecting...");
       this._scheduleReconnect();
     };
   }
@@ -105,18 +156,30 @@ export class WebSocketClient {
   }
 
   _flushSafeQueue() {
-    while (this.outboundQueue.length > 0 && this.socket.readyState === WebSocket.OPEN) {
+    while (this.outboundQueue.length > 0 && this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(this.outboundQueue.shift()));
     }
   }
 
   _requestSnapshotResync() {
-    this.send("client.resync", { lastSeq: store.state.connection.lastSeq });
+    if (this.resyncInFlight) return;
+    const now = Date.now();
+    if (now - this.lastResyncTime < 2000) {
+      // Rate-limited: at most 1 resync per 2 seconds
+      return;
+    }
+    this.resyncInFlight = true;
+    this.lastResyncTime = now;
+    const lastSeq = store && store.state && store.state.connection ? store.state.connection.lastSeq : 0;
+    this.send("client.resync", { lastSeq });
   }
 
   _scheduleReconnect() {
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
+    // Jittered exponential backoff
+    const baseDelay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), this.maxReconnectDelay);
+    const jitter = Math.random() * 500;
+    const delay = baseDelay + jitter;
     setTimeout(() => this.connect(), delay);
   }
 }

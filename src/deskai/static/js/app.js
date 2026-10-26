@@ -6,6 +6,7 @@ import { initGlobalEvents } from "./events.js";
 import { TokenStreamBuffer } from "./stream.js";
 
 // Global singletons instantiated and wired
+window.store = store;
 window.wsClient = new WebSocketClient(`ws://${location.host}/ws`);
 window.UEC = new UECStateMachine();
 window.EditorManager = new EditorManager();

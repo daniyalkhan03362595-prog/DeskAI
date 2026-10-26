@@ -4,12 +4,11 @@ Pre-bound loopback socket, root static asset mounting, single-use token redempti
 and hardened WebSocket gateway.
 """
 import json
-import os
 import threading
 from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import RedirectResponse, Response, JSONResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from deskai.server.security import SessionSecurityManager
@@ -112,40 +111,53 @@ class DesktopServer:
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
-            # Frame Handling Loop with Malformed Frame & Size Guard
+            # Frame Handling Loop with Monotonically Increasing Connection Sequence
+            conn_seq = 1
+
+            async def send_frame(frame_type: str, payload: dict = None, **extra):
+                nonlocal conn_seq
+                frame = {
+                    "type": frame_type,
+                    "seq": conn_seq,
+                    "payload": payload if payload is not None else {}
+                }
+                frame.update(extra)
+                conn_seq += 1
+                await ws.send_json(frame)
+
             try:
                 while True:
                     raw_text = await ws.receive_text()
 
                     # 64 KB Message Cap
                     if len(raw_text) > 65536:
-                        await ws.send_json({"type": "error", "code": "ERR_PAYLOAD_TOO_LARGE"})
+                        await send_frame("error", code="ERR_PAYLOAD_TOO_LARGE")
                         continue
 
                     try:
                         data = json.loads(raw_text)
                     except json.JSONDecodeError:
-                        await ws.send_json({"type": "error", "code": "ERR_MALFORMED_JSON"})
+                        await send_frame("error", code="ERR_MALFORMED_JSON")
                         continue
 
                     if not isinstance(data, dict):
-                        await ws.send_json({"type": "error", "code": "ERR_INVALID_FRAME"})
+                        await send_frame("error", code="ERR_INVALID_FRAME")
                         continue
 
                     msg_type = data.get("type")
                     if not isinstance(msg_type, str):
-                        await ws.send_json({"type": "error", "code": "ERR_INVALID_FRAME"})
+                        await send_frame("error", code="ERR_INVALID_FRAME")
                         continue
 
                     if msg_type == "client.resync":
-                        await ws.send_json({"type": "server.snapshot", "seq": 1, "payload": {}})
+                        await send_frame("server.snapshot", payload={})
                     elif msg_type == "uec.transition":
                         # Return ACK
-                        await ws.send_json({"type": "uec.ack", "payload": data.get("payload", {})})
+                        await send_frame("uec.ack", payload=data.get("payload", {}))
                     elif msg_type == "uec.approve":
-                        await ws.send_json({"type": "uec.ack", "payload": {"state": "SUCCESS", "approved": True}})
+                        await send_frame("uec.ack", payload={"state": "SUCCESS", "approved": True})
                     elif msg_type == "uec.reject":
-                        await ws.send_json({"type": "uec.ack", "payload": {"state": "ROLLBACK", "rejected": True}})
+                        await send_frame("uec.ack", payload={"state": "ROLLBACK", "rejected": True})
             except WebSocketDisconnect:
                 pass
 
