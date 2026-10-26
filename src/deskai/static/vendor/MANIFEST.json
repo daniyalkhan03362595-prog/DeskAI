@@ -1,0 +1,20 @@
+{
+  "purify.min.js": {
+    "name": "DOMPurify",
+    "version": "3.4.17",
+    "sha256": "cd37898f9782adf54820c413191b5691803f0f137c799d6edcfd38523b4c2c31",
+    "url": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz"
+  },
+  "marked.min.js": {
+    "name": "marked",
+    "version": "18.1.2",
+    "sha256": "32c75f0ccc167866a6b839c84ba9ed4d374d68eec749169e7a6953a5207ef957",
+    "url": "https://registry.npmjs.org/marked/-/marked-18.1.2.tgz"
+  },
+  "codemirror.bundle.js": {
+    "name": "CodeMirror 6 Bundle",
+    "version": "6.0.1",
+    "sha256": "ffbda14ec64098589d7c62dffb2afb02593840dcba570c481b2275295536735f",
+    "url": "https://codemirror.net"
+  }
+}

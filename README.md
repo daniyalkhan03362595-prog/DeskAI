@@ -95,6 +95,17 @@ pip install -e .
 python -m unittest discover -s tests
 ```
 
+### Vendor Dependencies & Manifest
+All client-side third-party assets are pinned, strictly hash-verified against `src/deskai/static/vendor/MANIFEST.json`:
+- **DOMPurify 3.4.17**: Sanitizes streamed Markdown output prior to DOM insertion.
+- **marked 18.1.2**: Standards-compliant Markdown parser.
+- **CodeMirror 6.0.1**: Bundled using `tools/build_vendor.sh` with line numbers, Obsidian Matte dark theme, and syntax highlighting for Python, JavaScript, and Markdown.
+
+To rebuild and verify vendor bundles:
+```bash
+./tools/build_vendor.sh
+```
+
 ---
 
 ## 🛡️ Security & Threat Model Summary

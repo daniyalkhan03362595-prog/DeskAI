@@ -10,9 +10,64 @@ export class EditorManager {
     this.editorHost = document.getElementById("codeEditorHost");
   }
 
+  detectLanguage(filename) {
+    if (!filename) return "plaintext";
+    const lower = filename.toLowerCase();
+    if (lower.endsWith(".py")) return "python";
+    if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".cjs") || lower.endsWith(".json") || lower.endsWith(".ts")) return "javascript";
+    if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "markdown";
+    return "plaintext";
+  }
+
   createBuffer(name = "untitled.txt", content = "") {
     const id = "tab-" + crypto.randomUUID().slice(0, 8);
-    const buffer = { id, name, content, isDirty: false };
+    const buffer = {
+      id,
+      name,
+      content,
+      isDirty: false,
+      state: null,
+      view: null,
+      container: null
+    };
+
+    if (typeof window !== "undefined" && window.CodeMirror && window.CodeMirror.EditorState) {
+      const { EditorState, EditorView, createBasicExtensions } = window.CodeMirror;
+      const extensions = createBasicExtensions({
+        language: this.detectLanguage(name),
+        extensions: [
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              buffer.content = update.state.doc.toString();
+              if (!buffer.isDirty) {
+                this.markDirty(id, true);
+              }
+            }
+          })
+        ]
+      });
+
+      buffer.state = EditorState.create({
+        doc: content,
+        extensions
+      });
+
+      buffer.container = document.createElement("div");
+      buffer.container.className = "editor-view-container";
+      buffer.container.style.width = "100%";
+      buffer.container.style.height = "100%";
+      buffer.container.style.display = "none";
+
+      buffer.view = new EditorView({
+        state: buffer.state,
+        parent: buffer.container
+      });
+
+      if (this.editorHost) {
+        this.editorHost.appendChild(buffer.container);
+      }
+    }
+
     this.buffers.set(id, buffer);
     this.renderTabs();
     this.selectTab(id);
@@ -22,20 +77,28 @@ export class EditorManager {
   selectTab(id) {
     if (!this.buffers.has(id)) return;
     this.activeTabId = id;
-    store.state.editor.activeTabId = id;
+    if (store && store.state && store.state.editor) {
+      store.state.editor.activeTabId = id;
+    }
 
     if (this.welcomeScreen) {
       this.welcomeScreen.style.display = "none";
     }
 
-    const buffer = this.buffers.get(id);
-    if (this.editorHost) {
-      this.editorHost.innerHTML = `<textarea class="editor-textarea" style="width:100%;height:100%;background:transparent;border:none;color:var(--text-primary);font-family:var(--font-mono);font-size:var(--text-sm);padding:var(--space-3);resize:none;outline:none;">${buffer.content}</textarea>`;
-      const textarea = this.editorHost.querySelector("textarea");
-      textarea.addEventListener("input", (e) => {
-        buffer.content = e.target.value;
-        this.markDirty(id, true);
-      });
+    for (const [bufId, buffer] of this.buffers.entries()) {
+      if (buffer.container) {
+        if (bufId === id) {
+          buffer.container.style.display = "block";
+          if (this.editorHost && buffer.container.parentElement !== this.editorHost) {
+            this.editorHost.appendChild(buffer.container);
+          }
+          if (buffer.view) {
+            buffer.view.focus();
+          }
+        } else {
+          buffer.container.style.display = "none";
+        }
+      }
     }
 
     this.renderTabs();
@@ -43,6 +106,15 @@ export class EditorManager {
 
   closeTab(id) {
     if (!this.buffers.has(id)) return;
+    const buffer = this.buffers.get(id);
+
+    if (buffer.view) {
+      buffer.view.destroy();
+    }
+    if (buffer.container && buffer.container.parentElement) {
+      buffer.container.parentElement.removeChild(buffer.container);
+    }
+
     this.buffers.delete(id);
 
     if (this.activeTabId === id) {
@@ -52,10 +124,13 @@ export class EditorManager {
       } else {
         this.activeTabId = null;
         if (this.welcomeScreen) this.welcomeScreen.style.display = "flex";
-        if (this.editorHost) this.editorHost.innerHTML = "";
-        NativeBridge.setDirtyStatus(false);
       }
     }
+
+    // Recompute dirty status across remaining tabs
+    const hasAnyDirty = Array.from(this.buffers.values()).some(b => b.isDirty);
+    NativeBridge.setDirtyStatus(hasAnyDirty);
+
     this.renderTabs();
   }
 
@@ -72,7 +147,7 @@ export class EditorManager {
 
   renderTabs() {
     if (!this.tabStrip) return;
-    this.tabStrip.innerHTML = "";
+    this.tabStrip.replaceChildren();
 
     for (const [id, buffer] of this.buffers.entries()) {
       const tabEl = document.createElement("div");
@@ -83,12 +158,30 @@ export class EditorManager {
       tabEl.setAttribute("data-action", "select-tab");
       tabEl.setAttribute("data-param", id);
 
-      tabEl.innerHTML = `
-        <span class="tab-icon">📄</span>
-        <span class="tab-label">${buffer.name}</span>
-        ${buffer.isDirty ? '<span class="tab-dirty-indicator">●</span>' : ''}
-        <button class="tab-close-btn" data-action="tab-close" data-param="${id}" aria-label="Close Tab">✕</button>
-      `;
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "tab-icon";
+      iconSpan.textContent = "📄";
+      tabEl.appendChild(iconSpan);
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "tab-label";
+      labelSpan.textContent = buffer.name;
+      tabEl.appendChild(labelSpan);
+
+      if (buffer.isDirty) {
+        const dirtySpan = document.createElement("span");
+        dirtySpan.className = "tab-dirty-indicator";
+        dirtySpan.textContent = "●";
+        tabEl.appendChild(dirtySpan);
+      }
+
+      const closeBtn = document.createElement("button");
+      closeBtn.className = "tab-close-btn";
+      closeBtn.setAttribute("data-action", "tab-close");
+      closeBtn.setAttribute("data-param", id);
+      closeBtn.setAttribute("aria-label", "Close Tab");
+      closeBtn.textContent = "✕";
+      tabEl.appendChild(closeBtn);
 
       this.tabStrip.appendChild(tabEl);
     }
