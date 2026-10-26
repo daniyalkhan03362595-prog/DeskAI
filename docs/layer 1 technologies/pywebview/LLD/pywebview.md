@@ -321,7 +321,7 @@ class DesktopServer:
             csp = (
                 "default-src 'self'; "
                 f"connect-src 'self' ws://127.0.0.1:{self.port} http://127.0.0.1:{self.port}; "
-                "script-src 'self'; "
+                "script-src 'self' 'unsafe-eval'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
                 "object-src 'none'; "

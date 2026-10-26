@@ -53,7 +53,7 @@ class SessionSecurityManager:
             f"img-src 'self' data: blob:; "
             f"style-src {style_rule}; "
             f"font-src 'self' data:; "
-            f"script-src 'self'; "
+            f"script-src 'self' 'unsafe-eval'; "
             f"object-src 'none'; "
             f"base-uri 'none'; "
             f"form-action 'none';"

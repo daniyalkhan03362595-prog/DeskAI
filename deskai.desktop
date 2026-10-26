@@ -5,6 +5,7 @@ Name=DeskAI
 GenericName=Desktop AI Studio
 Comment=Ultra-lightweight Desktop AI Shell & Presentation Environment
 Exec=/mnt/Data/Workspaces/Projects/DeskAI/.venv/bin/deskai
+Path=/mnt/Data/Workspaces/Projects/DeskAI
 Icon=/home/daniyal/.local/share/icons/deskai.svg
 Terminal=false
 Categories=Development;IDE;Utility;
