@@ -105,6 +105,24 @@ class TestFramelessWindowAndLifecycle(unittest.TestCase):
             mock_user32.ReleaseCapture.assert_called_once()
             mock_user32.SendMessageW.assert_called_once_with(12345, 0x00A1, 2, 0)
 
+    def test_linux_native_frameless_resize_setup(self):
+        """_setup_linux_frameless_resize connects button-press-event to WebKit view."""
+        mock_native = MagicMock()
+        mock_wv = MagicMock()
+        mock_native.get_children.return_value = [mock_wv]
+        self.mock_window.native = mock_native
+
+        mock_gi = MagicMock()
+        mock_webkit = MagicMock()
+        mock_webkit.WebView = type(mock_wv)
+        mock_gi.WebKit2 = mock_webkit
+        mock_gi.Gdk = MagicMock()
+
+        with patch("sys.platform", "linux"):
+            with patch.dict("sys.modules", {"gi.repository": mock_gi}):
+                self.lifecycle._setup_linux_frameless_resize(self.mock_window)
+                self.assertTrue(self.lifecycle._resize_hooked)
+
 
 if __name__ == "__main__":
     unittest.main()

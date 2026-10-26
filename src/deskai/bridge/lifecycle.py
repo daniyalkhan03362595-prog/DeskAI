@@ -3,6 +3,7 @@ Window Lifecycle & Safe Exit Handler.
 Tracks unsaved buffers, ensures origin containment, and handles clean server shutdown on exit.
 """
 
+import sys
 from typing import TYPE_CHECKING
 import webview
 
@@ -15,15 +16,101 @@ class WindowLifecycleHandler:
         self.manager = manager
         self.has_dirty_tabs: bool = False
         self._exit_confirmed: bool = False
+        self._nav_policy_hooked: bool = False
+        self._resize_hooked: bool = False
 
     def attach_hooks(self, window: webview.Window):
+        if hasattr(window.events, "shown"):
+            window.events.shown += self.on_shown
         window.events.loaded += self.on_loaded
         window.events.closing += self.on_closing
         window.events.closed += self.on_closed
         self._setup_navigation_policy(window)
+        self._setup_linux_frameless_resize(window)
+
+    def on_shown(self):
+        """Called when native window is mapped and displayed on screen."""
+        window = getattr(self.manager, "window", None)
+        if window:
+            self._setup_navigation_policy(window)
+            self._setup_linux_frameless_resize(window)
+
+    def _setup_linux_frameless_resize(self, window: webview.Window):
+        """
+        Attaches native GTK button-press listener to WebKit view.
+        Initiates Wayland/X11 compositor edge resizing using genuine hardware event timestamps.
+        """
+        if self._resize_hooked or not sys.platform.startswith("linux"):
+            return
+
+        try:
+            native_win = getattr(window, "native", None)
+            if not native_win:
+                return
+
+            from gi.repository import Gdk, WebKit2
+
+            def _on_button_press(wv, event):
+                if event.button != 1:
+                    return False
+                if hasattr(native_win, "is_maximized") and native_win.is_maximized():
+                    return False
+
+                alloc = native_win.get_allocation()
+                width = alloc.width
+                height = alloc.height
+                x = event.x
+                y = event.y
+                margin = 10
+
+                edge = None
+                if x <= margin and y <= margin:
+                    edge = Gdk.WindowEdge.NORTH_WEST
+                elif x >= width - margin and y <= margin:
+                    edge = Gdk.WindowEdge.NORTH_EAST
+                elif x <= margin and y >= height - margin:
+                    edge = Gdk.WindowEdge.SOUTH_WEST
+                elif x >= width - margin and y >= height - margin:
+                    edge = Gdk.WindowEdge.SOUTH_EAST
+                elif x <= margin:
+                    edge = Gdk.WindowEdge.WEST
+                elif x >= width - margin:
+                    edge = Gdk.WindowEdge.EAST
+                elif y <= margin:
+                    edge = Gdk.WindowEdge.NORTH
+                elif y >= height - margin:
+                    edge = Gdk.WindowEdge.SOUTH
+
+                if edge is not None:
+                    native_win.begin_resize_drag(edge, event.button, int(event.x_root), int(event.y_root), event.time)
+                    return True
+                return False
+
+            def _hook_wv(widget):
+                try:
+                    if isinstance(widget, WebKit2.WebView):
+                        widget.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+                        widget.connect("button-press-event", _on_button_press)
+                        return True
+                except Exception:
+                    pass
+
+                if hasattr(widget, "get_children"):
+                    for child in widget.get_children():
+                        if _hook_wv(child):
+                            return True
+                return False
+
+            if _hook_wv(native_win):
+                self._resize_hooked = True
+                print("[DeskAI] Native GTK frameless resize hook attached.")
+        except Exception as e:
+            print(f"[DeskAI] Linux native resize setup warning: {e}")
 
     def _setup_navigation_policy(self, window: webview.Window):
         """Attaches GTK/WebKit decide-policy listener to drop unauthorized navigation."""
+        if self._nav_policy_hooked:
+            return
         try:
             native = getattr(window, "native", None)
             port = getattr(getattr(self.manager, "server", None), "port", None)
@@ -59,7 +146,8 @@ class WindowLifecycleHandler:
                             return True
                 return False
 
-            _search_and_hook(native)
+            if _search_and_hook(native):
+                self._nav_policy_hooked = True
         except Exception as e:
             print(f"[DeskAI] Navigation policy setup warning: {e}")
 
@@ -68,6 +156,9 @@ class WindowLifecycleHandler:
         print("[DeskAI] PyWebView presentation container initialized.")
         window = getattr(self.manager, "window", None)
         port = getattr(getattr(self.manager, "server", None), "port", None)
+        if window:
+            self._setup_navigation_policy(window)
+            self._setup_linux_frameless_resize(window)
         if window and port:
             get_url = getattr(window, "get_current_url", None)
             if get_url:
