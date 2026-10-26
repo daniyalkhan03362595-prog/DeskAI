@@ -24,7 +24,7 @@ Frontend styling 5 modular files mein munazzam hai:
 src/deskai/static/css/
 ├── tokens.css                # Design tokens: colors, typography, spacing, shadows, z-index
 ├── layout.css                # Grid layout, 3-column split-pane, resizers, custom scrollbars
-├── components.css            # Header, activity bar, file tree, hardware dock, chat, UEC
+├── components.css            # Header, file tree, hardware dock, chat, UEC
 ├── diff.css                  # Side-by-side & unified syntax diff lines & gutters
 └── animations.css            # GPU-composited @keyframes (pulse, shimmer, morphing)
 ```

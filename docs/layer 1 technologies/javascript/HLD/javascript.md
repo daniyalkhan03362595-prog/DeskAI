@@ -79,6 +79,6 @@ const StudioState = {
 * **State-Driven UI Rendering:** Sirf active state ke mutabiq action buttons (Approve, Reject, Cancel, Rollback) render hotay hain.
 
 ### Engine 4: DOM Event Delegation & Link Interception (`events.js`)
-* **Complete Action Router:** HTML ke tamam 15 `data-action` attributes (`tab-close`, `win-minimize`, `open-palette`, `switch-panel`, `new-file`, `toggle-drawer`, etc.) centrally handle hotay hain.
+* **Complete Action Router:** HTML ke tamam `data-action` attributes (`tab-close`, `win-minimize`, `open-palette`, `new-file`, `toggle-drawer`, etc.) centrally handle hotay hain.
 * **External Link Sandbox:** Web links (`<a href="...">`) ko intercept kar ke PyWebView ke bajaye OS ke default external browser mein open kiya jata hai.
 * **Symmetric Resizers:** Left (`clientX`) aur Right (`window.innerWidth - clientX`) panels ka smooth resizing math.

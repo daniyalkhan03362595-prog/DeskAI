@@ -105,41 +105,13 @@
 }
 
 /* ==========================================================================
-   Left Sidebar: Activity Bar + Explorer + Hardware Dock
+   Left Sidebar: Explorer + Hardware Dock
    ========================================================================== */
 .sidebar-left {
   background-color: var(--bg-sidebar);
   display: flex;
   position: relative;
   overflow: hidden;
-}
-
-.activity-bar {
-  width: 48px;
-  background-color: var(--bg-app);
-  border-right: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: var(--space-2);
-  gap: var(--space-2);
-}
-
-.activity-btn {
-  background: transparent;
-  border: none;
-  font-size: 18px;
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 6px;
-  color: var(--text-muted);
-  transition: all 0.15s ease;
-}
-
-.activity-btn:hover,
-.activity-btn.active {
-  background-color: var(--bg-surface);
-  color: var(--text-primary);
 }
 
 .explorer-container {
@@ -209,7 +181,7 @@
 .hardware-dock {
   position: absolute;
   bottom: 0;
-  left: 48px;
+  left: 0;
   right: 0;
   background-color: var(--bg-header);
   border-top: 1px solid var(--border-subtle);

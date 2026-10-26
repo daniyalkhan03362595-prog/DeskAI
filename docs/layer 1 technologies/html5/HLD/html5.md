@@ -42,7 +42,6 @@ Application interface chaar baray semantic hisson mein taqseem hai:
         
         <!-- Left Column: File Tree & Hardware Status -->
         <aside class="sidebar-left" id="sidebarLeft">
-          <nav class="activity-bar"> ... </nav>
           <div class="file-tree" id="fileTreeViewport"> ... </div>
           <footer class="hardware-dock" id="hardwareDock"> ... </footer>
         </aside>

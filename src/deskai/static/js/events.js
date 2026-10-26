@@ -88,10 +88,6 @@ export function initGlobalEvents() {
       case "open-palette":
         document.getElementById("commandPaletteDialog").showModal();
         break;
-      case "switch-panel":
-        document.querySelectorAll(".activity-btn").forEach(b => b.classList.remove("active"));
-        trigger.classList.add("active");
-        break;
 
       case "open-folder-dialog":
         const dir = await NativeBridge.selectFolder();
