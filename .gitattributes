@@ -1,0 +1,3 @@
+# Enforce LF line endings across Windows and Unix platforms
+* text=auto eol=lf
+src/deskai/static/vendor/* binary

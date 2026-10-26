@@ -26,7 +26,8 @@ class TestTask1VendorAndEditor(unittest.TestCase):
 
             file_path = VENDOR_DIR / key
             self.assertTrue(file_path.exists(), f"Vendor file {key} does not exist")
-            content = file_path.read_bytes()
+            # Normalize CRLF to LF to protect against Windows git autocrlf checkout mutations
+            content = file_path.read_bytes().replace(b"\r\n", b"\n")
             computed_hash = hashlib.sha256(content).hexdigest()
             self.assertEqual(
                 computed_hash,
