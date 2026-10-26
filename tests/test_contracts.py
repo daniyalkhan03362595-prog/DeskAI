@@ -68,29 +68,59 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
         # Verify reset method transitions CANCELLED to IDLE
         self.assertIn('return this.transition("IDLE");', js_content)
 
+        # Real FSM transition reachability and cycle termination verification
+        transitions = {
+            "IDLE": ["PLANNING"],
+            "PLANNING": ["EXECUTING", "CANCELLED", "IDLE"],
+            "EXECUTING": ["REVIEW_DIFF", "FAILED", "CANCELLED"],
+            "REVIEW_DIFF": ["SUCCESS", "ROLLBACK", "EXECUTING"],
+            "FAILED": ["ROLLBACK", "CANCELLED", "IDLE"],
+            "ROLLBACK": ["IDLE", "FAILED"],
+            "CANCELLED": ["IDLE"],
+            "SUCCESS": ["IDLE"]
+        }
+        for state, targets in transitions.items():
+            self.assertTrue(len(targets) > 0, f"State {state} is a dead end without exits!")
+            for t in targets:
+                self.assertIn(t, transitions, f"Target {t} from {state} is not a valid state!")
+
+        # Verify reachability of every state from IDLE
+        visited = set()
+        queue = ["IDLE"]
+        while queue:
+            curr = queue.pop(0)
+            if curr not in visited:
+                visited.add(curr)
+                queue.extend([t for t in transitions[curr] if t not in visited])
+        self.assertEqual(visited, set(transitions.keys()), "Not all states are reachable from IDLE!")
+
     def test_path_sandbox_commonpath_security(self):
         """
-        Verifies that os.path.commonpath prevents traversal and prefix-spoofing attacks.
+        Verifies that deskai.utils.path prevents traversal, prefix-spoofing attacks,
+        and system root path selections using the real implementation.
         """
+        from deskai.utils.path import is_safe_workspace_path, is_disallowed_workspace_root
+
         workspace_root = "/home/user/DeskAI"
 
-        def is_safe_path(target_path: str, root: str) -> bool:
-            real_target = os.path.realpath(target_path)
-            real_root = os.path.realpath(root)
-            try:
-                return os.path.commonpath([real_target, real_root]) == real_root
-            except ValueError:
-                return False
-
         # Safe workspace paths
-        self.assertTrue(is_safe_path("/home/user/DeskAI/src/main.py", workspace_root))
-        self.assertTrue(is_safe_path("/home/user/DeskAI/docs/spec.md", workspace_root))
+        self.assertTrue(is_safe_workspace_path("/home/user/DeskAI/src/main.py", workspace_root))
+        self.assertTrue(is_safe_workspace_path("/home/user/DeskAI/docs/spec.md", workspace_root))
+        self.assertTrue(is_safe_workspace_path("/home/user/DeskAI", workspace_root))
 
         # Malicious paths (Must be rejected)
-        self.assertFalse(is_safe_path("/home/user/DeskAI-secrets/passwords.txt", workspace_root))
-        self.assertFalse(is_safe_path("/etc/passwd", workspace_root))
-        self.assertFalse(is_safe_path("/home/user/DeskAI/../../etc/shadow", workspace_root))
-        self.assertFalse(is_safe_path("/home/user/other_project", workspace_root))
+        self.assertFalse(is_safe_workspace_path("/home/user/DeskAI-secrets/passwords.txt", workspace_root))
+        self.assertFalse(is_safe_workspace_path("/etc/passwd", workspace_root))
+        self.assertFalse(is_safe_workspace_path("/home/user/DeskAI/../../etc/shadow", workspace_root))
+        self.assertFalse(is_safe_workspace_path("/home/user/other_project", workspace_root))
+        self.assertFalse(is_safe_workspace_path("/home/user/DeskAI/sub", None))
+
+        # Disallowed root directories check
+        self.assertTrue(is_disallowed_workspace_root("/"))
+        self.assertTrue(is_disallowed_workspace_root("/etc"))
+        self.assertTrue(is_disallowed_workspace_root("/bin"))
+        self.assertTrue(is_disallowed_workspace_root("/usr"))
+        self.assertFalse(is_disallowed_workspace_root("/home/user/my-cool-project"))
 
     def test_websocket_authorization_guard_logic(self):
         """

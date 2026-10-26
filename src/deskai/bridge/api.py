@@ -8,10 +8,22 @@ import webbrowser
 from typing import TYPE_CHECKING
 import webview
 
-from deskai.utils.path import is_safe_workspace_path, canonicalize_path
+from deskai.utils.path import is_safe_workspace_path, canonicalize_path, is_disallowed_workspace_root
 
 if TYPE_CHECKING:
     from deskai.bridge.window import WindowManager
+
+
+# Support both pywebview 6.x (webview.FileDialog) and 5.x (webview.FOLDER_DIALOG)
+def _get_dialog_type(name: str, fallback_attr: str, default_code: int):
+    file_dialog = getattr(webview, "FileDialog", None)
+    if file_dialog and hasattr(file_dialog, name):
+        return getattr(file_dialog, name)
+    return getattr(webview, fallback_attr, default_code)
+
+DIALOG_FOLDER = _get_dialog_type("FOLDER", "FOLDER_DIALOG", 20)
+DIALOG_OPEN = _get_dialog_type("OPEN", "OPEN_DIALOG", 10)
+DIALOG_SAVE = _get_dialog_type("SAVE", "SAVE_DIALOG", 30)
 
 
 class DesktopBridgeAPI:
@@ -25,16 +37,18 @@ class DesktopBridgeAPI:
 
     def select_folder(self) -> dict:
         """Opens native OS folder selection dialog."""
-        selected = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        selected = self._window.create_file_dialog(DIALOG_FOLDER)
         if selected and len(selected) > 0:
             folder_path = canonicalize_path(selected[0])
+            if is_disallowed_workspace_root(folder_path):
+                return {"status": "error", "message": "Disallowed system directory", "path": None}
             self.workspace_root = folder_path
             return {"status": "ok", "path": folder_path, "name": os.path.basename(folder_path)}
         return {"status": "cancelled", "path": None}
 
     def select_file(self) -> dict:
         """Opens native OS file selection dialog."""
-        selected = self._window.create_file_dialog(webview.OPEN_DIALOG)
+        selected = self._window.create_file_dialog(DIALOG_OPEN)
         if selected and len(selected) > 0:
             file_path = canonicalize_path(selected[0])
             return {"status": "ok", "path": file_path, "name": os.path.basename(file_path)}
@@ -43,7 +57,7 @@ class DesktopBridgeAPI:
     def save_file_dialog(self, default_name: str = "untitled.txt") -> dict:
         """Opens native OS file save dialog."""
         selected = self._window.create_file_dialog(
-            webview.SAVE_DIALOG,
+            DIALOG_SAVE,
             save_filename=default_name
         )
         if selected:

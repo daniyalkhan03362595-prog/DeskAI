@@ -8,7 +8,7 @@ export class UECStateMachine {
       EXECUTING: ["REVIEW_DIFF", "FAILED", "CANCELLED"],
       REVIEW_DIFF: ["SUCCESS", "ROLLBACK", "EXECUTING"],
       FAILED: ["ROLLBACK", "CANCELLED", "IDLE"],
-      ROLLBACK: ["IDLE"],
+      ROLLBACK: ["IDLE", "FAILED"],
       CANCELLED: ["IDLE"],
       SUCCESS: ["IDLE"]
     };
