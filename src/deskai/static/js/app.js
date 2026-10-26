@@ -40,31 +40,54 @@ if (promptForm && promptTextarea && chatThread) {
     const prompt = promptTextarea.value.trim();
     if (!prompt) return;
 
-    // Render User Message Bubble
+    // Render User Message Bubble safely via DOM construction & textContent
     const userBubble = document.createElement("article");
     userBubble.className = "chat-bubble";
     userBubble.setAttribute("data-role", "user");
-    userBubble.innerHTML = `
-      <div class="bubble-header">
-        <span class="bubble-author">User</span>
-        <time class="bubble-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
-      </div>
-      <div class="bubble-body markdown-surface"><p>${prompt}</p></div>
-    `;
+
+    const userHeader = document.createElement("div");
+    userHeader.className = "bubble-header";
+    const userAuthor = document.createElement("span");
+    userAuthor.className = "bubble-author";
+    userAuthor.textContent = "User";
+    const userTime = document.createElement("time");
+    userTime.className = "bubble-time";
+    userTime.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    userHeader.appendChild(userAuthor);
+    userHeader.appendChild(userTime);
+
+    const userBody = document.createElement("div");
+    userBody.className = "bubble-body markdown-surface";
+    const userP = document.createElement("p");
+    userP.textContent = prompt;
+    userBody.appendChild(userP);
+
+    userBubble.appendChild(userHeader);
+    userBubble.appendChild(userBody);
     chatThread.appendChild(userBubble);
     promptTextarea.value = "";
 
-    // Render Assistant Response Container
+    // Render Assistant Response Container safely
     const aiBubble = document.createElement("article");
     aiBubble.className = "chat-bubble";
     aiBubble.setAttribute("data-role", "assistant");
-    aiBubble.innerHTML = `
-      <div class="bubble-header">
-        <span class="bubble-author">⚡ DeskAI</span>
-        <time class="bubble-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
-      </div>
-      <div class="bubble-body markdown-surface stream-target"></div>
-    `;
+
+    const aiHeader = document.createElement("div");
+    aiHeader.className = "bubble-header";
+    const aiAuthor = document.createElement("span");
+    aiAuthor.className = "bubble-author";
+    aiAuthor.textContent = "⚡ DeskAI";
+    const aiTime = document.createElement("time");
+    aiTime.className = "bubble-time";
+    aiTime.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    aiHeader.appendChild(aiAuthor);
+    aiHeader.appendChild(aiTime);
+
+    const aiBody = document.createElement("div");
+    aiBody.className = "bubble-body markdown-surface stream-target";
+
+    aiBubble.appendChild(aiHeader);
+    aiBubble.appendChild(aiBody);
     chatThread.appendChild(aiBubble);
     chatThread.scrollTop = chatThread.scrollHeight;
 

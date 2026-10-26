@@ -48,21 +48,31 @@ export class TokenStreamBuffer {
     }
 
     // Sanitize with DOMPurify
-    let cleanHtml = "";
     if (window.DOMPurify && window.marked) {
-      cleanHtml = DOMPurify.sanitize(marked.parse(this.accumulatedText), {
-        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'span', 'h1', 'h2', 'h3', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a'],
-        ALLOWED_ATTR: ['href', 'class', 'target'],
+      if (!window.__deskai_purify_hooked && typeof window.DOMPurify.addHook === "function") {
+        window.DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+          if (node.tagName === "A") {
+            node.setAttribute("rel", "noopener noreferrer");
+            node.removeAttribute("target");
+          }
+          node.removeAttribute("class");
+        });
+        window.__deskai_purify_hooked = true;
+      }
+
+      const cleanHtml = window.DOMPurify.sanitize(window.marked.parse(this.accumulatedText), {
+        ALLOWED_TAGS: [
+          'p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'span',
+          'h1', 'h2', 'h3', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'blockquote', 'a'
+        ],
+        ALLOWED_ATTR: ['href'],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):)/i
       });
+      this.target.innerHTML = cleanHtml;
     } else {
-      // Fallback escape if vendor not loaded
-      const div = document.createElement("div");
-      div.textContent = this.accumulatedText;
-      cleanHtml = `<p>${div.innerHTML}</p>`;
+      // Safe fallback if vendor not loaded
+      this.target.textContent = this.accumulatedText;
     }
-
-    this.target.innerHTML = cleanHtml;
     this.lastRenderTime = performance.now();
     this.isScheduled = false;
 

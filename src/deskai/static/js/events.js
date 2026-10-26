@@ -27,6 +27,16 @@ export function initGlobalEvents() {
     const trigger = e.target.closest("[data-action]");
     if (!trigger) return;
 
+    // Security guard: ignore data-action inside user content surfaces
+    if (trigger.closest(".bubble-body, .tab-label, .markdown-surface")) {
+      return;
+    }
+
+    // Security guard: must be inside #appRoot
+    if (!trigger.closest("#appRoot")) {
+      return;
+    }
+
     const action = trigger.dataset.action;
     const param = trigger.dataset.param;
 

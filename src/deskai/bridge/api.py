@@ -21,6 +21,7 @@ def _get_dialog_type(name: str, fallback_attr: str, default_code: int):
         return getattr(file_dialog, name)
     return getattr(webview, fallback_attr, default_code)
 
+
 DIALOG_FOLDER = _get_dialog_type("FOLDER", "FOLDER_DIALOG", 20)
 DIALOG_OPEN = _get_dialog_type("OPEN", "OPEN_DIALOG", 10)
 DIALOG_SAVE = _get_dialog_type("SAVE", "SAVE_DIALOG", 30)
@@ -35,8 +36,28 @@ class DesktopBridgeAPI:
     def _window(self) -> webview.Window:
         return self._manager.window
 
+    def _is_origin_allowed(self) -> bool:
+        """Ensures caller originates strictly from the local application origin."""
+        if not self._window:
+            return False
+        port = getattr(getattr(self._manager, "server", None), "port", None)
+        if port is None:
+            return False
+        get_url = getattr(self._window, "get_current_url", None)
+        if not get_url:
+            return False
+        current_url = get_url() or ""
+        expected_origin = f"http://127.0.0.1:{port}"
+        if current_url.startswith(expected_origin):
+            suffix = current_url[len(expected_origin):]
+            if not suffix or suffix.startswith(("/", "?", "#")):
+                return True
+        return False
+
     def select_folder(self) -> dict:
         """Opens native OS folder selection dialog."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "path": None}
         selected = self._window.create_file_dialog(DIALOG_FOLDER)
         if selected and len(selected) > 0:
             folder_path = canonicalize_path(selected[0])
@@ -48,6 +69,8 @@ class DesktopBridgeAPI:
 
     def select_file(self) -> dict:
         """Opens native OS file selection dialog."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "path": None}
         selected = self._window.create_file_dialog(DIALOG_OPEN)
         if selected and len(selected) > 0:
             file_path = canonicalize_path(selected[0])
@@ -56,6 +79,8 @@ class DesktopBridgeAPI:
 
     def save_file_dialog(self, default_name: str = "untitled.txt") -> dict:
         """Opens native OS file save dialog."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "path": None}
         selected = self._window.create_file_dialog(
             DIALOG_SAVE,
             save_filename=default_name
@@ -69,6 +94,8 @@ class DesktopBridgeAPI:
         Dispatches web URLs to the user's default OS browser.
         Blocks javascript: or file: URLs to prevent sandbox breakout.
         """
+        if not self._is_origin_allowed():
+            return False
         if not url:
             return False
         clean_url = url.strip()
@@ -79,10 +106,13 @@ class DesktopBridgeAPI:
 
     def drag_window(self) -> bool:
         """Initiates native Wayland/X11 window move drag via GTK begin_move_drag."""
+        if not self._is_origin_allowed():
+            return False
         native = getattr(self._window, "native", None)
         if native and hasattr(native, "begin_move_drag"):
             try:
                 from gi.repository import GLib, Gdk
+
                 def _do_drag():
                     try:
                         display = Gdk.Display.get_default()
@@ -104,6 +134,8 @@ class DesktopBridgeAPI:
 
     def resize_window(self, edge: str) -> bool:
         """Initiates native Wayland/X11 window resize drag via GTK begin_resize_drag."""
+        if not self._is_origin_allowed():
+            return False
         native = getattr(self._window, "native", None)
         if native and hasattr(native, "begin_resize_drag"):
             try:
@@ -146,6 +178,8 @@ class DesktopBridgeAPI:
 
     def window_control(self, action: str) -> bool:
         """Handles native window frame buttons."""
+        if not self._is_origin_allowed():
+            return False
         if action == "minimize":
             self._window.minimize()
             return True
@@ -173,6 +207,8 @@ class DesktopBridgeAPI:
 
     def set_dirty_status(self, is_dirty: bool):
         """Pushed by frontend whenever active editor buffers change."""
+        if not self._is_origin_allowed():
+            return
         self._manager.lifecycle.has_dirty_tabs = bool(is_dirty)
 
     def _is_safe_path(self, target_path: str) -> bool:
