@@ -1,0 +1,35 @@
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.diff-line {
+  line-height: 20px;
+}
+
+.diff-line.addition {
+  background-color: rgba(46, 204, 113, 0.12);
+}
+
+.diff-line.deletion {
+  background-color: rgba(231, 76, 60, 0.12);
+}
+
+.diff-gutter-num {
+  width: 45px;
+  text-align: right;
+  padding-right: var(--space-2);
+  color: var(--text-muted);
+  user-select: none;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.diff-content {
+  padding-left: var(--space-2);
+  white-space: pre;
+}
+
+.diff-sign-add { color: var(--color-success); font-weight: bold; }
+.diff-sign-del { color: var(--color-danger); font-weight: bold; }

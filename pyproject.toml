@@ -32,5 +32,11 @@ dev = [
     "flake8>=7.0.0",
 ]
 
+[project.scripts]
+deskai = "deskai.__main__:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+deskai = ["static/**/*"]

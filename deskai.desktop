@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=DeskAI
+GenericName=Desktop AI Studio
+Comment=Ultra-lightweight Desktop AI Shell & Presentation Environment
+Exec=/mnt/Data/Workspaces/Projects/DeskAI/.venv/bin/deskai
+Icon=/home/daniyal/.local/share/icons/deskai.svg
+Terminal=false
+Categories=Development;IDE;Utility;
+StartupNotify=true
+StartupWMClass=DeskAI Studio
