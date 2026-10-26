@@ -8,6 +8,7 @@ class TestFramelessWindowAndLifecycle(unittest.TestCase):
     def setUp(self):
         self.mock_manager = MagicMock()
         self.mock_window = MagicMock()
+        self.mock_window.title = "DeskAI Window"
         self.mock_manager.window = self.mock_window
         self.mock_manager.server.port = 8000
         self.mock_window.get_current_url.return_value = "http://127.0.0.1:8000/"
@@ -26,7 +27,8 @@ class TestFramelessWindowAndLifecycle(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.window_control("resize_start", direction="diagonal_nowhere")
 
-    def test_all_semantic_and_compass_resize_directions_valid(self):
+    @patch("deskai.bridge.api._windows_native_drag", return_value=True)
+    def test_all_semantic_and_compass_resize_directions_valid(self, mock_drag):
         """All supported compass and semantic directions must be accepted without ValueError."""
         expected_keys = [
             "n",

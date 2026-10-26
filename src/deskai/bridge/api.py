@@ -59,10 +59,11 @@ def _windows_native_drag(window: webview.Window, ht_code: int) -> bool:
 
         user32 = ctypes.windll.user32
         hwnd = getattr(window, "native", None)
-        if not hwnd or not isinstance(hwnd, int):
-            title = getattr(window, "title", "DeskAI")
+        if not isinstance(hwnd, int):
+            raw_title = getattr(window, "title", None)
+            title = raw_title if isinstance(raw_title, str) and raw_title else "DeskAI"
             hwnd = user32.FindWindowW(None, title)
-        if hwnd:
+        if isinstance(hwnd, int) and hwnd > 0:
             WM_NCLBUTTONDOWN = 0x00A1
             user32.ReleaseCapture()
             user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, ht_code, 0)
