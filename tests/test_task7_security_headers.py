@@ -79,6 +79,12 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         self.assertEqual(res_403.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
         self.assertEqual(res_403.headers.get("Permissions-Policy"), "camera=(), microphone=(), geolocation=()")
 
+    def test_auth_redeem_host_mismatch_returns_403(self):
+        """Redeem endpoint with valid token must reject forged Host header with 403."""
+        token = self.server.security.create_launch_token()
+        res = self.client.get(f"/auth/redeem?token={token}", headers={"Host": "evil.com"}, follow_redirects=False)
+        self.assertEqual(res.status_code, 403)
+
     @patch("deskai.utils.net.sys")
     @patch("deskai.utils.net.socket.socket")
     def test_windows_bind_uses_so_exclusiveaddruse(self, mock_socket_cls, mock_sys):

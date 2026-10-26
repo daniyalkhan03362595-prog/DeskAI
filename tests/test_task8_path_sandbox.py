@@ -40,6 +40,13 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
         sub_project = os.path.join(home, "my_safe_project_dir")
         self.assertFalse(is_disallowed_workspace_root(sub_project))
 
+    def test_select_folder_rejects_disallowed_system_root(self):
+        """select_folder must reject picking disallowed system directories like /etc or /bin."""
+        self.mock_window.create_file_dialog.return_value = ["/etc"]
+        res = self.api.select_folder()
+        self.assertEqual(res.get("status"), "error")
+        self.assertIn("Disallowed system directory", res.get("message", ""))
+
     def test_workspace_path_sandbox_guards(self):
         """Test symlink escapes, parent traversal, sibling prefix attack."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -121,7 +128,7 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
             self.assertNotIn(".git", entry_names)
 
             # 6. File exceeding 10MB rejected
-            with patch("os.path.getsize", return_value=11 * 1024 * 1024):
+            with patch.object(os.path, "getsize", return_value=11 * 1024 * 1024):
                 res_large = self.api.read_file(inside_file)
                 self.assertEqual(res_large.get("status"), "error")
                 self.assertIn("10MB", res_large.get("message", ""))

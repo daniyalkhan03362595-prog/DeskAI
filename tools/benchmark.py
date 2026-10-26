@@ -3,6 +3,7 @@
 DeskAI Layer 1 Benchmark Utility.
 Measures cold startup time and memory footprint (RSS) of DeskAI supervisor and presentation stack.
 """
+
 import resource
 import time
 from deskai.server.supervisor import DesktopServer

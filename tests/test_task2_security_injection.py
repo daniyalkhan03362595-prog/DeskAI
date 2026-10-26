@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock
 import unittest
 from playwright.sync_api import sync_playwright
@@ -89,6 +90,12 @@ class TestTask2HtmlInjectionPlaywright(unittest.TestCase):
             finally:
                 browser.close()
                 server.stop()
+
+    def test_events_js_external_link_interceptor(self):
+        """events.js must intercept http and https URLs and dispatch to NativeBridge."""
+        events_js = Path("src/deskai/static/js/events.js").read_text(encoding="utf-8")
+        self.assertIn('url.startsWith("http://")', events_js)
+        self.assertIn('url.startsWith("https://")', events_js)
 
 
 if __name__ == "__main__":

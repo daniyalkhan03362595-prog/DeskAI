@@ -58,6 +58,21 @@ class TestThemeAndAccessibility(unittest.TestCase):
         self.assertIn("ArrowRight", editor_js)
         self.assertIn("ArrowLeft", editor_js)
 
+    def test_resize_handles_size_at_least_6px(self):
+        """Window resize handles must be at least 6px wide/tall in layout.css."""
+        layout_css = Path("src/deskai/static/css/layout.css").read_text(encoding="utf-8")
+        height_matches = re.findall(r"\.resize-handle\.(?:top|bottom)\s*\{[^}]*height:\s*([0-9]+)px", layout_css)
+        for h in height_matches:
+            self.assertGreaterEqual(int(h), 6)
+        width_matches = re.findall(r"\.resize-handle\.(?:left|right)\s*\{[^}]*width:\s*([0-9]+)px", layout_css)
+        for w in width_matches:
+            self.assertGreaterEqual(int(w), 6)
+
+    def test_stream_throttle_trailing_edge(self):
+        """stream.js must schedule a trailingTimer flush."""
+        stream_js = Path("src/deskai/static/js/stream.js").read_text(encoding="utf-8")
+        self.assertIn("this.trailingTimer = setTimeout", stream_js)
+
 
 if __name__ == "__main__":
     unittest.main()
