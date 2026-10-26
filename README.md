@@ -54,21 +54,21 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 
 ## 📂 Layer 1 Specifications Directory
 
-Detailed specifications in Roman Urdu and English are located under `docs/desktop ai studio history/layer 1 technologies/`:
+Detailed specifications in Roman Urdu and English are located under `docs/layer 1 technologies/`:
 
 * **PyWebView Shell:**
-  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/pywebview/HLD/pywebview.md)
-  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/pywebview/LLD/pywebview.md)
+  * [HLD Specification](docs/layer%201%20technologies/pywebview/HLD/pywebview.md)
+  * [LLD Specification](docs/layer%201%20technologies/pywebview/LLD/pywebview.md)
 * **Vanilla JavaScript Runtime:**
-  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/javascript/HLD/javascript.md)
-  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/javascript/LLD/javascript.md)
+  * [HLD Specification](docs/layer%201%20technologies/javascript/HLD/javascript.md)
+  * [LLD Specification](docs/layer%201%20technologies/javascript/LLD/javascript.md)
 * **Semantic HTML5:**
-  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/html5/HLD/html5.md)
-  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/html5/LLD/html5.md)
+  * [HLD Specification](docs/layer%201%20technologies/html5/HLD/html5.md)
+  * [LLD Specification](docs/layer%201%20technologies/html5/LLD/html5.md)
 * **CSS3 Design System:**
-  * [HLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/css3/HLD/css3.md)
-  * [LLD Specification](docs/desktop%20ai%20studio%20history/layer%201%20technologies/css3/LLD/css3.md)
-* **Visual Diagrams & Figcraft Canvases:** Available under `designs/desktop ai studio history/layer 1 technologies/`.
+  * [HLD Specification](docs/layer%201%20technologies/css3/HLD/css3.md)
+  * [LLD Specification](docs/layer%201%20technologies/css3/LLD/css3.md)
+* **Visual Diagrams & Figcraft Canvases:** Available under `designs/layer 1 technologies/`.
 
 ---
 
