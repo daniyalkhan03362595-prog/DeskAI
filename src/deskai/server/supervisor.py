@@ -5,6 +5,7 @@ and hardened WebSocket gateway.
 """
 
 import json
+import sys
 import threading
 import time
 from pathlib import Path
@@ -15,6 +16,14 @@ from fastapi.staticfiles import StaticFiles
 
 from deskai.server.security import SessionSecurityManager
 from deskai.utils.net import bind_ephemeral_loopback_socket, is_valid_loopback_host
+
+if sys.platform == "win32":
+    import asyncio
+
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 
 class DesktopServer:
@@ -263,7 +272,7 @@ class DesktopServer:
                                     code="ERR_INVALID_TRANSITION",
                                     message=f"Transition from {uec_state} to {next_state} not allowed",
                                 )
-            except WebSocketDisconnect:
+            except (WebSocketDisconnect, ConnectionResetError, RuntimeError):
                 pass
             finally:
                 self.security.unregister_socket(cookie, ws)
