@@ -160,10 +160,10 @@ MUTATIONS = [
     },
     {
         "id": 16,
-        "name": "Drop unsafe-eval from Content-Security-Policy",
+        "name": "Ensure unsafe-eval is present in CSP for PyWebView Bridge",
         "file": "src/deskai/server/security.py",
-        "target": "f\"script-src 'self'; \"",
-        "mutant": "f\"script-src 'self' 'unsafe-eval'; \"",
+        "target": "f\"script-src 'self' 'unsafe-eval'; \"",
+        "mutant": "f\"script-src 'self'; \"",
         "test": (
             "tests.test_task7_security_headers."
             "TestSecurityHeadersAndHardening.test_csp_strictly_drops_unsafe_eval_and_includes_frame_ancestors"

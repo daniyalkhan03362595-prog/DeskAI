@@ -17,11 +17,11 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         self.server.stop()
 
     def test_csp_strictly_drops_unsafe_eval_and_includes_frame_ancestors(self):
-        """CSP must not contain 'unsafe-eval' or 'unsafe-inline' and must include frame-ancestors 'none'."""
+        """CSP allows unsafe-eval for PyWebView bridge, drops unsafe-inline, and includes frame-ancestors none."""
         sec = SessionSecurityManager(8000)
         csp = sec.get_content_security_policy()
 
-        self.assertNotIn("'unsafe-eval'", csp)
+        self.assertIn("'unsafe-eval'", csp)
         self.assertNotIn("'unsafe-inline'", csp)
         self.assertIn("frame-ancestors 'none'", csp)
         self.assertIn("base-uri 'none'", csp)

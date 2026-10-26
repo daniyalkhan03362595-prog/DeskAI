@@ -32,7 +32,7 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 | **Frameless Controls** | GDK `begin_move_drag` | GDK `begin_move_drag` | ctypes `ReleaseCapture` + `WM_NCLBUTTONDOWN` | Verified in unit tests & mock simulation; manual steps in `MANUAL_TEST.md` |
 | **Perimeter Resizing** | >= 6px handles | >= 6px handles | >= 6px handles + hit-test | Verified in CSS & unit tests |
 | **Token-to-Cookie Auth** | Single-use launch token | Single-use launch token | Single-use launch token | Verified in `test_runtime.py` and `test_task7_security_headers.py` |
-| **Security Headers & CSP** | No `'unsafe-eval'`, no `'unsafe-inline'` | No `'unsafe-eval'`, no `'unsafe-inline'` | No `'unsafe-eval'`, no `'unsafe-inline'` | Verified in `test_task7_security_headers.py` |
+| **Security Headers & CSP** | No `'unsafe-inline'`, bridge `'unsafe-eval'` | No `'unsafe-inline'`, bridge `'unsafe-eval'` | No `'unsafe-inline'`, bridge `'unsafe-eval'` | Verified in `test_task7_security_headers.py` |
 | **Path Sandboxing** | `commonpath` + disallowed roots | `commonpath` + disallowed roots | Case-insensitive `commonpath` + `SO_EXCLUSIVEADDRUSE` | Verified in `test_task8_path_sandbox.py` |
 | **Vendor Integrity** | DOMPurify, Marked, CodeMirror 6 | DOMPurify, Marked, CodeMirror 6 | DOMPurify, Marked, CodeMirror 6 | SHA-256 Manifest Verified in `test_task1_vendor_editor.py` |
 | **State & Telemetry** | Deep Proxy bubbling + Real host RAM | Deep Proxy bubbling + Real host RAM | Deep Proxy bubbling + Fallback | Verified in `test_task9_frontend_state.py` |

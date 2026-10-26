@@ -241,12 +241,33 @@ class DesktopBridgeAPI:
                 return False
         return False
 
+    def resize_window_absolute(self, width: int, height: int) -> bool:
+        """Directly resizes native window frame to specified dimensions."""
+        if not self._is_origin_allowed():
+            return False
+        w = max(900, int(width))
+        h = max(600, int(height))
+        try:
+            self._window.resize(w, h)
+            return True
+        except Exception as e:
+            print(f"[DeskAI] Window resize error: {e}")
+            return False
+
     def window_control(self, action: str, direction: str | None = None, timestamp: float | None = None) -> bool:
         """Handles native window frame buttons and frameless drag/resize actions."""
         if not self._is_origin_allowed():
             return False
 
-        valid_actions = {"minimize", "maximize", "close", "close_request", "drag_start", "resize_start"}
+        valid_actions = {
+            "minimize",
+            "maximize",
+            "close",
+            "close_request",
+            "drag_start",
+            "resize_start",
+            "resize_absolute",
+        }
         if action not in valid_actions:
             raise ValueError(f"Unknown window control action: {action}")
 

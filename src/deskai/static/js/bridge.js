@@ -46,6 +46,13 @@ export const NativeBridge = {
     return false;
   },
 
+  async resizeWindowAbsolute(width, height) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.resize_window_absolute) {
+      return await window.pywebview.api.resize_window_absolute(width, height);
+    }
+    return false;
+  },
+
   async openExternalUrl(url) {
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.open_external_url(url);

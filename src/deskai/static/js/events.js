@@ -203,7 +203,7 @@ export function initGlobalEvents() {
     });
   }
 
-  // 7. Outer Edge & Corner Window Resizing (Native Wayland / GTK / Windows)
+  // 7. Outer Edge & Corner Window Resizing (Native Wayland / GTK / Windows + Hybrid Fallback)
   const resizeHandles = document.getElementById("windowResizeHandles");
   if (resizeHandles) {
     resizeHandles.addEventListener("mousedown", (e) => {
@@ -212,9 +212,41 @@ export function initGlobalEvents() {
         e.preventDefault();
         e.stopPropagation();
         const edge = handle.dataset.edge;
-        if (edge) {
-          NativeBridge.windowControl("resize_start", edge, e.timeStamp || Date.now());
+        if (!edge) return;
+
+        // Try native compositor resize drag first
+        NativeBridge.windowControl("resize_start", edge, e.timeStamp || Date.now());
+
+        // Hybrid Fallback: Mouse coordinate drag tracking if compositor doesn't grab
+        const startX = e.screenX;
+        const startY = e.screenY;
+        const startW = window.outerWidth || window.innerWidth;
+        const startH = window.outerHeight || window.innerHeight;
+
+        function onMouseMove(moveEvent) {
+          const dx = moveEvent.screenX - startX;
+          const dy = moveEvent.screenY - startY;
+          let newW = startW;
+          let newH = startH;
+
+          if (edge.includes("right") || edge === "right" || edge === "e") newW += dx;
+          if (edge.includes("left") || edge === "left" || edge === "w") newW -= dx;
+          if (edge.includes("bottom") || edge === "bottom" || edge === "s") newH += dy;
+          if (edge.includes("top") || edge === "top" || edge === "n") newH -= dy;
+
+          newW = Math.max(900, Math.round(newW));
+          newH = Math.max(600, Math.round(newH));
+
+          NativeBridge.resizeWindowAbsolute(newW, newH);
         }
+
+        function onMouseUp() {
+          window.removeEventListener("mousemove", onMouseMove);
+          window.removeEventListener("mouseup", onMouseUp);
+        }
+
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
       }
     });
   }
