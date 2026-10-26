@@ -121,18 +121,17 @@ export function initGlobalEvents() {
   // 5. Dual Resizers Handle Pointer Drag
   initResizers();
 
-  // 6. Header Drag Isolation & Double Click Maximize
-  const noDragElements = document.querySelectorAll(".app-header button, .app-header input, .app-header .workspace-pill");
-  noDragElements.forEach(el => {
-    el.addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-  });
-
+  // 6. Header Drag (Wayland / GTK native move drag) & Double Click Maximize
   const appHeader = document.getElementById("appHeader");
   if (appHeader) {
+    appHeader.addEventListener("mousedown", (e) => {
+      if (e.button === 0 && !e.target.closest("button, input, textarea, .workspace-pill")) {
+        NativeBridge.dragWindow();
+      }
+    });
+
     appHeader.addEventListener("dblclick", (e) => {
-      if (!e.target.closest("button, input")) {
+      if (!e.target.closest("button, input, textarea")) {
         NativeBridge.windowControl("maximize");
       }
     });

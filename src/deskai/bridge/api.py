@@ -63,6 +63,31 @@ class DesktopBridgeAPI:
             return True
         return False
 
+    def drag_window(self) -> bool:
+        """Initiates native Wayland/X11 window move drag via GTK begin_move_drag."""
+        native = getattr(self._window, "native", None)
+        if native and hasattr(native, "begin_move_drag"):
+            try:
+                from gi.repository import GLib, Gdk
+                def _do_drag():
+                    try:
+                        display = Gdk.Display.get_default()
+                        if display:
+                            seat = display.get_default_seat()
+                            if seat:
+                                pointer = seat.get_pointer()
+                                if pointer:
+                                    _, x, y = pointer.get_position()
+                                    native.begin_move_drag(1, int(x), int(y), Gdk.CURRENT_TIME)
+                    except Exception as e:
+                        print(f"[DeskAI] Native drag error: {e}")
+                GLib.idle_add(_do_drag)
+                return True
+            except Exception as e:
+                print(f"[DeskAI] Bridge drag error: {e}")
+                return False
+        return False
+
     def window_control(self, action: str) -> bool:
         """Handles native window frame buttons."""
         if action == "minimize":

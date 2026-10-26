@@ -32,6 +32,13 @@ export const NativeBridge = {
     return false;
   },
 
+  async dragWindow() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.drag_window) {
+      return await window.pywebview.api.drag_window();
+    }
+    return false;
+  },
+
   async openExternalUrl(url) {
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.open_external_url(url);
