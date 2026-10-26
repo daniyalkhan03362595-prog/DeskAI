@@ -5,6 +5,7 @@ and hardened WebSocket gateway.
 """
 import json
 import threading
+import time
 from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -119,6 +120,13 @@ class DesktopServer:
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
+            # D. Concurrency Limit: Max 4 Sockets Per Session
+            if len(self.security.get_session_sockets(cookie)) >= 4:
+                await ws.close(code=4429, reason="Too Many Sockets for Session")
+                return
+
+            self.security.register_socket(cookie, ws)
+
             # Frame Handling Loop with Monotonically Increasing Connection Sequence & UEC State Machine
             conn_seq = 1
             uec_state = "IDLE"
@@ -136,112 +144,141 @@ class DesktopServer:
                 await ws.send_json(frame)
 
             try:
+                # Token Bucket Rate Limiter: 30 msgs/sec capacity and fill rate
+                tokens = 30.0
+                last_token_time = time.monotonic()
+
                 while True:
-                    raw_text = await ws.receive_text()
+                    message = await ws.receive()
+                    if message["type"] == "websocket.disconnect":
+                        break
 
-                    # 64 KB Message Cap
-                    if len(raw_text) > 65536:
-                        await send_frame("error", code="ERR_PAYLOAD_TOO_LARGE")
-                        continue
+                    if message["type"] == "websocket.receive":
+                        # Binary frame handling: close with 1003
+                        if message.get("bytes") is not None:
+                            await ws.close(code=1003, reason="Binary frames unsupported")
+                            return
 
-                    try:
-                        data = json.loads(raw_text)
-                    except json.JSONDecodeError:
-                        await send_frame("error", code="ERR_MALFORMED_JSON")
-                        continue
-
-                    if not isinstance(data, dict):
-                        await send_frame("error", code="ERR_INVALID_FRAME")
-                        continue
-
-                    msg_type = data.get("type")
-                    if not isinstance(msg_type, str):
-                        await send_frame("error", code="ERR_INVALID_FRAME")
-                        continue
-
-                    if msg_type == "client.resync":
-                        await send_frame("server.snapshot", payload={"uec_state": uec_state})
-                    elif msg_type == "uec.transition":
-                        payload = data.get("payload") or {}
-                        target_state = payload.get("to")
-                        allowed = self.transitions_table.get(uec_state, [])
-                        if target_state in allowed:
-                            uec_state = target_state
-                            await send_frame("uec.ack", payload={"state": uec_state})
-                        else:
-                            await send_frame(
-                                "error",
-                                code="ERR_INVALID_TRANSITION",
-                                message=f"Transition from {uec_state} to {target_state} not allowed"
-                            )
-                    elif msg_type == "uec.approve":
-                        req_id = data.get("request_id") or data.get("idempotency_key")
-                        if req_id and req_id in processed_requests:
-                            await send_frame(
-                                "uec.ack",
-                                payload={"state": uec_state, "approved": True, "idempotent": True}
-                            )
+                        raw_text = message.get("text")
+                        if raw_text is None:
                             continue
 
-                        if uec_state == "PLANNING":
-                            next_state = "EXECUTING"
-                        elif uec_state == "REVIEW_DIFF":
-                            next_state = "SUCCESS"
-                        else:
-                            await send_frame(
-                                "error",
-                                code="ERR_INVALID_TRANSITION",
-                                message=f"Cannot approve in state {uec_state}"
-                            )
+                        # Rate limit check per message
+                        now = time.monotonic()
+                        elapsed = now - last_token_time
+                        last_token_time = now
+                        tokens = min(30.0, tokens + elapsed * 30.0)
+                        if tokens < 1.0:
+                            await ws.close(code=4429, reason="Rate limit exceeded")
+                            return
+                        tokens -= 1.0
+
+                        # Wire size measurement in UTF-8 bytes (must not exceed 64 KB)
+                        raw_bytes = raw_text.encode("utf-8")
+                        if len(raw_bytes) > 65536:
+                            await send_frame("error", code="ERR_PAYLOAD_TOO_LARGE")
                             continue
 
-                        allowed = self.transitions_table.get(uec_state, [])
-                        if next_state in allowed:
-                            uec_state = next_state
-                            if req_id:
-                                processed_requests.add(req_id)
-                            await send_frame("uec.ack", payload={"state": uec_state, "approved": True})
-                        else:
-                            await send_frame(
-                                "error",
-                                code="ERR_INVALID_TRANSITION",
-                                message=f"Transition from {uec_state} to {next_state} not allowed"
-                            )
-                    elif msg_type == "uec.reject":
-                        req_id = data.get("request_id") or data.get("idempotency_key")
-                        if req_id and req_id in processed_requests:
-                            await send_frame(
-                                "uec.ack",
-                                payload={"state": uec_state, "rejected": True, "idempotent": True}
-                            )
+                        try:
+                            data = json.loads(raw_text)
+                        except json.JSONDecodeError:
+                            await send_frame("error", code="ERR_MALFORMED_JSON")
                             continue
 
-                        if uec_state == "REVIEW_DIFF":
-                            next_state = "ROLLBACK"
-                        elif uec_state in ("PLANNING", "EXECUTING"):
-                            next_state = "CANCELLED"
-                        else:
-                            await send_frame(
-                                "error",
-                                code="ERR_INVALID_TRANSITION",
-                                message=f"Cannot reject in state {uec_state}"
-                            )
+                        if not isinstance(data, dict):
+                            await send_frame("error", code="ERR_INVALID_FRAME")
                             continue
 
-                        allowed = self.transitions_table.get(uec_state, [])
-                        if next_state in allowed:
-                            uec_state = next_state
-                            if req_id:
-                                processed_requests.add(req_id)
-                            await send_frame("uec.ack", payload={"state": uec_state, "rejected": True})
-                        else:
-                            await send_frame(
-                                "error",
-                                code="ERR_INVALID_TRANSITION",
-                                message=f"Transition from {uec_state} to {next_state} not allowed"
-                            )
+                        msg_type = data.get("type")
+                        if not isinstance(msg_type, str):
+                            await send_frame("error", code="ERR_INVALID_FRAME")
+                            continue
+
+                        if msg_type == "client.resync":
+                            await send_frame("server.snapshot", payload={"uec_state": uec_state})
+                        elif msg_type == "uec.transition":
+                            payload = data.get("payload") or {}
+                            target_state = payload.get("to")
+                            allowed = self.transitions_table.get(uec_state, [])
+                            if target_state in allowed:
+                                uec_state = target_state
+                                await send_frame("uec.ack", payload={"state": uec_state})
+                            else:
+                                await send_frame(
+                                    "error",
+                                    code="ERR_INVALID_TRANSITION",
+                                    message=f"Transition from {uec_state} to {target_state} not allowed"
+                                )
+                        elif msg_type == "uec.approve":
+                            req_id = data.get("request_id") or data.get("idempotency_key")
+                            if req_id and req_id in processed_requests:
+                                await send_frame(
+                                    "uec.ack",
+                                    payload={"state": uec_state, "approved": True, "idempotent": True}
+                                )
+                                continue
+
+                            if uec_state == "PLANNING":
+                                next_state = "EXECUTING"
+                            elif uec_state == "REVIEW_DIFF":
+                                next_state = "SUCCESS"
+                            else:
+                                await send_frame(
+                                    "error",
+                                    code="ERR_INVALID_TRANSITION",
+                                    message=f"Cannot approve in state {uec_state}"
+                                )
+                                continue
+
+                            allowed = self.transitions_table.get(uec_state, [])
+                            if next_state in allowed:
+                                uec_state = next_state
+                                if req_id:
+                                    processed_requests.add(req_id)
+                                await send_frame("uec.ack", payload={"state": uec_state, "approved": True})
+                            else:
+                                await send_frame(
+                                    "error",
+                                    code="ERR_INVALID_TRANSITION",
+                                    message=f"Transition from {uec_state} to {next_state} not allowed"
+                                )
+                        elif msg_type == "uec.reject":
+                            req_id = data.get("request_id") or data.get("idempotency_key")
+                            if req_id and req_id in processed_requests:
+                                await send_frame(
+                                    "uec.ack",
+                                    payload={"state": uec_state, "rejected": True, "idempotent": True}
+                                )
+                                continue
+
+                            if uec_state == "REVIEW_DIFF":
+                                next_state = "ROLLBACK"
+                            elif uec_state in ("PLANNING", "EXECUTING"):
+                                next_state = "CANCELLED"
+                            else:
+                                await send_frame(
+                                    "error",
+                                    code="ERR_INVALID_TRANSITION",
+                                    message=f"Cannot reject in state {uec_state}"
+                                )
+                                continue
+
+                            allowed = self.transitions_table.get(uec_state, [])
+                            if next_state in allowed:
+                                uec_state = next_state
+                                if req_id:
+                                    processed_requests.add(req_id)
+                                await send_frame("uec.ack", payload={"state": uec_state, "rejected": True})
+                            else:
+                                await send_frame(
+                                    "error",
+                                    code="ERR_INVALID_TRANSITION",
+                                    message=f"Transition from {uec_state} to {next_state} not allowed"
+                                )
             except WebSocketDisconnect:
                 pass
+            finally:
+                self.security.unregister_socket(cookie, ws)
 
         # 4. Root Static File Mounting (Directly at / so relative css/..., js/... all resolve)
         if self.static_dir.exists():
@@ -252,7 +289,10 @@ class DesktopServer:
         config = uvicorn.Config(
             app=self.app,
             log_config=None,
-            access_log=False
+            access_log=False,
+            ws_max_size=65536,
+            ws_ping_interval=20,
+            ws_ping_timeout=20,
         )
         self.uvicorn_server = uvicorn.Server(config)
         self.server_thread = threading.Thread(
@@ -263,10 +303,15 @@ class DesktopServer:
         self.server_thread.start()
 
     def stop(self):
-        """Clean teardown of uvicorn and socket."""
+        """Clean teardown of uvicorn, thread join, socket closure and session clearance."""
         if self.uvicorn_server:
             self.uvicorn_server.should_exit = True
-        try:
-            self.listen_socket.close()
-        except Exception:
-            pass
+        if self.server_thread and self.server_thread.is_alive():
+            self.server_thread.join(timeout=5.0)
+        if self.listen_socket:
+            try:
+                self.listen_socket.close()
+            except Exception:
+                pass
+            self.listen_socket = None
+        self.security.clear_sessions()

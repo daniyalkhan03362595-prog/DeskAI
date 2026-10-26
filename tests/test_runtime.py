@@ -168,45 +168,57 @@ class TestDeskAIRuntimeServer(unittest.TestCase):
                 err_type_data = json.loads(err_type)
                 self.assertEqual(err_type_data.get("code"), "ERR_INVALID_FRAME")
 
-                # H. Oversized payload handling (> 64KB)
+                # H. Oversized payload handling (> 64KB: rejected by uvicorn ws_max_size with 1009)
                 oversized_payload = json.dumps({"type": "test", "data": "X" * 70000})
-                await ws.send(oversized_payload)
-                err_size = await ws.recv()
-                err_size_data = json.loads(err_size)
-                self.assertEqual(err_size_data.get("code"), "ERR_PAYLOAD_TOO_LARGE")
+                try:
+                    await ws.send(oversized_payload)
+                    err_size = await ws.recv()
+                    err_size_data = json.loads(err_size)
+                    self.assertEqual(err_size_data.get("code"), "ERR_PAYLOAD_TOO_LARGE")
+                except ConnectionClosed as e:
+                    close_code = getattr(e, "code", getattr(getattr(e, "rcvd", None), "code", None))
+                    self.assertEqual(close_code, 1009)
 
-                # I. UEC approve & reject ACK handling (guarded by state machine)
-                await ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "IDLE", "to": "PLANNING"}}))
-                await ws.recv()
-                await ws.send(
+            # I. UEC approve & reject ACK handling (guarded by state machine on fresh connection)
+            async with websockets.connect(
+                ws_url,
+                additional_headers={
+                    "Host": f"127.0.0.1:{self.server.port}",
+                    "Origin": f"http://127.0.0.1:{self.server.port}",
+                    "Cookie": f"deskai_session={test_session}",
+                },
+            ) as uec_ws:
+                await uec_ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "IDLE", "to": "PLANNING"}}))
+                await uec_ws.recv()
+                await uec_ws.send(
                     json.dumps({"type": "uec.transition", "payload": {"from": "PLANNING", "to": "EXECUTING"}})
                 )
-                await ws.recv()
-                await ws.send(
+                await uec_ws.recv()
+                await uec_ws.send(
                     json.dumps({"type": "uec.transition", "payload": {"from": "EXECUTING", "to": "REVIEW_DIFF"}})
                 )
-                await ws.recv()
+                await uec_ws.recv()
 
-                await ws.send(json.dumps({"type": "uec.approve", "payload": {}}))
-                ack_approve = await ws.recv()
+                await uec_ws.send(json.dumps({"type": "uec.approve", "payload": {}}))
+                ack_approve = await uec_ws.recv()
                 self.assertEqual(json.loads(ack_approve).get("payload", {}).get("state"), "SUCCESS")
 
                 # Reset to IDLE -> step to REVIEW_DIFF -> test reject
-                await ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "SUCCESS", "to": "IDLE"}}))
-                await ws.recv()
-                await ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "IDLE", "to": "PLANNING"}}))
-                await ws.recv()
-                await ws.send(
+                await uec_ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "SUCCESS", "to": "IDLE"}}))
+                await uec_ws.recv()
+                await uec_ws.send(json.dumps({"type": "uec.transition", "payload": {"from": "IDLE", "to": "PLANNING"}}))
+                await uec_ws.recv()
+                await uec_ws.send(
                     json.dumps({"type": "uec.transition", "payload": {"from": "PLANNING", "to": "EXECUTING"}})
                 )
-                await ws.recv()
-                await ws.send(
+                await uec_ws.recv()
+                await uec_ws.send(
                     json.dumps({"type": "uec.transition", "payload": {"from": "EXECUTING", "to": "REVIEW_DIFF"}})
                 )
-                await ws.recv()
+                await uec_ws.recv()
 
-                await ws.send(json.dumps({"type": "uec.reject", "payload": {}}))
-                ack_reject = await ws.recv()
+                await uec_ws.send(json.dumps({"type": "uec.reject", "payload": {}}))
+                ack_reject = await uec_ws.recv()
                 self.assertEqual(json.loads(ack_reject).get("payload", {}).get("state"), "ROLLBACK")
 
         asyncio.run(run_ws_tests())

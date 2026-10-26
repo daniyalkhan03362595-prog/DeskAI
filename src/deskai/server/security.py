@@ -1,14 +1,31 @@
 """
 DeskAI Security Store, Single-Use Token Redemption & CSP Generator.
 """
+
+from collections import defaultdict
 import secrets
+import time
+
+
+class SessionStore(dict):
+    """Custom dictionary store supporting both dict and set-like access for backward compatibility."""
+    def add(self, session_id: str) -> None:
+        self[session_id] = time.time()
+
+    def discard(self, session_id: str) -> None:
+        self.pop(session_id, None)
 
 
 class SessionSecurityManager:
+    SESSION_TTL_SECONDS = 12 * 3600  # 12-hour maximum session TTL
+
     def __init__(self, port: int):
         self.port = port
         self.launch_token: str | None = secrets.token_urlsafe(32)
-        self.active_sessions: set[str] = set()
+        # Tracks active sessions with creation timestamp: session_id -> created_at
+        self.active_sessions: SessionStore = SessionStore()
+        # Tracks open websockets per session: session_id -> set of active ws objects
+        self.session_sockets: dict[str, set] = defaultdict(set)
 
     def create_launch_token(self) -> str:
         """Generates and sets a new single-use launch token."""
@@ -34,17 +51,40 @@ class SessionSecurityManager:
 
         # Issue new session token
         session_id = secrets.token_hex(24)
-        self.active_sessions.add(session_id)
+        self.active_sessions[session_id] = time.time()
+        self.session_sockets[session_id] = set()
         return session_id
 
     def is_valid_session(self, session_id: str | None) -> bool:
-        """Checks if session cookie is recognized in active sessions."""
-        if not session_id:
+        """Checks if session cookie is recognized and unexpired."""
+        if not session_id or session_id not in self.active_sessions:
             return False
-        return session_id in self.active_sessions
 
-    def revoke_session(self, session_id: str):
-        self.active_sessions.discard(session_id)
+        created_at = self.active_sessions[session_id]
+        if time.time() - created_at > self.SESSION_TTL_SECONDS:
+            # Expired session cleanup
+            self.revoke_session(session_id)
+            return False
+        return True
+
+    def register_socket(self, session_id: str, ws) -> None:
+        if session_id in self.active_sessions:
+            self.session_sockets[session_id].add(ws)
+
+    def unregister_socket(self, session_id: str, ws) -> None:
+        if session_id in self.session_sockets:
+            self.session_sockets[session_id].discard(ws)
+
+    def get_session_sockets(self, session_id: str) -> set:
+        return self.session_sockets.get(session_id, set())
+
+    def revoke_session(self, session_id: str) -> None:
+        self.active_sessions.pop(session_id, None)
+        self.session_sockets.pop(session_id, None)
+
+    def clear_sessions(self) -> None:
+        self.active_sessions.clear()
+        self.session_sockets.clear()
 
     def get_content_security_policy(self, style_nonce: str | None = None) -> str:
         """
