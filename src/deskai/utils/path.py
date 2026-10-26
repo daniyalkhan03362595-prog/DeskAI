@@ -50,6 +50,14 @@ def is_disallowed_workspace_root(root_path: str | None) -> bool:
             if tail in ("\\", "/", ""):
                 return True
 
+            # Also block POSIX root / or system prefixes even if passed on Windows
+            clean_posix = root_path.replace("\\", "/")
+            if clean_posix in ("/", ""):
+                return True
+            for prefix in DISALLOWED_SYSTEM_PREFIXES:
+                if clean_posix == prefix or clean_posix.startswith(prefix + "/"):
+                    return True
+
             # Block %USERPROFILE% root itself
             userprofile = os.environ.get("USERPROFILE")
             if userprofile and norm == ntpath.normcase(ntpath.abspath(userprofile)):

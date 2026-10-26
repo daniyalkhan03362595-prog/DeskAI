@@ -15,7 +15,8 @@ class TestRepoAndCIHygiene(unittest.TestCase):
 
         installer_path = Path("tools/install_desktop.sh")
         self.assertTrue(installer_path.exists())
-        self.assertTrue(os.access(installer_path, os.X_OK))
+        if os.name != "nt":
+            self.assertTrue(os.access(installer_path, os.X_OK))
 
     def test_ci_workflow_has_windows_and_python_matrix(self):
         """CI workflow must include windows-latest, python 3.11/3.12, and black/flake8."""
