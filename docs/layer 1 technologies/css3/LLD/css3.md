@@ -406,3 +406,18 @@ Code differences ko side-by-side aur unified views mein render karne ke liye pre
      }
    }
    ```
+4. **Screen Reader Utility (`.sr-only`):**
+   Visually hides text while preserving it for assistive technologies (screen readers):
+   ```css
+   .sr-only {
+     position: absolute;
+     width: 1px;
+     height: 1px;
+     padding: 0;
+     margin: -1px;
+     overflow: hidden;
+     clip: rect(0, 0, 0, 0);
+     white-space: nowrap;
+     border: 0;
+   }
+   ```

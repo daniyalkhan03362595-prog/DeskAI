@@ -17,7 +17,7 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
   * **Race-Free Dynamic Port:** Python binds a listening loopback socket (`127.0.0.1:0`) and passes the socket directly to the server.
   * **Token-to-Cookie Redemption:** Launch URL token is redeemed on initial request for an `HttpOnly; SameSite=Strict` cookie, redirecting to a clean URL. Sub-resources (`<link>`, `<script>`) and WebSockets authenticate automatically via cookie.
   * **Host & Origin Validation:** Rejects DNS rebinding and cross-origin attacks by verifying incoming `Host` (`127.0.0.1:{port}`) and `Origin` headers.
-  * **Exact-Port CSP:** Injects dynamic port per launch (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; object-src 'none'; base-uri 'none'; form-action 'none'`).
+  * **Exact-Port CSP:** Injects dynamic port per launch (`connect-src 'self' ws://127.0.0.1:{port} http://127.0.0.1:{port}; style-src 'self' 'nonce-{nonce}'; object-src 'none'; base-uri 'none'; form-action 'none'`).
   * **DOMPurify Sanitization:** All markdown output and external content is strictly sanitized with explicit tag allowlists prior to DOM insertion.
   * **Path Sandboxing (`commonpath`):** Bridge API canonicalizes all file paths against the runtime `workspace_root` with `os.path.commonpath()` (preventing `/DeskAI-secrets` traversal vulnerabilities).
   * **External Link Sandbox:** Web links in chat are intercepted and dispatched to the OS default browser (`webbrowser.open`), preventing off-origin navigation in the desktop shell.
@@ -43,7 +43,7 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 |                   (window.pywebview.api)        | (ws://127.0.0.1:{dynamic_port}/ws)              |
 |                                                 v v                                               |
 |  +---------------------------------------------------------------------------------------------+  |
-|  | [DESKTOP SUPERVISOR / SHELL SERVER] (Python 3.10+ | FastAPI / Uvicorn ASGI | Target: ~105 MB) |  |
+|  | [DESKTOP SUPERVISOR / SHELL SERVER] (Python 3.11+ | FastAPI / Uvicorn ASGI | Target: ~105 MB) |  |
 |  | - Web Server: Bound Socket Listener (127.0.0.1:{dynamic_port})                              |  |
 |  | - Security Guard: Host/Origin Verifier, Cookie Issuer & Exact-Port CSP Injector             |  |
 |  | - Desktop Bridge: Native File/Folder Dialogs, Window Min/Max/Close, External Link Opener    |  |
@@ -78,7 +78,7 @@ Detailed specifications in Roman Urdu and English are located under `docs/layer 
 
 ### Prerequisites
 * Linux (Ubuntu 22.04+ / Arch / Debian) or Windows 10/11
-* Python 3.10+
+* Python 3.11+
 * WebKit2GTK 2.40+ (Linux) or WebView2 runtime (Windows)
 
 ### Installation
