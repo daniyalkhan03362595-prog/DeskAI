@@ -1,13 +1,16 @@
 # High-Level Design (HLD): Terminal Panel (Host Shell & Execution View)
 
 **Document ID:** `ORX-HLD-TERMINAL-PANEL-V1`  
-**Version:** `1.0` (Synchronized with Implemented Vanilla JS & Bottom Drawer Architecture)  
+**Version:** `1.1` (Synchronized with Implemented Vanilla JS & Bottom Drawer Architecture)  
 **Target Codebase:** `DeskAI`  
 **Target Files:**
-* `src/deskai/static/index.html` (Lines 101, 109-113)
-* `src/deskai/static/js/events.js` (`data-action="drawer-tab"`)
-* `src/deskai/static/css/components.css` (Lines 350-376)
-**Status:** Approved  
+* `src/deskai/static/index.html`
+* `src/deskai/static/js/events.js`
+* `src/deskai/static/js/terminal.js` (Planned Phase 3)
+* `src/deskai/static/css/components.css`
+* `src/deskai/server/terminal.py` (Planned Phase 1)
+* `src/deskai/server/supervisor.py` (Planned Phase 2)
+**Status:** Placeholder UI; execution backend not yet implemented  
 **Date:** October 27, 2026  
 
 ---
@@ -16,46 +19,90 @@
 
 The **Terminal Panel** (`#terminalPanel`) is the default, primary command execution and host shell console embedded within DeskAI's Collapsible Bottom Drawer (`#bottomDrawer`).
 
-* **Current State:** Developers and agentic coding workflows require immediate access to a host shell to run scripts, execute test suites, build packages, and inspect CLI commands without leaving the IDE environment.
-* **Target State (Implemented):** A dedicated, active-by-default terminal viewport that:
+* **Current Reality:** In the current codebase, `#terminalOutput` is a static placeholder `<pre><code>` block inside `index.html`. No process-spawning, PTY abstraction, or WebSocket streaming logic is currently active.
+* **Target Architecture (Phased Implementation):** A dedicated, interactive host shell viewport that:
   1. **Serves as Default Bottom Viewport:** Automatically selected on IDE launch (`.active` tab and `.active` panel).
-  2. **Monospace Host Shell Typography:** Pre-formatted `<pre>` and `<code>` container configured with monospace typography and token-driven contrast compliance.
-  3. **Seamless Drawer Tab Integration:** Controlled via the `Terminal` tab in `.drawer-tabs` with instantaneous visibility toggling and keyboard focus retention.
+  2. **Terminal Emulation via Vendored xterm.js:** Full VT100/xterm emulation (vendored under `static/vendor/` with `MANIFEST.json` entry, zero framework dependencies), supporting colors, cursor navigation, alternate screen, and text selection.
+  3. **Seamless Drawer Tab Integration:** Controlled via the `Terminal` tab in `.drawer-tabs` with instantaneous visibility toggling and keyboard focus retention (tab roving focus).
+  4. **Strict Security Sandbox & Threat Model:** Highest-privilege surface controls, server-side `cwd` verification, environment sanitization, native user confirmation gate, and dedicated `/ws/terminal/{session_id}` transport.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ [Terminal*] [Output] [Problems] [Ports]                                 [─] │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ .drawer-panel.active #terminalPanel                                         │
-│   <pre class="terminal-view" id="terminalOutput">                          │
-│     <code>DeskAI Host Shell Ready. Workspace active.</code>                       │
+│   <div id="terminalHost" role="log" aria-label="Terminal output"            │
+│        aria-live="off"></div>                                               │
+│   <div class="terminal-footer-hint">Ctrl+Shift+M: Move focus out</div>     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Component Architecture & UI State Machine
+## 2. Default Architectural Decisions (D1 - D3)
 
-The Terminal Panel operates as the primary panel in the bottom drawer, transitioning across visibility states:
-
-```mermaid
-stateDiagram-v2
-    [*] --> Active: Shell Boot (Default Active Tab)
-    Active --> Inactive: User clicks another Tab (Output, Problems, Ports)
-    Inactive --> Active: User clicks 'Terminal' Tab
-    Active --> Active: Shell command execution / Output stream
-```
-
-### 2.1 State Matrix
-
-| State | CSS Modifier / Attribute | Tab State | Interaction Behavior |
-| :--- | :--- | :--- | :--- |
-| **Active (Default Boot)** | `.active` (no `hidden`) | `aria-selected="true"`, `.active` | Terminal output visible; keyboard focus ready for command execution. |
-| **Inactive** | `hidden=""` | `aria-selected="false"` | Panel hidden; shell process continues running seamlessly in background. |
+* **D1 (Scope):** Interactive **USER shell only**. AI/agent command execution is strictly **OUT OF SCOPE** (future feature routed exclusively through the UEC state machine and approval flow; agent commands are never silently injected into the user's interactive shell).
+* **D2 (Renderer):** Vendor **`xterm.js`** (plus the fit addon) under `static/vendor/` with a `MANIFEST.json` entry, matching CodeMirror and DOMPurify. No custom hand-rolled VT emulator.
+* **D3 (CSP Policy):** Keep `'unsafe-eval'` in the CSP for now, but execute a spike checking whether each pywebview backend truly requires it, and document the findings. Do not remove it blindly.
 
 ---
 
-## 3. End-to-End Interaction & Data Flow
+## 3. Threat Model & Security Architecture (P0)
+
+A host terminal provides arbitrary command execution by design. It represents the highest-privilege attack surface in DeskAI.
+
+1. **XSS to RCE Mitigation:**
+   * DeskAI renders model output via `marked` + `DOMPurify` and the CSP currently contains `'unsafe-eval'`.
+   * An XSS vulnerability in client scripts could escalate directly to host Remote Code Execution (RCE) if the page could arbitrarily spawn or write to a terminal.
+   * **Mitigations:**
+     * Spawning a shell requires an explicit native user confirmation dialog on the first invocation per session: `"Open a host shell in <workspace name>?"`. Page scripts alone cannot forge this native bridge prompt.
+     * All bridge methods (`terminal_open`, `terminal_close`) strictly invoke `self._is_origin_allowed()` with verified local origins.
+     * All terminal WebSocket and HTTP endpoints enforce strict Host (`127.0.0.1:{port}`), Origin (`http://127.0.0.1:{port}`), and cryptographic session-cookie checks.
+
+2. **Server-Side Working Directory (`cwd`) Binding:**
+   * The spawn gate verifies `workspace_root` entirely on the server side (`bridge.get_workspace_root()`).
+   * It asserts `is_disallowed_workspace_root(root) == False` and `is_safe_workspace_path(root) == True`.
+   * Client-supplied `cwd` paths are strictly rejected.
+
+3. **Strict Environment Policy:**
+   * The child process environment is constructed from an explicit allowlist: `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_*`, `PATH` (user's login PATH), `SHELL`, `TERM=xterm-256color`, `COLORTERM=truecolor` (Windows: `SystemRoot`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, `ComSpec`, `PATHEXT`).
+   * Explicitly strips all `DESKAI_*` secrets and the internal launch/session tokens.
+   * The user's personal dotfiles (`.bashrc`, `.profile`) are trusted as the user's own configuration.
+
+4. **Resource Constraints & Concurrency:**
+   * Maximum 4 concurrent terminal sessions per application instance.
+   * Unguessable cryptographically random session IDs (`secrets.token_urlsafe(32)`).
+   * Bounded server-side ring replay buffer (256 KB) per session to allow reconnects and tab-switches without unbounded memory growth.
+
+5. **Lifecycle & Clean Teardown:**
+   * Process group termination: `SIGHUP` delivered to process group, escalating to `SIGKILL` after 3 seconds, followed by process reaping.
+   * Hooked into `DesktopServer.stop()` and `WindowLifecycleHandler` on window close.
+   * Exit confirmation dialog checks for active running shells and warns the user.
+
+---
+
+## 4. Component Architecture & UI State Machine
+
+The Terminal Panel operates within the bottom drawer, transitioning across visibility states:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: IDE Boot (Default Active Tab)
+    Active --> Inactive: User clicks another Tab (Output, Problems, Ports)
+    Inactive --> Active: User clicks 'Terminal' Tab
+    Active --> Active: Shell command execution / Binary stream
+```
+
+### 4.1 State Matrix
+
+| State | CSS Modifier / Attribute | Tab State | Interaction Behavior |
+| :--- | :--- | :--- | :--- |
+| **Active (Default Boot)** | `.active` (no `hidden`) | `aria-selected="true"`, `.active` | Terminal output visible; keyboard focus remains on tab until user presses Tab/Enter. |
+| **Inactive** | `hidden=""` | `aria-selected="false"` | Panel hidden; backend PTY process continues running seamlessly in background. |
+
+---
+
+## 5. End-to-End Interaction & Data Flow
 
 ```text
 [DeskAI Shell Boots]
@@ -63,40 +110,40 @@ stateDiagram-v2
         ▼
 [Default Active State: #terminalPanel visible, tab active]
         │
-        ├──► User switches away: [Hidden attribute added, shell runs in background]
+        ├──► User switches away: [hidden attribute added, PTY runs in background]
         │
-        └──► User clicks 'Terminal' tab:
+        └──► User interacts with Terminal:
                     │
                     ▼
-          [events.js: case 'drawer-tab']
-            - Mark 'Terminal' tab active (aria-selected="true")
-            - Remove 'hidden' from #terminalPanel
-            - Focus terminal buffer for input
+          [Native Confirmation Prompt (First time per session)]
+            - "Open a host shell in <workspace name>?"
                     │
                     ▼
-          [Process Runner / Shell Bridge IPC]
-            - Stdout / Stderr streamed into #terminalOutput
-            - Buffer auto-scrolls to latest prompt
+          [Dedicated Transport: /ws/terminal/{session_id}]
+            - Strict Host, Origin, and Session Cookie validation
+            - Server -> Client: Binary frames (raw PTY output)
+            - Client -> Server: Binary frames (keystrokes), JSON (resize, close)
+            - Flow-controlled with high/low watermarks (1 MB buffer limit)
+                    │
+                    ▼
+          [Frontend Rendering via Vendored xterm.js]
+            - Canvas/DOM VT100 rendering with token-driven ANSI colors
+            - Fit addon adapts to drawer dimensions on drag / resize
 ```
-
-### 3.1 Step-by-Step Execution
-1. **Initial Boot:** During DOM initialization, `#terminalPanel` and the `Terminal` tab are assigned the `.active` class.
-2. **Tab Switching:** When the user switches between drawer tabs, the event delegation router in `events.js` toggles `hidden` attributes cleanly without killing active shell sessions.
-3. **Execution Stream Display:** Commands executed via the DeskAI supervisor or user terminal stream into `#terminalOutput` using pre-formatted monospace rendering.
 
 ---
 
-## 4. Component Contracts & Data Interface
+## 6. Component Contracts & Data Interface
 
-### 4.1 HTML Structure Contract
+### 6.1 HTML Structure Contract
 ```html
 <!-- Terminal Panel (Active by default) -->
 <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal">
-  <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
+  <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
 </div>
 ```
 
-### 4.2 Tab Header Contract
+### 6.2 Tab Header Contract
 ```html
 <button 
   class="drawer-tab active" 
@@ -112,21 +159,22 @@ stateDiagram-v2
 
 ---
 
-## 5. Security & Isolation Safeguards
+## 7. Accessibility (WCAG 2.1 AA) Compliance & Verification
 
-1. **Origin Verification:** Interactive shell bridging is restricted to authenticated sessions with verified loopback origins.
-2. **Text-Safe Output:** Streamed command outputs are appended as raw text nodes or sanitized content to prevent script injection in terminal logs.
-3. **Buffer Clamping:** Output streams enforce maximum scrollback retention (e.g. 10,000 lines) to prevent DOM memory exhaustion.
-
----
-
-## 6. Accessibility (WCAG 2.1 AA) Compliance
-
-1. **Semantic Tabpanel Binding:**
-   * Bound via `role="tabpanel"` and `aria-labelledby="tab-terminal"`.
-   * Associated tab enforces `role="tab"` and dynamic `aria-selected`.
-2. **Color Contrast:**
-   * Text token `var(--text-secondary)` provides $\ge 7:1$ contrast against dark `var(--bg-header)`.
-3. **Keyboard Accessibility:**
-   * Tab switchable via standard `ArrowLeft`/`ArrowRight` within the tablist.
-   * Terminal output selectable and copyable via standard keyboard shortcuts.
+1. **Implemented & Verified Behaviors:**
+   * Semantic tabpanel binding (`role="tabpanel"`, `role="tab"`, `aria-selected`, `aria-controls`, `aria-labelledby`).
+   * Drawer auto-expansion when clicking any tab (verified in `test_clicking_any_tab_expands_collapsed_drawer`).
+   * Roving focus navigation with `ArrowLeft` / `ArrowRight` (verified in `test_tablist_roving_arrow_key_focus`).
+2. **Keyboard Navigation & Trap Avoidance (WCAG 2.1.2):**
+   * Selecting the Terminal tab does **NOT** steal focus from the tablist.
+   * Focus enters terminal on `Tab` or `Enter`.
+   * Dedicated escape hatch: `Ctrl+Shift+M` (macOS `Cmd+Shift+M`) returns focus to the tablist.
+   * While terminal is focused, global app hotkeys (`Ctrl+S`, `Ctrl+W`, `Ctrl+Enter`) are suppressed so they reach the shell.
+3. **Screen Reader Support:**
+   * Output region marked with `role="log"` and `aria-live="off"` (preventing noisy continuous speech during high-throughput logs).
+   * Discrete lifecycle events announced via polite `#screenReaderAnnouncer`.
+4. **Color Contrast:**
+   * Text token `var(--text-secondary)` (`#9ca0a6`) on `var(--bg-header)` (`#17181b`) provides 6.76:1 contrast (exceeds WCAG AA 4.5:1 requirement).
+   * Primary accent token `var(--color-primary)` is `#d99b26`.
+   * Error states use token `var(--color-danger)` (`#ef4444`). Note: `--color-error` does not exist in `tokens.css`.
+   * Terminal ANSI foregrounds defined via new `--ansi-*` tokens in `tokens.css`, all verified for $\ge 4.5:1$ contrast against `--terminal-bg`.

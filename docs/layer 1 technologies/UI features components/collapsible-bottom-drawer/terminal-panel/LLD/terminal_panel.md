@@ -1,14 +1,18 @@
 # Low-Level Design (LLD): Terminal Panel (Host Shell & Execution View)
 
 **Document ID:** `ORX-LLD-TERMINAL-PANEL-V1`  
-**Version:** `1.0` (Defect-Resolved & Synchronized with Implemented Vanilla JS Codebase)  
+**Version:** `1.1` (Synchronized with Implemented Vanilla JS & Bottom Drawer Architecture)  
 **Parent Document:** `ORX-HLD-TERMINAL-PANEL-V1`  
 **Target Codebase:** `DeskAI`  
 **Primary Target Files:**
-* `src/deskai/static/index.html` (Lines 101, 109-113)
-* `src/deskai/static/css/components.css` (Lines 350-376)
-* `src/deskai/static/js/events.js` (`case "drawer-tab"`)
-**Status:** Approved for Implementation / Implemented  
+* `src/deskai/static/index.html`
+* `src/deskai/static/css/tokens.css`
+* `src/deskai/static/css/components.css`
+* `src/deskai/static/js/events.js`
+* `src/deskai/static/js/terminal.js` (Planned Phase 3)
+* `src/deskai/server/terminal.py` (Planned Phase 1)
+* `src/deskai/server/supervisor.py` (Planned Phase 2)
+**Status:** Placeholder UI; execution backend not yet implemented  
 **Date:** October 27, 2026  
 
 ---
@@ -17,23 +21,63 @@
 
 The **Terminal Panel** (`#terminalPanel`) is the default visible viewport inside DeskAI's Collapsible Bottom Drawer (`#bottomDrawer`). It provides developers with an embedded command execution and shell console interface.
 
-This specification details the concrete DOM structure, tab synchronization logic, monospace typography tokens, stream buffer appending mechanisms, accessibility bindings, and test verification strategy.
+In the current baseline codebase, `#terminalOutput` is a static placeholder `<pre><code>` container. This specification details the transition from the static placeholder to a fully interactive, secure, PTY-backed terminal powered by vendored **`xterm.js`**, with strict threat modeling, dedicated binary WebSocket transport, zero layout shift, and WCAG 2.1 AA accessibility.
 
 ---
 
-## 2. DOM Hierarchy & Component Markup
+## 2. Architectural Decisions & Scope (D1 - D3)
 
-The component is declared as the first child of `#drawerContent` in `src/deskai/static/index.html`:
+1. **D1 (User-Only Interactive Shell):** The terminal provides an interactive shell for the user. AI/agent command execution is strictly out of scope; agent commands will be routed through the UEC approval flow in a separate review/phase and never typed directly into the user's shell.
+2. **D2 (Vendored xterm.js):** Zero frameworks. `xterm.js` (and the `fit` addon) is vendored under `static/vendor/` with an integrity-checked entry in `MANIFEST.json`, identical to the integration of `CodeMirror` and `DOMPurify`. No hand-rolled VT emulator.
+3. **D3 (CSP Policy):** `'unsafe-eval'` remains in the CSP for now, but Phase 5 includes an empirical backend spike across PyWebView engines to verify whether it can be safely removed.
+
+---
+
+## 3. Threat Model & Security Controls (P0)
+
+A terminal exposes arbitrary shell execution and is the highest-privilege surface in DeskAI:
+
+1. **Origin & Privilege Boundaries:**
+   * An XSS attack in the frontend must not trivially gain host RCE.
+   * Spawning a shell requires an explicit native confirmation dialog on first run per app session: `"Open a host shell in <workspace name>?"`.
+   * Bridge APIs (`terminal_open`, `terminal_close`) enforce `self._is_origin_allowed()` with verified local origin checks.
+   * Transport routes strictly validate `Host: 127.0.0.1:{port}`, `Origin: http://127.0.0.1:{port}`, and cryptographic session cookies.
+2. **Server-Side `cwd` Binding:**
+   * Working directory is strictly resolved from `bridge.get_workspace_root()`.
+   * Enforces `is_disallowed_workspace_root(root) == False` and `is_safe_workspace_path(root) == True`.
+   * Any client-provided `cwd` is rejected.
+3. **Child Environment Sanitization:**
+   * Only explicit allowlisted variables are passed to child processes:
+     `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_*`, `PATH`, `SHELL`, `TERM=xterm-256color`, `COLORTERM=truecolor` (Windows also: `SystemRoot`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, `ComSpec`, `PATHEXT`).
+   * Explicitly strips all `DESKAI_*` secrets and internal launch tokens.
+4. **Concurrency & Resource Limits:**
+   * Maximum 4 concurrent terminal sessions per application.
+   * Unguessable session IDs (`secrets.token_urlsafe(32)`).
+   * 256 KB bounded server-side ring replay buffer per session for client resynchronization.
+5. **Teardown & Reaping:**
+   * Graceful `SIGHUP` to the process group, escalating to `SIGKILL` after 3 seconds, followed by zombie process reaping.
+   * Registered with `DesktopServer.stop()` and `WindowLifecycleHandler`.
+   * Dirty-exit confirmation dialog prompts if an active terminal is running.
+
+---
+
+## 4. DOM Hierarchy & Component Markup
+
+### 4.1 Terminal Panel Container (Phase 3 Target)
+Declared within `#drawerContent` in `src/deskai/static/index.html`:
 
 ```html
 <!-- Terminal Panel (Default Active) -->
 <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal">
-  <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
+  <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
+  <div class="terminal-footer-hint" aria-hidden="true">
+    <span>Ctrl+Shift+M: Move focus to tab</span>
+  </div>
 </div>
 ```
 
-### 2.1 Associated Tab Trigger
-The corresponding tab trigger in `.drawer-tabs` is defined with initial `.active` and `aria-selected="true"`:
+### 4.2 Associated Tab Trigger
+Declared in `.drawer-tabs` in `src/deskai/static/index.html`:
 ```html
 <button 
   class="drawer-tab active" 
@@ -49,47 +93,9 @@ The corresponding tab trigger in `.drawer-tabs` is defined with initial `.active
 
 ---
 
-## 3. JavaScript Event Handling & Tab Orchestration
+## 5. CSS Styling & Layout Specifications
 
-The panel's state is coordinated by the event delegation router in `src/deskai/static/js/events.js`:
-
-```javascript
-case "drawer-tab": {
-  const target = trigger.getAttribute("data-target"); // "terminal"
-  if (!target) return;
-
-  // 1. Update Tab Visual and ARIA Selection States
-  document.querySelectorAll(".drawer-tab").forEach(t => {
-    t.classList.remove("active");
-    t.setAttribute("aria-selected", "false");
-  });
-  trigger.classList.add("active");
-  trigger.setAttribute("aria-selected", "true");
-
-  // 2. Synchronize Drawer Content Panels
-  document.querySelectorAll(".drawer-panel").forEach(panel => {
-    if (panel.id === `${target}Panel`) {
-      panel.classList.add("active");
-      panel.removeAttribute("hidden");
-    } else {
-      panel.classList.remove("active");
-      panel.setAttribute("hidden", "");
-    }
-  });
-
-  // 3. Subsystem Hook (if applicable)
-  if (target === "ports" && window.DeskAIPorts) {
-    window.DeskAIPorts.refresh();
-  }
-  break;
-}
-```
-
----
-
-## 4. CSS Styling & Layout Specifications
-
-All styles are defined in `src/deskai/static/css/components.css` using centralized CSS variables from `tokens.css`:
+Styles are maintained in `src/deskai/static/css/components.css` referencing centralized CSS variables from `tokens.css`:
 
 ```css
 /* Drawer Content Scrollable Area */
@@ -97,17 +103,6 @@ All styles are defined in `src/deskai/static/css/components.css` using centraliz
   flex: 1;
   overflow: auto;
   padding: var(--space-2);
-}
-
-/* Monospace Pre-formatted Shell Viewport */
-.terminal-view {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.5;
 }
 
 /* Generic Panel Container */
@@ -126,70 +121,96 @@ All styles are defined in `src/deskai/static/css/components.css` using centraliz
   color: var(--text-primary);
   border-bottom: 2px solid var(--color-primary);
 }
-```
 
-### 4.1 Design Tokens Reference
-* `var(--font-mono)`: `JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace`
-* `var(--text-xs)`: `11px`
-* `var(--text-secondary)`: `#cbd5e1` ($\ge 7:1$ contrast against `#16171a` `--bg-header`)
-* `var(--color-primary)`: `#f59e0b` / `#3b82f6` (2px active bottom border indicator)
+/* Terminal Host Container */
+#terminalHost {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background-color: var(--terminal-bg);
+  overflow: hidden;
+}
 
----
+/* Terminal Footer Accessibility Hint */
+.terminal-footer-hint {
+  padding: 2px var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+}
 
-## 5. Streaming Output Append Helper
-
-For streaming CLI stdout and stderr into `#terminalOutput` safely:
-
-```javascript
-/**
- * Safe Terminal Output Streaming Helper
- */
-function appendTerminalOutput(text, isError = false) {
-  const terminalEl = document.getElementById("terminalOutput");
-  if (!terminalEl) return;
-
-  const codeEl = terminalEl.querySelector("code") || terminalEl;
-  
-  if (isError) {
-    const errorSpan = document.createElement("span");
-    errorSpan.className = "terminal-error-line";
-    errorSpan.style.color = "var(--color-error)";
-    errorSpan.textContent = text;
-    codeEl.appendChild(errorSpan);
-  } else {
-    codeEl.appendChild(document.createTextNode(text));
-  }
-
-  // Auto-scroll to latest output line
-  const container = terminalEl.closest(".drawer-content");
-  if (container) {
-    container.scrollTop = container.scrollHeight;
-  }
+/* Read-Only Output Log View (Output Panel) */
+.terminal-view {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
 }
 ```
 
----
-
-## 6. Accessibility (WCAG 2.1 AA) Specifications
-
-1. **Semantic Role Binding:**
-   * Container uses `role="tabpanel"` linked to `#tab-terminal` via `aria-labelledby`.
-   * Tab button uses `role="tab"`, `aria-selected="true"`, and `aria-controls="terminalPanel"`.
-2. **Accessible Monospace Display:**
-   * Uses semantic `<pre><code>` hierarchy, enabling screen readers to identify pre-formatted code/command blocks.
-3. **Contrast Compliance:**
-   * Default text uses `--text-secondary` with contrast ratio $\ge 7:1$ against `--bg-header`.
+### 5.1 Design Tokens Reference
+* `var(--font-mono)`: `"JetBrains Mono", "Fira Code", "Cascadia Code", monospace`
+* `var(--text-xs)`: `11px`
+* `var(--text-secondary)`: `#9ca0a6` (6.76:1 contrast against `#17181b` `--bg-header`, passing WCAG AA 4.5:1)
+* `var(--color-primary)`: `#d99b26` (2px active bottom border indicator)
+* `var(--color-danger)`: `#ef4444` (error states; note `--color-error` does not exist)
+* Terminal ANSI palette (Phase 3 addition to `tokens.css`): `--terminal-bg`, `--terminal-fg`, `--terminal-cursor`, `--terminal-selection`, `--ansi-black`, `--ansi-red`, `--ansi-green`, `--ansi-yellow`, `--ansi-blue`, `--ansi-magenta`, `--ansi-cyan`, `--ansi-white` (+ bright variants), each audited $\ge 4.5:1$ contrast against `--terminal-bg`.
 
 ---
 
-## 7. Automated Test Plan & Traceability Matrix
+## 6. Read-Only Output Panel LogView (Phase 3)
 
-| Test ID | Test Target | Verification Scope | Method |
-| :--- | :--- | :--- | :--- |
-| **TC-TRM-01** | Tab Declaration | `index.html` declares `data-target="terminal"` tab button | DOM Contract Test |
-| **TC-TRM-02** | Initial Active State | `Terminal` tab has `.active` class and `aria-selected="true"` at boot | DOM Assertion |
-| **TC-TRM-03** | Panel Declaration | `index.html` declares `#terminalPanel` with `.active` class | DOM Contract Test |
-| **TC-TRM-04** | Default Visible | `#terminalPanel` does NOT have `hidden` attribute on initial page load | DOM Assertion |
-| **TC-TRM-05** | Boot Message | `#terminalOutput` contains `"DeskAI Host Shell Ready"` | DOM String Test |
-| **TC-TRM-06** | Font Family | `.terminal-view` computes to monospace font stack | CSS Computed Style Test |
-| **TC-TRM-07** | ARIA Binding | `aria-controls="terminalPanel"` matches panel id | DOM Contract Test |
+For `#channelOutput` (read-only output log view):
+* Replaces naive string concatenation with a batched `LogView` component.
+* Batched via `requestAnimationFrame`.
+* Uses `document.createElement("span")` and `textContent` (never `innerHTML`).
+* Caps buffer at 10,000 lines (counting lines, not spans).
+* Auto-scrolls only if user is within 40px of bottom (`scrollHeight - scrollTop - clientHeight < 40`).
+* Strips ANSI escape sequences rather than misinterpreting them.
+
+---
+
+## 7. Accessibility (WCAG 2.1 AA) Specifications
+
+1. **Focus Management:**
+   * Selecting the Terminal tab does **NOT** steal focus into the terminal (preserves roving tabindex; verified by `test_tablist_roving_arrow_key_focus`).
+   * Focus enters terminal on `Tab` from tablist or `Enter` on panel.
+2. **Keyboard Trap Escape (WCAG 2.1.2):**
+   * `Ctrl+Shift+M` (macOS `Cmd+Shift+M`) shifts focus back to the `Terminal` tab button.
+   * Visible hint is displayed in `.terminal-footer-hint`.
+3. **Hotkey Isolation:**
+   * While `#terminalHost` or xterm textarea is focused, global event listeners for `Ctrl+S`, `Ctrl+W`, and `Ctrl+Enter` in `events.js` are suppressed, allowing shell line editing and hotkeys to pass through.
+4. **Clipboard:**
+   * `Ctrl+Shift+C` copies selection.
+   * `Ctrl+Shift+V` pastes clipboard.
+   * Plain `Ctrl+C` sends byte `0x03` (SIGINT) to PTY master when no text is selected.
+5. **Screen Readers:**
+   * Container uses `role="log"` and `aria-live="off"`.
+   * Discrete lifecycle events announced via polite `#screenReaderAnnouncer`.
+
+---
+
+## 8. Automated Test Plan & Traceability Matrix
+
+| Test ID | Test Target | Verification Scope | Method | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **TC-TRM-01** | Tab Declaration | `index.html` declares `data-target="terminal"` tab button | DOM Contract Test | Implemented |
+| **TC-TRM-02** | Initial Active State | `Terminal` tab has `.active` class and `aria-selected="true"` at boot | DOM Assertion | Implemented |
+| **TC-TRM-03** | Panel Declaration | `index.html` declares `#terminalPanel` with `.active` class | DOM Contract Test | Implemented |
+| **TC-TRM-04** | Default Visible | `#terminalPanel` does NOT have `hidden` attribute on initial page load | DOM Assertion | Implemented |
+| **TC-TRM-05** | Boot Message | `#terminalOutput` contains `"DeskAI Host Shell Ready"` (static placeholder) | DOM String Test | Implemented |
+| **TC-TRM-06** | Font Family | `.terminal-view` computes to monospace font stack | CSS Computed Style Test | Implemented |
+| **TC-TRM-07** | ARIA Binding | `aria-controls="terminalPanel"` matches panel id | DOM Contract Test | Implemented |
+| **TC-TRM-08** | Spawn Gate & Security | Workspace check, origin validation, env token stripping | Backend Unit Test | Planned (Phase 1) |
+| **TC-TRM-09** | PTY Lifecycle & Signals | Resize (`TIOCSWINSZ`), SIGINT (0x03), clean close / reap | Backend Unit Test | Planned (Phase 1) |
+| **TC-TRM-10** | Transport Flow Control | Binary stream over `/ws/terminal/{id}`, high/low watermarks, resync | Backend Unit Test | Planned (Phase 2) |
+| **TC-TRM-11** | Keyboard Trap Escape | `Ctrl+Shift+M` moves focus out to tablist | Playwright Behavioral | Planned (Phase 3) |
+| **TC-TRM-12** | Hotkey Isolation | `Ctrl+W` does not close editor tabs when terminal focused | Playwright Behavioral | Planned (Phase 3) |
+| **TC-TRM-13** | Scrollback Clamp | Max lines clamped to 10,000; no unbounded memory growth | Playwright Behavioral | Planned (Phase 3) |
+| **TC-TRM-14** | WCAG Contrast | ANSI palette & terminal tokens meet $\ge 4.5:1$ against background | Static CSS Audit | Planned (Phase 3) |
+| **TC-TRM-15** | Exit Lifecycle | Running terminal warned in dirty-exit; reaped on app shutdown | Backend / E2E Test | Planned (Phase 4) |
+| **TC-TRM-16** | CSP Backend Spike | PyWebView engine eval dependency audit across backends | Spike / Doc Test | Planned (Phase 5) |
