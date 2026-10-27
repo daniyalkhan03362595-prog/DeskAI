@@ -387,7 +387,10 @@
   height: 100%;
 }
 
-.terminal-footer-hint {
+.terminal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 2px var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -395,6 +398,50 @@
   border-top: 1px solid var(--border-subtle);
   background-color: var(--bg-surface);
   user-select: none;
+}
+
+.terminal-footer-hint {
+  color: var(--text-muted);
+}
+
+.terminal-footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-kill-btn {
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.terminal-kill-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.terminal-sr-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.terminal-sr-toggle-label:hover {
+  color: var(--text-primary);
+}
+
+.terminal-sr-checkbox {
+  cursor: pointer;
 }
 
 .terminal-status-chip {
@@ -405,6 +452,8 @@
 }
 
 .terminal-status-banner {
+  position: relative;
+  z-index: 10;
   padding: 4px var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);

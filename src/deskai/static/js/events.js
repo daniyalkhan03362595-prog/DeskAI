@@ -126,6 +126,12 @@ export function initGlobalEvents() {
         console.log("Refreshing workspace tree...");
         break;
 
+      case "kill-terminal":
+        if (window.DeskAITerminal) {
+          window.DeskAITerminal.kill();
+        }
+        break;
+
       case "toggle-drawer": {
         const drawer = document.getElementById("bottomDrawer");
         if (drawer) {

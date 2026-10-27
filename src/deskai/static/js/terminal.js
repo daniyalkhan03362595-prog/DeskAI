@@ -7,7 +7,7 @@
 import { NativeBridge } from "./bridge.js";
 
 const MAX_LOG_LINES = 10000;
-const ANSI_REGEX = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
+const ANSI_REGEX = /\x1B(?:\][^\x07\x1B]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g;
 function getStyleNonce() {
   if (typeof document === "undefined") return "";
   const meta = document.querySelector('meta[name="csp-nonce"]');
@@ -64,6 +64,22 @@ function getTerminalTheme() {
   };
 }
 
+function getStoredScreenReaderMode() {
+  try {
+    return localStorage.getItem("deskai-terminal-sr-mode") === "true";
+  } catch (e) {
+    return false;
+  }
+}
+
+function setStoredScreenReaderMode(enabled) {
+  try {
+    localStorage.setItem("deskai-terminal-sr-mode", enabled ? "true" : "false");
+  } catch (e) {
+    // Ignore localStorage errors (e.g. storage access blocked)
+  }
+}
+
 function announce(message) {
   const el = document.getElementById("screenReaderAnnouncer");
   if (el) {
@@ -101,12 +117,17 @@ export class LogView {
     this.lineCount = 0;
     this.pinned = true;
 
-    if (this.el) {
-      this.el.addEventListener("scroll", () => {
-        const dist = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight;
+    const scroller = this.scrollContainer;
+    if (scroller) {
+      scroller.addEventListener("scroll", () => {
+        const dist = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
         this.pinned = dist < 40;
       });
     }
+  }
+
+  get scrollContainer() {
+    return (this.el && this.el.closest) ? (this.el.closest(".drawer-content") || this.el) : this.el;
   }
 
   write(text, className = "") {
@@ -147,7 +168,10 @@ export class LogView {
     }
 
     if (this.pinned) {
-      this.el.scrollTop = this.el.scrollHeight;
+      const scroller = this.scrollContainer;
+      if (scroller) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
     }
   }
 
@@ -156,6 +180,10 @@ export class LogView {
     this.lineCount = 0;
     if (this.el) {
       this.el.textContent = "";
+    }
+    const scroller = this.scrollContainer;
+    if (scroller) {
+      scroller.scrollTop = 0;
     }
   }
 }
@@ -174,6 +202,9 @@ export class TerminalView {
     this.isOpening = false;
     this.resizeRafId = 0;
     this.encoder = new TextEncoder();
+    this.hasExited = false;
+    this.reconnectAttempts = 0;
+    this.lastCloseCode = 1006;
   }
 
   init() {
@@ -181,6 +212,7 @@ export class TerminalView {
 
     const theme = getTerminalTheme();
     const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    const srMode = getStoredScreenReaderMode();
 
     this.term = new window.Terminal({
       cursorBlink: true,
@@ -188,8 +220,13 @@ export class TerminalView {
       fontSize: 12,
       lineHeight: 1.25,
       scrollback: MAX_LOG_LINES,
-      screenReaderMode: true,
+      screenReaderMode: srMode,
       theme,
+      linkHandler: {
+        activate: (event, text) => {
+          NativeBridge.openExternalUrl(text);
+        },
+      },
     });
 
     if (window.FitAddon && window.FitAddon.FitAddon) {
@@ -198,6 +235,25 @@ export class TerminalView {
     }
 
     this.term.open(this.host);
+
+    // Setup Screen Reader Toggle
+    const srCheckbox = document.getElementById("terminalSrToggle");
+    if (srCheckbox) {
+      srCheckbox.checked = srMode;
+      srCheckbox.addEventListener("change", () => {
+        const isEnabled = srCheckbox.checked;
+        setStoredScreenReaderMode(isEnabled);
+        if (this.term && this.term.options) {
+          this.term.options.screenReaderMode = isEnabled;
+        }
+      });
+    }
+
+    // Setup Kill Terminal Button
+    const killBtn = document.getElementById("terminalKillBtn");
+    if (killBtn) {
+      killBtn.addEventListener("click", () => this.kill());
+    }
 
     // Keyboard & Clipboard Event Interceptor
     this.term.attachCustomKeyEventHandler((e) => {
@@ -218,27 +274,26 @@ export class TerminalView {
       if (isCmd && ((e.shiftKey && key === "c") || (isMac && key === "c"))) {
         if (this.term.hasSelection()) {
           if (e.type === "keydown") {
+            e.preventDefault();
             navigator.clipboard.writeText(this.term.getSelection());
           }
           return false;
         }
       }
 
-      // Paste: Ctrl+Shift+V (or Cmd+V on Mac)
-      if (isCmd && ((e.shiftKey && key === "v") || (isMac && key === "v"))) {
-        if (e.type === "keydown") {
-          navigator.clipboard.readText().then((clipText) => {
-            if (clipText && this.ws && this.ws.readyState === WebSocket.OPEN) {
-              this.ws.send(this.encoder.encode(clipText));
-            }
-          });
-        }
-        return false;
-      }
-
       // Allow terminal to consume Ctrl+S, Ctrl+W, Ctrl+Enter without app shortcuts triggering
       if (isCmd && (key === "s" || key === "w" || key === "enter")) {
         return true;
+      }
+
+      // Boot UX: Press Enter to start a shell if no session active yet
+      if (!this.sessionId && !this.isOpening && !this.hasExited) {
+        if (key === "enter") {
+          if (e.type === "keydown") {
+            this.startSession();
+          }
+          return false;
+        }
       }
 
       return true;
@@ -248,6 +303,16 @@ export class TerminalView {
     this.term.onData((data) => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(this.encoder.encode(data));
+      } else {
+        if (!this.sessionId && !this.isOpening && !this.hasExited) {
+          if (data === "\r" || data === "\n") {
+            this.startSession();
+            return;
+          }
+        }
+        if (!this.hasExited && this.sessionId) {
+          this.showConnectionLostBanner(this.lastCloseCode || 1006);
+        }
       }
     });
 
@@ -259,6 +324,10 @@ export class TerminalView {
           bytes[i] = data.charCodeAt(i) & 255;
         }
         this.ws.send(bytes);
+      } else {
+        if (!this.hasExited && this.sessionId) {
+          this.showConnectionLostBanner(this.lastCloseCode || 1006);
+        }
       }
     });
 
@@ -269,8 +338,24 @@ export class TerminalView {
         if (e.key === "Enter" && document.activeElement === panel) {
           e.preventDefault();
           this.term.focus();
+          if (!this.sessionId && !this.isOpening && !this.hasExited) {
+            this.startSession();
+          }
         }
       });
+    }
+
+    // Host click starts session if not yet started
+    if (this.host) {
+      this.host.addEventListener("click", () => {
+        if (!this.sessionId && !this.isOpening && !this.hasExited) {
+          this.startSession();
+        }
+      });
+    }
+
+    if (!this.sessionId) {
+      this.term.writeln("\r\nPress Enter or click to start a shell\r\n");
     }
 
     this.isInitialized = true;
@@ -292,12 +377,15 @@ export class TerminalView {
     this.isOpening = true;
 
     try {
+      this.hasExited = false;
+      this.reconnectAttempts = 0;
       this.removeExitBanner();
       const dims = this.getDimensions();
       const res = await NativeBridge.terminalOpen(dims.cols, dims.rows);
 
       if (res && res.status === "ok" && res.session_id) {
         this.sessionId = res.session_id;
+        if (this.term) this.term.reset();
         updateTabStatus(true);
         this.connectWebSocket(this.sessionId);
         announce("Terminal started");
@@ -332,6 +420,9 @@ export class TerminalView {
     this.ws.binaryType = "arraybuffer";
 
     this.ws.onopen = () => {
+      this.reconnectAttempts = 0;
+      updateTabStatus(true);
+      this.removeExitBanner();
       this.fit();
     };
 
@@ -354,8 +445,26 @@ export class TerminalView {
       }
     };
 
-    this.ws.onclose = () => {
-      // Handled in handleProcessExit
+    this.ws.onclose = (event) => {
+      const code = event ? event.code : 1006;
+      this.lastCloseCode = code;
+
+      if (this.hasExited) {
+        return;
+      }
+
+      if (code === 4429 && this.reconnectAttempts < 3) {
+        this.reconnectAttempts++;
+        setTimeout(() => {
+          if (this.sessionId && !this.hasExited) {
+            this.connectWebSocket(this.sessionId);
+          }
+        }, 300);
+        return;
+      }
+
+      updateTabStatus(false);
+      this.showConnectionLostBanner(code);
     };
 
     this.ws.onerror = (err) => {
@@ -364,6 +473,7 @@ export class TerminalView {
   }
 
   handleProcessExit(code) {
+    this.hasExited = true;
     updateTabStatus(false);
     if (!this.host) return;
     this.removeExitBanner();
@@ -379,7 +489,11 @@ export class TerminalView {
     restartBtn.setAttribute("data-action", "restart-terminal");
     restartBtn.textContent = "Restart terminal";
     restartBtn.addEventListener("click", () => {
+      const oldSessionId = this.sessionId;
       this.sessionId = null;
+      if (oldSessionId) {
+        NativeBridge.terminalClose(oldSessionId);
+      }
       if (this.term) this.term.reset();
       this.startSession();
     });
@@ -389,6 +503,47 @@ export class TerminalView {
     this.host.appendChild(banner);
 
     announce(`Terminal exited with code ${code}`);
+  }
+
+  async kill() {
+    if (this.sessionId) {
+      const id = this.sessionId;
+      this.sessionId = null;
+      await NativeBridge.terminalClose(id);
+      this.handleProcessExit(137);
+    }
+  }
+
+  showConnectionLostBanner(code = 1006) {
+    updateTabStatus(false);
+    if (!this.host) return;
+    this.removeExitBanner();
+
+    const banner = document.createElement("div");
+    banner.className = "terminal-status-banner connection-lost";
+
+    const msgSpan = document.createElement("span");
+    msgSpan.textContent = `Connection lost (code ${code}).`;
+
+    const reconnectBtn = document.createElement("button");
+    reconnectBtn.className = "terminal-restart-btn";
+    reconnectBtn.setAttribute("data-action", "reconnect-terminal");
+    reconnectBtn.textContent = "Reconnect";
+    reconnectBtn.addEventListener("click", () => {
+      this.removeExitBanner();
+      if (this.term) this.term.reset();
+      if (this.sessionId) {
+        this.connectWebSocket(this.sessionId);
+      } else {
+        this.startSession();
+      }
+    });
+
+    banner.appendChild(msgSpan);
+    banner.appendChild(reconnectBtn);
+    this.host.appendChild(banner);
+
+    announce(`Connection lost (code ${code})`);
   }
 
   removeExitBanner() {
@@ -445,7 +600,12 @@ export class TerminalView {
   }
 
   destroy() {
+    this.hasExited = true;
     updateTabStatus(false);
+    this.removeExitBanner();
+    if (this.sessionId) {
+      NativeBridge.terminalClose(this.sessionId);
+    }
     if (this.ws) {
       try {
         this.ws.close();

@@ -1,3 +1,5 @@
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -294,11 +296,34 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         )
 
     def test_terminal_panel_role_log_and_aria_live_off(self):
-        """#terminalHost has role='log', accessible name, and aria-live='off'."""
+        """#terminalHost has role='log', accessible name, aria-live='off', and no assertive live region by default."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
         host = self.page.locator("#terminalHost")
         self.assertEqual(host.get_attribute("role"), "log")
         self.assertEqual(host.get_attribute("aria-live"), "off")
         self.assertEqual(host.get_attribute("aria-label"), "Terminal output")
+
+        # Assert NO aria-live="assertive" descendant by default
+        assertive_count = host.locator("[aria-live='assertive']").count()
+        self.assertEqual(assertive_count, 0)
+
+        # Assert screen reader toggle exists, unchecked by default, and enables assertive live region when toggled
+        sr_toggle = self.page.locator("#terminalSrToggle")
+        self.assertTrue(sr_toggle.is_visible())
+        self.assertFalse(sr_toggle.is_checked())
+
+        sr_toggle.check()
+        self.assertTrue(sr_toggle.is_checked())
+        self.assertGreaterEqual(host.locator("[aria-live='assertive']").count(), 1)
+        stored = self.page.evaluate("() => localStorage.getItem('deskai-terminal-sr-mode')")
+        self.assertEqual(stored, "true")
+
+        # Unchecking disables it
+        sr_toggle.uncheck()
+        self.assertFalse(sr_toggle.is_checked())
+        self.assertEqual(host.locator("[aria-live='assertive']").count(), 0)
+        stored_after = self.page.evaluate("() => localStorage.getItem('deskai-terminal-sr-mode')")
+        self.assertEqual(stored_after, "false")
 
     def test_terminal_tab_selection_preserves_tab_focus(self):
         """Clicking Terminal tab does not steal focus into the terminal buffer."""
@@ -344,8 +369,169 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertFalse(tab_closed)
         self.assertFalse(buffer_saved)
 
+    def test_terminal_single_paste_on_ctrl_shift_v(self):
+        """Ctrl+Shift+V sends exactly one frame containing pasted text (no double-paste)."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        self.page.evaluate("""() => {
+            window.__sentTerminalFrames = [];
+            window.DeskAITerminal.ws = {
+                readyState: WebSocket.OPEN,
+                send: (data) => {
+                    const str = typeof data === 'string' ? data : new TextDecoder().decode(data);
+                    window.__sentTerminalFrames.push(str);
+                }
+            };
+            window.DeskAITerminal.term.focus();
+        }""")
+        self.page.evaluate("() => navigator.clipboard.writeText('PASTE')")
+        self.page.keyboard.press("Control+Shift+v")
+        self.page.wait_for_timeout(100)
+
+        frames = self.page.evaluate("() => window.__sentTerminalFrames")
+        paste_frames = [f for f in frames if "PASTE" in f]
+        self.assertEqual(len(paste_frames), 1)
+
+    def test_terminal_connection_lost_banner_and_reconnect(self):
+        """Unexpected socket close shows Connection lost banner and Reconnect resets and reattaches."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        self.page.evaluate("""() => {
+            window.DeskAITerminal.sessionId = "sess_drop_test";
+            window.__reconnectCalls = 0;
+            window.__termResetCalls = 0;
+            if (window.DeskAITerminal.term) {
+                const origReset = window.DeskAITerminal.term.reset.bind(window.DeskAITerminal.term);
+                window.DeskAITerminal.term.reset = () => {
+                    window.__termResetCalls++;
+                    origReset();
+                };
+            }
+            window.DeskAITerminal.connectWebSocket = (sessId) => {
+                window.__reconnectCalls++;
+                window.__reconnectSessId = sessId;
+            };
+
+            window.DeskAITerminal.showConnectionLostBanner(1006);
+        }""")
+
+        banner = self.page.locator("#terminalHost .terminal-status-banner.connection-lost")
+        self.assertTrue(banner.is_visible())
+        self.assertIn("Connection lost (code 1006)", banner.text_content())
+
+        reconnect_btn = banner.locator("button[data-action='reconnect-terminal']")
+        self.assertTrue(reconnect_btn.is_visible())
+        self.assertEqual(reconnect_btn.text_content(), "Reconnect")
+
+        reconnect_btn.click()
+        self.assertFalse(banner.is_visible())
+
+        resets = self.page.evaluate("() => window.__termResetCalls")
+        reconnects = self.page.evaluate("() => window.__reconnectCalls")
+        reconnect_sess = self.page.evaluate("() => window.__reconnectSessId")
+        self.assertGreaterEqual(resets, 1)
+        self.assertGreaterEqual(reconnects, 1)
+        self.assertEqual(reconnect_sess, "sess_drop_test")
+
+    def test_terminal_keystroke_while_disconnected_shows_banner(self):
+        """Keystrokes while socket is closed show Connection lost banner instead of silently dropping."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        self.page.evaluate("""() => {
+            window.DeskAITerminal.sessionId = "sess_key_test";
+            window.DeskAITerminal.removeExitBanner();
+            window.DeskAITerminal.ws = { readyState: WebSocket.CLOSED };
+            window.DeskAITerminal.term.focus();
+        }""")
+        self.page.keyboard.press("a")
+        banner = self.page.locator("#terminalHost .terminal-status-banner.connection-lost")
+        self.assertTrue(banner.is_visible())
+
+    def test_terminal_boot_hint_and_start_on_enter(self):
+        """At boot, xterm displays hint and pressing Enter starts a session."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        has_hint = self.page.evaluate("""() => {
+            if (!window.DeskAITerminal || !window.DeskAITerminal.term) return false;
+            window.DeskAITerminal.term.selectAll();
+            const text = window.DeskAITerminal.term.getSelection();
+            window.DeskAITerminal.term.clearSelection();
+            return text.includes("Press Enter or click to start a shell");
+        }""")
+        self.assertTrue(has_hint)
+
+        self.page.evaluate("""() => {
+            window.__startSessionCalls = 0;
+            window.NativeBridge.terminalOpen = async () => {
+                window.__startSessionCalls++;
+                return { status: "ok", session_id: "sess_boot_enter" };
+            };
+            window.DeskAITerminal.term.focus();
+        }""")
+
+        self.page.keyboard.press("Enter")
+        self.page.wait_for_timeout(100)
+
+        calls = self.page.evaluate("() => window.__startSessionCalls")
+        sess_id = self.page.evaluate("() => window.DeskAITerminal.sessionId")
+        self.assertGreaterEqual(calls, 1)
+        self.assertEqual(sess_id, "sess_boot_enter")
+
+    def test_terminal_boot_hint_and_start_on_click(self):
+        """At boot, clicking terminal host starts a session."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        self.page.evaluate("""() => {
+            window.__startSessionClickCalls = 0;
+            window.NativeBridge.terminalOpen = async () => {
+                window.__startSessionClickCalls++;
+                return { status: "ok", session_id: "sess_boot_click" };
+            };
+        }""")
+        self.page.locator("#terminalHost").click()
+        self.page.wait_for_timeout(100)
+        calls = self.page.evaluate("() => window.__startSessionClickCalls")
+        self.assertGreaterEqual(calls, 1)
+
+    def test_terminal_kill_and_close_actions(self):
+        """Kill button, destroy(), and Restart call NativeBridge.terminalClose with session ID."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        kill_btn = self.page.locator("#terminalKillBtn")
+        self.assertTrue(kill_btn.is_visible())
+        self.assertEqual(kill_btn.get_attribute("aria-label"), "Kill terminal")
+
+        self.page.evaluate("""() => {
+            window.__closedSessions = [];
+            window.NativeBridge.terminalClose = async (id) => {
+                window.__closedSessions.push(id);
+                return true;
+            };
+            window.DeskAITerminal.sessionId = "sess_kill_target";
+        }""")
+
+        # 1. Click Kill button
+        kill_btn.click()
+        self.page.wait_for_timeout(100)
+        closed = self.page.evaluate("() => window.__closedSessions")
+        self.assertIn("sess_kill_target", closed)
+
+        # 2. Restart calls terminalClose on old session ID
+        self.page.evaluate("""() => {
+            window.DeskAITerminal.sessionId = "sess_restart_target";
+            window.DeskAITerminal.handleProcessExit(0);
+        }""")
+        restart_btn = self.page.locator("#terminalHost .terminal-restart-btn")
+        restart_btn.click()
+        self.page.wait_for_timeout(100)
+        closed = self.page.evaluate("() => window.__closedSessions")
+        self.assertIn("sess_restart_target", closed)
+
+        # 3. destroy() calls terminalClose
+        self.page.evaluate("""() => {
+            window.DeskAITerminal.sessionId = "sess_destroy_target";
+            window.DeskAITerminal.destroy();
+        }""")
+        closed = self.page.evaluate("() => window.__closedSessions")
+        self.assertIn("sess_destroy_target", closed)
+
     def test_log_view_line_cap_and_scroll_preservation(self):
-        """LogView caps buffer at 10,000 lines and does not yank scrolled-up users to bottom."""
+        """LogView caps buffer at 10,000 lines, follows output when pinned,
+        and preserves scroll position when user scrolled up."""
         self.page.locator("#tab-output").click()
         self.page.evaluate("""() => {
             const el = document.getElementById("channelOutput");
@@ -357,8 +543,69 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         }""")
         self.page.wait_for_timeout(200)
 
+        # 1. Assert buffer line cap <= 10000
         line_count = self.page.evaluate("() => window.testLogView.lineCount")
         self.assertLessEqual(line_count, 10000)
+
+        # 2. Assert auto-scroll followed output to bottom when pinned
+        is_scrolled_to_bottom = self.page.evaluate("""() => {
+            const scroller = document.getElementById("drawerContent");
+            const dist = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+            return dist < 10 && scroller.scrollTop > 0;
+        }""")
+        self.assertTrue(is_scrolled_to_bottom, "Expected drawerContent to be scrolled to bottom when pinned")
+
+        # 3. Simulate user scrolling up (disabling pinned state)
+        self.page.evaluate("""() => {
+            const scroller = document.getElementById("drawerContent");
+            scroller.scrollTop = 120;
+            scroller.dispatchEvent(new Event("scroll"));
+        }""")
+        is_pinned = self.page.evaluate("() => window.testLogView.pinned")
+        self.assertFalse(is_pinned, "Expected pinned to be false after user scrolled up")
+
+        # 4. Write more lines and ensure user's scroll position is preserved (not yanked to bottom)
+        self.page.evaluate("""() => {
+            window.testLogView.write("new content line\\n".repeat(20));
+        }""")
+        self.page.wait_for_timeout(100)
+
+        scroll_top_after = self.page.evaluate("() => document.getElementById('drawerContent').scrollTop")
+        self.assertEqual(scroll_top_after, 120, "Expected scrollTop to remain at 120 without yanking user to bottom")
+
+    def test_terminal_osc8_link_handler_and_ansi_regex_stripping(self):
+        """ANSI_REGEX strips OSC 8 payloads and linkHandler routes links to NativeBridge.openExternalUrl."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+
+        # 1. Test ANSI_REGEX strips OSC payloads in LogView
+        self.page.locator("#tab-output").click()
+        self.page.evaluate("""() => {
+            const el = document.getElementById("channelOutput");
+            window.testLogView = new window.DeskAILogView.constructor(el);
+            window.testLogView.clear();
+            window.testLogView.write("\\x1b]8;;https://malicious.example\\x07Clean Link Text\\x1b]8;;\\x07");
+            window.testLogView.write("\\x1b]8;;https://malicious.example\\x1b\\\\ST Terminated Text\\x1b]8;;\\x1b\\\\");
+        }""")
+        self.page.wait_for_timeout(100)
+        output_text = self.page.locator("#channelOutput").text_content()
+        self.assertNotIn("https://malicious.example", output_text)
+        self.assertIn("Clean Link Text", output_text)
+        self.assertIn("ST Terminated Text", output_text)
+
+        # 2. Test linkHandler activate routes to NativeBridge.openExternalUrl
+        self.page.evaluate("""() => {
+            window.__openedUrls = [];
+            window.NativeBridge.openExternalUrl = async (url) => {
+                window.__openedUrls.push(url);
+                return true;
+            };
+            const handler = window.DeskAITerminal.term.options.linkHandler;
+            if (handler && typeof handler.activate === "function") {
+                handler.activate(new MouseEvent("click"), "https://trusted.example/docs");
+            }
+        }""")
+        opened = self.page.evaluate("() => window.__openedUrls")
+        self.assertEqual(opened, ["https://trusted.example/docs"])
 
     def test_static_hygiene_no_inner_html_in_terminal_modules(self):
         """terminal.js must not contain innerHTML assignments."""
@@ -440,6 +687,151 @@ class TestBottomDrawerBehavior(unittest.TestCase):
             page.close()
         finally:
             srv.stop()
+
+    def test_terminal_end_to_end_frontend_backend_integration(self):
+        """End-to-end integration: Live DesktopServer + Playwright browser + real PTY shell.
+        Verifies:
+        1. Shell starts and output appears in xterm.
+        2. Typing reaches the shell (echo round-trip).
+        3. Resize message is sent over WebSocket.
+        4. Exit banner appears on process exit and Restart button works.
+        5. Dropped connection shows Reconnect banner.
+        """
+        import httpx
+        from deskai.server.supervisor import DesktopServer
+
+        temp_workspace = Path(tempfile.mkdtemp()).resolve()
+        srv = DesktopServer()
+        srv.start()
+        try:
+            # 1. Redeem session cookie
+            token = srv.security.create_launch_token()
+            with httpx.Client(follow_redirects=False) as http:
+                res = http.get(
+                    f"http://127.0.0.1:{srv.port}/auth/redeem?token={token}",
+                    headers={"Host": f"127.0.0.1:{srv.port}"},
+                )
+                cookie_val = res.cookies.get("deskai_session")
+
+            # 2. Create real session on server
+            session1 = srv.terminal_manager.create_session(str(temp_workspace))
+
+            # 3. Setup page with stubbed pywebview bridge before page load
+            context = self.browser.new_context()
+            context.add_cookies([{"name": "deskai_session", "value": cookie_val, "domain": "127.0.0.1", "path": "/"}])
+            page = context.new_page()
+
+            page.add_init_script(f"""
+                window.__mockSessionId = "{session1.session_id}";
+                window.__mockResizes = [];
+                window.pywebview = {{
+                    api: {{
+                        terminal_open: async (cols, rows) => {{
+                            return {{ status: "ok", session_id: window.__mockSessionId }};
+                        }},
+                        terminal_close: async (sessionId) => {{
+                            return true;
+                        }}
+                    }}
+                }};
+            """)
+
+            page.goto(f"http://127.0.0.1:{srv.port}/")
+            page.wait_for_selector("#terminalHost .xterm", timeout=5000)
+
+            # Spy on resize messages
+            page.evaluate("""() => {
+                const origSend = WebSocket.prototype.send;
+                WebSocket.prototype.send = function(data) {
+                    if (typeof data === "string") {
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed.type === "resize") {
+                                window.__mockResizes.push(parsed);
+                            }
+                        } catch (e) {}
+                    }
+                    return origSend.apply(this, arguments);
+                };
+            }""")
+
+            # 4. Trigger session start (click or Enter)
+            page.locator("#terminalHost").click()
+            page.wait_for_function(
+                "() => window.DeskAITerminal && window.DeskAITerminal.sessionId !== null", timeout=5000
+            )
+            self.assertEqual(page.evaluate("() => window.DeskAITerminal.sessionId"), session1.session_id)
+
+            # 5. Output appears in xterm (initial shell prompt)
+            page.wait_for_function(
+                """() => {
+                const term = window.DeskAITerminal.term;
+                if (!term) return false;
+                term.selectAll();
+                const sel = term.getSelection();
+                term.clearSelection();
+                return sel && sel.length > 0;
+            }""",
+                timeout=5000,
+            )
+
+            # 6. Typing reaches shell: send echo command and verify it returns in xterm
+            page.keyboard.type("echo DESKAI_INTEGRATION_TEST_PASS\n")
+            page.wait_for_function(
+                """() => {
+                const term = window.DeskAITerminal.term;
+                if (!term) return false;
+                term.selectAll();
+                const sel = term.getSelection();
+                term.clearSelection();
+                return sel.includes("DESKAI_INTEGRATION_TEST_PASS");
+            }""",
+                timeout=7000,
+            )
+
+            # 7. Resize message sent
+            page.evaluate("() => window.DeskAITerminal.fit()")
+            page.wait_for_function("() => window.__mockResizes && window.__mockResizes.length > 0", timeout=3000)
+            resizes = page.evaluate("() => window.__mockResizes")
+            self.assertGreaterEqual(len(resizes), 1)
+            self.assertIn("cols", resizes[-1])
+            self.assertIn("rows", resizes[-1])
+
+            # 8. Exit banner + Restart works:
+            session2 = srv.terminal_manager.create_session(str(temp_workspace))
+            page.evaluate(f"() => {{ window.__mockSessionId = '{session2.session_id}'; }}")
+
+            page.keyboard.type("exit\n")
+            page.wait_for_selector("#terminalHost .terminal-status-banner", timeout=6000)
+            banner = page.locator("#terminalHost .terminal-status-banner")
+            self.assertTrue(banner.is_visible())
+            self.assertIn("Terminal exited", banner.text_content())
+
+            restart_btn = banner.locator("button[data-action='restart-terminal']")
+            self.assertTrue(restart_btn.is_visible())
+            restart_btn.click()
+
+            page.wait_for_function(f"() => window.DeskAITerminal.sessionId === '{session2.session_id}'", timeout=5000)
+            self.assertEqual(page.evaluate("() => window.DeskAITerminal.sessionId"), session2.session_id)
+            self.assertFalse(banner.is_visible())
+
+            # 9. Dropped connection shows Reconnect banner
+            page.evaluate("() => window.DeskAITerminal.ws.close(4000)")
+            page.wait_for_selector("#terminalHost .terminal-status-banner.connection-lost", timeout=5000)
+            lost_banner = page.locator("#terminalHost .terminal-status-banner.connection-lost")
+            self.assertTrue(lost_banner.is_visible())
+            self.assertIn("Connection lost (code 4000)", lost_banner.text_content())
+            reconnect_btn = lost_banner.locator("button[data-action='reconnect-terminal']")
+            self.assertTrue(reconnect_btn.is_visible())
+
+            # Clean up page & sessions
+            session1.close()
+            session2.close()
+            page.close()
+            context.close()
+        finally:
+            srv.stop()
+            shutil.rmtree(temp_workspace, ignore_errors=True)
 
 
 if __name__ == "__main__":

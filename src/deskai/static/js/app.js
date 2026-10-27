@@ -6,9 +6,11 @@ import { initGlobalEvents } from "./events.js";
 import { TokenStreamBuffer } from "./stream.js";
 import { initPorts } from "./ports.js";
 import { TerminalView, LogView } from "./terminal.js";
+import { NativeBridge } from "./bridge.js";
 
 // Global singletons instantiated and wired
 window.store = store;
+window.NativeBridge = NativeBridge;
 window.wsClient = new WebSocketClient(`ws://${location.host}/ws`);
 window.UEC = new UECStateMachine();
 window.EditorManager = new EditorManager();
