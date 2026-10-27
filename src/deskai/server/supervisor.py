@@ -14,6 +14,7 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from deskai.server.security import SessionSecurityManager
+from deskai.server.terminal import TerminalManager
 from deskai.utils.net import bind_ephemeral_loopback_socket, is_valid_loopback_host
 
 
@@ -28,6 +29,7 @@ class DesktopServer:
         self.listen_socket, self.port = bind_ephemeral_loopback_socket()
         self.security = SessionSecurityManager(self.port)
         self.launch_token = self.security.launch_token
+        self.terminal_manager = TerminalManager()
 
         # Load shared UEC transition matrix
         transitions_file = self.static_dir / "transitions.json"
@@ -290,6 +292,11 @@ class DesktopServer:
 
     def stop(self):
         """Clean teardown of uvicorn, thread join, socket closure and session clearance."""
+        if hasattr(self, "terminal_manager") and self.terminal_manager:
+            try:
+                self.terminal_manager.close_all()
+            except Exception:
+                pass
         if self.uvicorn_server:
             self.uvicorn_server.should_exit = True
         if self.server_thread and self.server_thread.is_alive():

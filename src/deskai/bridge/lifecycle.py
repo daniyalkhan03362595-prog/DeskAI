@@ -15,9 +15,27 @@ class WindowLifecycleHandler:
     def __init__(self, manager: "WindowManager"):
         self.manager = manager
         self.has_dirty_tabs: bool = False
+        self._has_running_terminal_override: bool | None = None
         self._exit_confirmed: bool = False
         self._nav_policy_hooked: bool = False
         self._resize_hooked: bool = False
+
+    @property
+    def has_running_terminal(self) -> bool:
+        """Indicates whether any interactive terminal session is actively running."""
+        if self._has_running_terminal_override is not None:
+            return self._has_running_terminal_override
+        server = getattr(self.manager, "server", None)
+        tm = getattr(server, "terminal_manager", None)
+        if tm is not None:
+            val = getattr(tm, "has_running_terminal", False)
+            if isinstance(val, bool):
+                return val
+        return False
+
+    @has_running_terminal.setter
+    def has_running_terminal(self, value: bool):
+        self._has_running_terminal_override = value
 
     def attach_hooks(self, window: webview.Window):
         if hasattr(window.events, "shown"):
@@ -174,17 +192,25 @@ class WindowLifecycleHandler:
                         load_url(f"{expected_origin}/")
 
     def confirm_exit(self) -> bool:
-        """Prompts confirmation if unsaved changes exist."""
+        """Prompts confirmation if unsaved changes exist or a terminal is running."""
         if self._exit_confirmed:
             return True
-        if not self.has_dirty_tabs:
+
+        reasons = []
+        if self.has_dirty_tabs:
+            reasons.append("unsaved changes in your workspace")
+        if self.has_running_terminal:
+            reasons.append("a terminal still running")
+
+        if not reasons:
             self._exit_confirmed = True
             return True
 
+        reason_text = " and ".join(reasons)
         window = getattr(self.manager, "window", None)
         if window and hasattr(window, "create_confirmation_dialog"):
             result = window.create_confirmation_dialog(
-                "Unsaved Changes", "You have unsaved changes in your workspace. Are you sure you want to exit?"
+                "Confirm Exit", f"You have {reason_text}. Are you sure you want to exit?"
             )
             if result:
                 self._exit_confirmed = True

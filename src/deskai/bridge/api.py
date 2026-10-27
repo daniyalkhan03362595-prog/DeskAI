@@ -126,6 +126,7 @@ class DesktopBridgeAPI:
     def __init__(self, manager: "WindowManager"):
         self._manager = manager
         self.workspace_root: str | None = None
+        self._terminal_confirmed_in_session: bool = False
 
     @property
     def _window(self) -> webview.Window:
@@ -380,7 +381,7 @@ class DesktopBridgeAPI:
                 return True
             return False
         elif action == "close_request":
-            if not self._manager.lifecycle.has_dirty_tabs:
+            if not self._manager.lifecycle.has_dirty_tabs and not self._manager.lifecycle.has_running_terminal:
                 self._manager.lifecycle._exit_confirmed = True
                 self._window.destroy()
                 return True
@@ -600,3 +601,60 @@ class DesktopBridgeAPI:
     def _is_safe_path(self, target_path: str) -> bool:
         """Internal sandbox helper."""
         return is_safe_workspace_path(target_path, self.workspace_root)
+
+    def terminal_open(self, cols: int, rows: int) -> dict:
+        """Opens a new interactive host shell in the active workspace."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin"}
+
+        if type(cols) is not int or type(rows) is not int:
+            return {"status": "error", "message": "cols and rows must be integers"}
+
+        if not (10 <= cols <= 500) or not (2 <= rows <= 200):
+            return {"status": "error", "message": "cols must be in 10..500 and rows in 2..200"}
+
+        if not self.workspace_root:
+            return {"status": "error", "message": "Workspace root not set"}
+
+        if is_disallowed_workspace_root(self.workspace_root):
+            return {"status": "error", "message": "Disallowed workspace root"}
+
+        if not is_safe_workspace_path(self.workspace_root, self.workspace_root):
+            return {"status": "error", "message": "Unsafe workspace path"}
+
+        if not self._terminal_confirmed_in_session:
+            ws_name = os.path.basename(self.workspace_root) or self.workspace_root
+            confirmed = False
+            if self._window and hasattr(self._window, "create_confirmation_dialog"):
+                confirmed = bool(
+                    self._window.create_confirmation_dialog(
+                        "Terminal Authorization",
+                        f"Open a host shell in {ws_name}?",
+                    )
+                )
+            if not confirmed:
+                return {"status": "error", "message": "User declined terminal authorization"}
+            self._terminal_confirmed_in_session = True
+
+        server = getattr(self._manager, "server", None)
+        tm = getattr(server, "terminal_manager", None)
+        if not tm:
+            return {"status": "error", "message": "Terminal manager unavailable"}
+
+        try:
+            session = tm.create_session(self.workspace_root, cols=cols, rows=rows)
+            return {"status": "ok", "session_id": session.session_id}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def terminal_close(self, session_id: str) -> bool:
+        """Closes an active terminal session."""
+        if not self._is_origin_allowed():
+            return False
+        if not isinstance(session_id, str):
+            return False
+        server = getattr(self._manager, "server", None)
+        tm = getattr(server, "terminal_manager", None)
+        if not tm:
+            return False
+        return tm.close_session(session_id)
