@@ -180,16 +180,11 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         # Click the copy button
         copy_btn.click()
 
-        # Wait for async clipboard copy to complete and class to be applied
-        self.page.wait_for_selector('button[data-action="copy-port"].is-copied', timeout=2000)
-        self.assertIn("is-copied", copy_btn.get_attribute("class"))
-        has_svg = self.page.evaluate("""
-            () => {
-                const btn = document.querySelector('button[data-action="copy-port"][data-url="http://127.0.0.1:5555"]');
-                return !!btn && !!btn.querySelector('svg.port-check-icon');
-            }
-        """)
-        self.assertTrue(has_svg)
+        # Wait for async clipboard copy to complete and class + svg to be applied
+        svg_icon = self.page.wait_for_selector(
+            'button[data-action="copy-port"].is-copied svg.port-check-icon', timeout=2000
+        )
+        self.assertIsNotNone(svg_icon)
 
         # Confirm NO toast was shown in toastRack
         toast_count = self.page.locator("#toastRack .toast").count()
