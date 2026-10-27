@@ -1,17 +1,20 @@
 # High-Level Design (HLD): Terminal Panel (Host Shell & Execution View)
 
 **Document ID:** `ORX-HLD-TERMINAL-PANEL-V1`  
-**Version:** `1.1` (Synchronized with Implemented Vanilla JS & Bottom Drawer Architecture)  
+**Version:** `1.2` (Implemented Interactive PTY-Backed Architecture)  
 **Target Codebase:** `DeskAI`  
 **Target Files:**
 * `src/deskai/static/index.html`
 * `src/deskai/static/js/events.js`
-* `src/deskai/static/js/terminal.js` (Planned Phase 3)
+* `src/deskai/static/js/terminal.js`
 * `src/deskai/static/css/components.css`
-* `src/deskai/server/terminal.py` (Planned Phase 1)
-* `src/deskai/server/supervisor.py` (Planned Phase 2)
-**Status:** Placeholder UI; execution backend not yet implemented  
-**Date:** October 27, 2026  
+* `src/deskai/static/css/tokens.css`
+* `src/deskai/server/terminal.py`
+* `src/deskai/server/supervisor.py`
+* `src/deskai/bridge/api.py`
+* `src/deskai/bridge/lifecycle.py`
+**Status:** Implemented  
+**Date:** October 28, 2026  
 
 ---
 
@@ -19,11 +22,11 @@
 
 The **Terminal Panel** (`#terminalPanel`) is the default, primary command execution and host shell console embedded within DeskAI's Collapsible Bottom Drawer (`#bottomDrawer`).
 
-* **Current Reality:** In the current codebase, `#terminalOutput` is a static placeholder `<pre><code>` block inside `index.html`. No process-spawning, PTY abstraction, or WebSocket streaming logic is currently active.
-* **Target Architecture (Phased Implementation):** A dedicated, interactive host shell viewport that:
+* **Implementation Reality:** DeskAI provides a fully interactive, secure, PTY-backed terminal powered by vendored `xterm.js` 5.3.0 (with fit addon 0.8.0), connecting via binary WebSocket to `src/deskai/server/terminal.py`. The legacy static placeholder `<pre><code>` has been completely replaced.
+* **Architecture Pillars:**
   1. **Serves as Default Bottom Viewport:** Automatically selected on IDE launch (`.active` tab and `.active` panel).
   2. **Terminal Emulation via Vendored xterm.js:** Full VT100/xterm emulation (vendored under `static/vendor/` with `MANIFEST.json` entry, zero framework dependencies), supporting colors, cursor navigation, alternate screen, and text selection.
-  3. **Seamless Drawer Tab Integration:** Controlled via the `Terminal` tab in `.drawer-tabs` with instantaneous visibility toggling and keyboard focus retention (tab roving focus).
+  3. **Seamless Drawer Tab Integration:** Controlled via the `Terminal` tab in `.drawer-tabs` with instantaneous visibility toggling, running status indicator chip (`●`), and keyboard focus retention (tab roving focus).
   4. **Strict Security Sandbox & Threat Model:** Highest-privilege surface controls, server-side `cwd` verification, environment sanitization, native user confirmation gate, and dedicated `/ws/terminal/{session_id}` transport.
 
 ```text
@@ -178,3 +181,40 @@ stateDiagram-v2
    * Primary accent token `var(--color-primary)` is `#d99b26`.
    * Error states use token `var(--color-danger)` (`#ef4444`). Note: `--color-error` does not exist in `tokens.css`.
    * Terminal ANSI foregrounds defined via new `--ansi-*` tokens in `tokens.css`, all verified for $\ge 4.5:1$ contrast against `--terminal-bg`.
+
+---
+
+## 8. Verification & Traceability Matrix
+
+| Test ID | Test Target | Verification Scope | Method | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **TC-TRM-01** | Tab Declaration | `index.html` declares `data-target="terminal"` tab button | DOM Contract Test | Implemented |
+| **TC-TRM-02** | Initial Active State | `Terminal` tab has `.active` class and `aria-selected="true"` at boot | DOM Assertion | Implemented |
+| **TC-TRM-03** | Panel Declaration | `index.html` declares `#terminalPanel` with `.active` class | DOM Contract Test | Implemented |
+| **TC-TRM-04** | Default Visible | `#terminalPanel` does NOT have `hidden` attribute on initial page load | DOM Assertion | Implemented |
+| **TC-TRM-05** | Host Element | `#terminalHost` has `role="log"`, accessible name, and `aria-live="off"` | DOM Assertion | Implemented |
+| **TC-TRM-06** | Font Family | `.terminal-view` computes to monospace font stack (`JetBrains Mono`, `Fira Code`, monospace) | CSS Computed Style Test | Implemented |
+| **TC-TRM-07** | ARIA Binding | `aria-controls="terminalPanel"` matches panel id | DOM Contract Test | Implemented |
+| **TC-TRM-08** | Spawn Gate & Security | Server-side workspace check, origin validation, env token stripping | Backend Unit Test (`test_terminal_backend.py`) | Implemented |
+| **TC-TRM-09** | PTY Lifecycle & Signals | Resize (`TIOCSWINSZ`), SIGINT (0x03), clean close / reap | Backend Unit Test (`test_terminal_backend.py`) | Implemented |
+| **TC-TRM-10** | Transport Flow Control | Binary stream over `/ws/terminal/{id}`, high/low watermarks, replay ring buffer | Backend Unit Test (`test_terminal_transport.py`) | Implemented |
+| **TC-TRM-11** | Keyboard Trap Escape | `Ctrl+Shift+M` moves focus out to tablist; `Tab` moves into xterm | Playwright Behavioral (`test_bottom_drawer_behavior.py`) | Implemented |
+| **TC-TRM-12** | Hotkey Isolation | `Ctrl+W` and `Ctrl+S` suppressed when terminal focused (passes to shell) | Playwright Behavioral (`test_bottom_drawer_behavior.py`) | Implemented |
+| **TC-TRM-13** | Scrollback Clamp | Max lines clamped to 10,000; zero `innerHTML` in terminal modules | Playwright Behavioral (`test_bottom_drawer_behavior.py`) | Implemented |
+| **TC-TRM-14** | WCAG Contrast | ANSI palette & terminal tokens meet $\ge 4.5:1$ against `--terminal-bg` | Static CSS Audit (`test_task10_theme_a11y.py`) | Implemented |
+| **TC-TRM-15** | Exit Lifecycle | Active session running chip (`●`), dirty-exit confirmation warning, graceful kill | Backend / E2E Test (`test_bottom_drawer_behavior.py`) | Implemented |
+| **TC-TRM-16** | CSP Backend Spike | PyWebView engine eval dependency audit documented in LLD | Architecture Spike (`pywebview.md`) | Implemented |
+
+---
+
+## 9. Future Work
+
+1. **Multi-Session Terminal Tabs:**
+   * Support multiple concurrent shells via a `+` button in the drawer header and session switcher tabs/dropdown.
+   * Session tabs with renameable titles, per-session scrollback buffers, and kill buttons.
+2. **AI / Agent Command Execution Flow:**
+   * Automated command proposals from AI agents routed exclusively through the UEC (Unified Execution Context) state machine and explicit user approval modal (`uec.approve` / `uec.reject`).
+   * Agent execution rendered in distinct, read-only audit cards or dedicated non-interactive run targets; never typed silently into the user's interactive shell.
+3. **Dynamic Terminal Configuration:**
+   * User preference controls for font family, line height, cursor blink, and custom ANSI color themes synchronized via `tokens.css`.
+

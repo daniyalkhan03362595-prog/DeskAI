@@ -285,7 +285,7 @@ All styles are defined in `src/deskai/static/css/components.css` using strict WC
 | Subsystem | Integration Point | Action Triggered |
 | :--- | :--- | :--- |
 | **Ports Monitor** | `case "drawer-tab": if (target === "ports")` | Calls `window.DeskAIPorts.refresh()` to fetch real-time listening sockets. |
-| **Terminal Shell** | `case "drawer-tab": if (target === "terminal")` | Focuses `#terminalOutput` for immediate keyboard typing. |
+| **Terminal Shell** | `case "drawer-tab": if (target === "terminal")` | Preserves tab roving focus on `#tab-terminal` (WCAG 2.1.2; user enters terminal via `Tab`/`Enter`), adapts `xterm.fit()`, and displays running status chip (`●`). |
 | **Split Resizer** | `#resizerBottom` mouseup & dblclick | Updates `lastDrawerHeight` and removes/adds `.collapsed` class. |
 | **Window State** | Local storage cache | Saves drawer collapsed state across application reboots. |
 

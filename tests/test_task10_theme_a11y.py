@@ -73,6 +73,52 @@ class TestThemeAndAccessibility(unittest.TestCase):
         stream_js = Path("src/deskai/static/js/stream.js").read_text(encoding="utf-8")
         self.assertIn("this.trailingTimer = setTimeout", stream_js)
 
+    def test_terminal_ansi_tokens_defined_and_meet_contrast(self):
+        """tokens.css must define --terminal-* and 16 --ansi-* tokens with WCAG AA >= 4.5:1 contrast against #141518."""
+        tokens_css = Path("src/deskai/static/css/tokens.css").read_text(encoding="utf-8")
+        self.assertIn("--terminal-bg", tokens_css)
+        self.assertIn("--terminal-fg", tokens_css)
+        self.assertIn("--terminal-cursor", tokens_css)
+
+        ansi_names = [
+            "black",
+            "red",
+            "green",
+            "yellow",
+            "blue",
+            "magenta",
+            "cyan",
+            "white",
+            "bright-black",
+            "bright-red",
+            "bright-green",
+            "bright-yellow",
+            "bright-blue",
+            "bright-magenta",
+            "bright-cyan",
+            "bright-white",
+        ]
+
+        def lum(hex_str):
+            r, g, b = [int(hex_str[i : i + 2], 16) / 255.0 for i in (0, 2, 4)]
+            rg = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+            return 0.2126 * rg[0] + 0.7152 * rg[1] + 0.0722 * rg[2]
+
+        l_bg = lum("141518")
+
+        for name in ansi_names:
+            token_key = f"--ansi-{name}"
+            match = re.search(rf"{token_key}:\s*(#[0-9a-fA-F]{{6}})", tokens_css)
+            self.assertIsNotNone(match, f"{token_key} color not found in tokens.css")
+            color_hex = match.group(1).lstrip("#")
+            l_fg = lum(color_hex)
+            contrast = (max(l_bg, l_fg) + 0.05) / (min(l_bg, l_fg) + 0.05)
+            self.assertGreaterEqual(
+                contrast,
+                4.5,
+                f"ANSI token {token_key} ({color_hex}) contrast {contrast:.2f}:1 is less than 4.5:1 against #141518",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

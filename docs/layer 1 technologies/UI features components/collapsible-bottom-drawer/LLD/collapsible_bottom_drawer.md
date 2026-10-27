@@ -53,8 +53,11 @@ This document details the concrete DOM hierarchy, pointer drag and keyboard math
 
   <!-- 2. Scrollable Drawer Viewport Hosting Subsystem Panels -->
   <div class="drawer-content" id="drawerContent">
-    <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="0">
-      <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
+    <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal">
+      <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
+      <div class="terminal-footer-hint" aria-hidden="true">
+        <span>Ctrl+Shift+M: Move focus to tab</span>
+      </div>
     </div>
 
     <div class="drawer-panel" id="outputPanel" role="tabpanel" aria-labelledby="tab-output" tabindex="0" hidden>

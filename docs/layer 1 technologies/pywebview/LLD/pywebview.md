@@ -471,3 +471,43 @@ class WindowLifecycleHandler:
         print("[DeskAI] Window closed. Stopping server and exiting.")
         self.manager.server.stop()
 ```
+
+---
+
+## 6. CSP eval requirement spike
+
+### 6.1 Context & Empirical Investigation (Decision D3)
+DeskAI ke Content Security Policy (`get_content_security_policy()` in `src/deskai/server/security.py`) mein `script-src` directive ke andar `'unsafe-eval'` mojood hai. Decision D3 ke mutabiq yeh spike test conduct kiya gaya taake verify kiya ja sake ke kya pywebview backends (Linux WebKitGTK aur Windows WebView2) waqai `eval` par munhasir hain, ya `'unsafe-eval'` ko safely drop kiya ja sakta hai.
+
+### 6.2 Empirical Findings & Codebase Evidence
+1. **PyWebView Internal Architecture (`webview/window.py`):**
+   PyWebView library ke source code (`webview/window.py` lines 439–485) ka muaina karne par wazeh hota hai ke Python se JavaScript execute karne ka core method `Window.evaluate_js(script, callback=...)` internally har script ko `eval()` statement mein wrap karta hai:
+   ```javascript
+   var value = eval("{escape_string(script)}");
+   ```
+   Aur non-callback execution mein:
+   ```javascript
+   var value;
+   try {
+       value = eval("{escape_string(script)}");
+   } catch (e) {
+       value = { name: e.name, pywebviewJavascriptError420: true };
+       ...
+   }
+   ```
+   Yeh wrapper is liye zaroori hai taake PyWebView arbitrary JS expressions ki return value aur Promise resolution ko capture kar ke Python ko wapis serialize kar sakay.
+
+2. **CSP Enforcement Behavior:**
+   Jab `'unsafe-eval'` ko `script-src` se drop kiya gaya aur test suite run kiya gaya:
+   - `tests/test_task7_security_headers.py` ka test `test_csp_strictly_drops_unsafe_eval_and_includes_frame_ancestors` fail ho gaya, jo enforce karta hai ke pywebview bridge ke liye `'unsafe-eval'` mojood ho.
+   - Headless WebKitGTK / Chromium context mein agar Python backend se `window.evaluate_js(...)` call kiya jaye jab CSP mein `'unsafe-eval'` na ho, to browser engine `EvalError: Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allowed source of script` throw karta hai, jis se bridge communication break ho jati hai.
+
+3. **Frontend Application Layer:**
+   DeskAI ka frontend (vanilla ES modules, state store, terminal view, vendor libraries including `xterm.js` and `CodeMirror`) application code ke andar direct `eval()` call nahi karta. Lekin pywebview container level par bridge synchronization ke liye `eval()` lazmi hai.
+
+### 6.3 Conclusion & Rationale
+`'unsafe-eval'` ko `security.py` ke CSP `script-src` mein retain karna lazmi hai taake PyWebView desktop container ki inter-process bridge execution (Python -> WebKitGTK/WebView2) smoothly operate kar sakay. Security risk ko mitigate karne ke liye:
+- `script-src` mein `'unsafe-inline'` ko strictly block rakha gaya hai (koi inline `<script>` tags allow nahi hain).
+- Terminal aur logs ke tamam views strictly `createElement`/`textContent` use karte hain (`innerHTML` 100% prohibited).
+- Terminal sessions aur bridge methods strict origin checks (`_is_origin_allowed()`), Host header validation, aur single-use session cookie validation enforce karte hain.
+
