@@ -1,4 +1,4 @@
-import pytest
+import unittest
 from pathlib import Path
 
 try:
@@ -9,19 +9,33 @@ except ImportError:
     _HAS_PLAYWRIGHT = False
 
 
-@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright is not installed")
-class TestBottomDrawerBehavior:
-    @pytest.fixture(autouse=True)
-    def setup_browser(self):
+class TestBottomDrawerBehavior(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if not _HAS_PLAYWRIGHT:
+            raise unittest.SkipTest("Playwright is not installed")
+        cls.p = sync_playwright().start()
+        try:
+            cls.browser = cls.p.chromium.launch(headless=True, args=["--allow-file-access-from-files"])
+        except Exception as e:
+            cls.p.stop()
+            raise unittest.SkipTest(f"Chromium launch failed: {e}")
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, "browser"):
+            cls.browser.close()
+        if hasattr(cls, "p"):
+            cls.p.stop()
+
+    def setUp(self):
         index_file = Path("src/deskai/static/index.html").resolve()
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--allow-file-access-from-files"])
-            page = browser.new_page()
-            page.goto(f"file://{index_file}")
-            self.browser = browser
-            self.page = page
-            yield
-            browser.close()
+        self.page = self.browser.new_page()
+        self.page.goto(f"file://{index_file}")
+
+    def tearDown(self):
+        if hasattr(self, "page"):
+            self.page.close()
 
     def test_clicking_any_tab_expands_collapsed_drawer(self):
         """Clicking any drawer tab must expand a collapsed drawer."""
@@ -30,13 +44,13 @@ class TestBottomDrawerBehavior:
 
         # Collapse drawer via toggle button
         toggle_btn.click()
-        assert "collapsed" in drawer.get_attribute("class")
-        assert toggle_btn.get_attribute("aria-expanded") == "false"
+        self.assertIn("collapsed", drawer.get_attribute("class"))
+        self.assertEqual(toggle_btn.get_attribute("aria-expanded"), "false")
 
         # Click ports tab -> must uncollapse
         self.page.locator("#tab-ports").click()
-        assert "collapsed" not in drawer.get_attribute("class")
-        assert toggle_btn.get_attribute("aria-expanded") == "true"
+        self.assertNotIn("collapsed", drawer.get_attribute("class"))
+        self.assertEqual(toggle_btn.get_attribute("aria-expanded"), "true")
 
     def test_resizer_double_click_toggle_collapse(self):
         """Double-clicking resizerBottom toggles collapsed state and restores height."""
@@ -46,13 +60,13 @@ class TestBottomDrawerBehavior:
 
         # Double click to collapse
         resizer.dblclick()
-        assert "collapsed" in drawer.get_attribute("class")
-        assert toggle_btn.get_attribute("aria-expanded") == "false"
+        self.assertIn("collapsed", drawer.get_attribute("class"))
+        self.assertEqual(toggle_btn.get_attribute("aria-expanded"), "false")
 
         # Double click again to restore
         resizer.dblclick()
-        assert "collapsed" not in drawer.get_attribute("class")
-        assert toggle_btn.get_attribute("aria-expanded") == "true"
+        self.assertNotIn("collapsed", drawer.get_attribute("class"))
+        self.assertEqual(toggle_btn.get_attribute("aria-expanded"), "true")
 
     def test_resizer_keyboard_navigation(self):
         """Arrow keys, Home, and End on resizerBottom adjust height appropriately."""
@@ -65,23 +79,23 @@ class TestBottomDrawerBehavior:
         # ArrowUp expands
         self.page.keyboard.press("ArrowUp")
         val_up = int(resizer.get_attribute("aria-valuenow"))
-        assert val_up > val_start
+        self.assertGreater(val_up, val_start)
 
         # ArrowDown shrinks
         self.page.keyboard.press("ArrowDown")
         val_down = int(resizer.get_attribute("aria-valuenow"))
-        assert val_down < val_up
+        self.assertLess(val_down, val_up)
 
         # Home collapses
         self.page.keyboard.press("Home")
-        assert "collapsed" in drawer.get_attribute("class")
-        assert resizer.get_attribute("aria-valuenow") == "48"
+        self.assertIn("collapsed", drawer.get_attribute("class"))
+        self.assertEqual(resizer.get_attribute("aria-valuenow"), "48")
 
         # End expands to max
         self.page.keyboard.press("End")
-        assert "collapsed" not in drawer.get_attribute("class")
+        self.assertNotIn("collapsed", drawer.get_attribute("class"))
         val_max = int(resizer.get_attribute("aria-valuenow"))
-        assert val_max >= 400
+        self.assertGreaterEqual(val_max, 400)
 
     def test_collapsed_drawer_content_not_keyboard_focusable(self):
         """When collapsed, .drawer-content has display: none so interior controls cannot be focused."""
@@ -89,34 +103,31 @@ class TestBottomDrawerBehavior:
         content = self.page.locator("#drawerContent")
 
         toggle_btn.click()
-        assert not content.is_visible()
-        # Ensure display is none
+        self.assertFalse(content.is_visible())
         display_style = self.page.evaluate("getComputedStyle(document.getElementById('drawerContent')).display")
-        assert display_style == "none"
+        self.assertEqual(display_style, "none")
 
     def test_tablist_roving_arrow_key_focus(self):
         """ArrowLeft and ArrowRight roving focus with automatic tab activation."""
         self.page.locator("#tab-terminal").click()
-        assert self.page.evaluate("document.activeElement.id") == "tab-terminal"
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "tab-terminal")
 
         self.page.keyboard.press("ArrowRight")
-        assert self.page.evaluate("document.activeElement.id") == "tab-output"
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "tab-output")
 
         self.page.keyboard.press("ArrowRight")
-        assert self.page.evaluate("document.activeElement.id") == "tab-problems"
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "tab-problems")
 
         self.page.keyboard.press("ArrowRight")
-        assert self.page.evaluate("document.activeElement.id") == "tab-ports"
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "tab-ports")
 
         self.page.keyboard.press("ArrowLeft")
-        assert self.page.evaluate("document.activeElement.id") == "tab-problems"
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "tab-problems")
 
     def test_refresh_ports_preserves_focus(self):
         """Refreshing ports preserves focus on active elements inside the ports table."""
-        # Open ports tab
         self.page.locator("#tab-ports").click()
 
-        # Add a custom watched port
         self.page.evaluate("""
             window.DeskAIPorts.customPorts.push({
                 port: 8888,
@@ -133,11 +144,13 @@ class TestBottomDrawerBehavior:
             window.DeskAIPorts.render();
         """)
 
-        # Focus the copy button of port 8888
         copy_btn = self.page.locator('button[data-action="copy-port"][data-url="http://127.0.0.1:8888"]')
         copy_btn.focus()
-        assert self.page.evaluate("document.activeElement.getAttribute('data-action')") == "copy-port"
+        self.assertEqual(self.page.evaluate("document.activeElement.getAttribute('data-action')"), "copy-port")
 
-        # Trigger re-render / refresh
         self.page.evaluate("window.DeskAIPorts.render();")
-        assert self.page.evaluate("document.activeElement.getAttribute('data-action')") == "copy-port"
+        self.assertEqual(self.page.evaluate("document.activeElement.getAttribute('data-action')"), "copy-port")
+
+
+if __name__ == "__main__":
+    unittest.main()
