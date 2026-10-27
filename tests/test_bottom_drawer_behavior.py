@@ -240,6 +240,64 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertNotIn("is-copied", open_btn.get_attribute("class"))
         self.assertEqual(open_btn.text_content().strip(), "🌐 Open")
 
+    def test_action_buttons_trigger_zero_layout_shift(self):
+        """Action button feedback preserves exact column widths and positions (zero layout jitter)."""
+        self.page.set_viewport_size({"width": 1920, "height": 1080})
+        self.page.locator("#tab-ports").click()
+        self.page.evaluate("""
+            window.DeskAIPorts.stopPolling();
+            window.DeskAIPorts.showTransient = true;
+            window.DeskAIPorts.portsList = [
+                {
+                    port: 33901,
+                    host: '127.0.0.1',
+                    protocol: 'TCP',
+                    address: 'http://127.0.0.1:33901',
+                    process: 'antigravity',
+                    pid: 6582,
+                    origin: 'Local',
+                    status: 'Listening',
+                    openable: true
+                }
+            ];
+            window.DeskAIPorts._lastSignature = null;
+            window.DeskAIPorts.render();
+            window.pywebview = { api: { open_port: async () => true } };
+        """)
+
+        # Get initial bounding rects
+        measure_js = """() => {
+            const ths = Array.from(document.querySelectorAll('.ports-table th')).map(th => ({
+                text: th.textContent.trim(),
+                width: th.getBoundingClientRect().width,
+                left: th.getBoundingClientRect().left
+            }));
+            const copyBtn = document.querySelector('button[data-action="copy-port"]').getBoundingClientRect();
+            return { ths, copyBtn };
+        }"""
+
+        before = self.page.evaluate(measure_js)
+
+        # Trigger open action
+        self.page.locator('button[data-action="open-port"]').first.click()
+        self.page.wait_for_selector('button[data-action="open-port"].is-copied', timeout=2000)
+
+        during = self.page.evaluate(measure_js)
+
+        # Verify that all table headers and neighboring buttons maintained zero layout shift (diff < 0.05px)
+        for b, d in zip(before["ths"], during["ths"]):
+            self.assertAlmostEqual(b["width"], d["width"], delta=0.05, msg=f"Column width shifted for {b['text']}")
+            self.assertAlmostEqual(
+                b["left"], d["left"], delta=0.05, msg=f"Column left position shifted for {b['text']}"
+            )
+
+        self.assertAlmostEqual(
+            before["copyBtn"]["left"],
+            during["copyBtn"]["left"],
+            delta=0.05,
+            msg="Neighboring Copy button shifted position",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

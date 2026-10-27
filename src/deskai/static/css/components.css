@@ -551,7 +551,17 @@
   border-collapse: collapse;
   font-size: var(--text-xs);
   text-align: left;
+  table-layout: fixed;
 }
+
+.ports-table th:nth-child(1) { width: 90px; }
+.ports-table th:nth-child(2) { width: 80px; }
+.ports-table th:nth-child(3) { width: 220px; }
+.ports-table th:nth-child(4) { width: auto; }
+.ports-table th:nth-child(5) { width: 80px; }
+.ports-table th:nth-child(6) { width: 90px; }
+.ports-table th:nth-child(7) { width: 120px; }
+.ports-table th:nth-child(8) { width: 150px; }
 
 .ports-table th {
   padding: 6px var(--space-2);
@@ -591,6 +601,9 @@
   border-bottom: 1px solid var(--border-subtle);
   font-family: var(--font-mono);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ports-table tr:hover td {
@@ -671,7 +684,20 @@
   font-size: 10px;
   cursor: pointer;
   margin-right: 4px;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  width: 56px;
+  height: 22px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.port-action-btn[data-action="remove-port"] {
+  width: 22px;
+  padding: 2px 0;
 }
 
 .port-action-btn:hover:not(:disabled):not(.disabled):not(.is-copied) {

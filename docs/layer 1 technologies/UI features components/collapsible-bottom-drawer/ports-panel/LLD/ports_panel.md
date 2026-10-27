@@ -149,7 +149,7 @@ To eliminate distracting corner toast popups and provide immediate interaction f
 * `openPort(port, host, btnElement)` calls `NativeBridge.openPort` and on success triggers `setButtonSuccessState(btnElement, 300)`.
 * `copyPort(url, btnElement)` writes the target URL to clipboard via modern `navigator.clipboard.writeText` with a sandboxed `<textarea>` + `document.execCommand("copy")` fallback, and on success triggers `setButtonSuccessState(btnElement, 300)`.
 * On success, `setButtonSuccessState(btnElement, duration = 300)` transforms the clicked button into a sleek vector SVG checkmark (`<svg class="port-check-icon">`) with `var(--color-success)` borders and `var(--color-success-subtle)` background.
-* The button's rendered width is temporarily locked via `minWidth` to prevent table column layout shift (CLS).
+* Table columns employ deterministic `table-layout: fixed` with explicit widths and action buttons use fixed dimensions (`width: 56px; height: 22px; box-sizing: border-box`), ensuring mathematical zero layout shift (`diff = 0.00px`) during state transitions.
 * After a snappy 300ms (0.3s), the button smoothly reverts to its resting label (`🌐 Open` or `📋 Copy`) and original ARIA attributes.
 
 ---

@@ -382,12 +382,6 @@ export class PortsManager {
     btnElement._originalAriaLabel = prevAriaLabel;
     btnElement._originalTitle = prevTitle;
 
-    // Lock width to prevent layout shifting in table cell
-    const currentWidth = btnElement.offsetWidth;
-    if (currentWidth > 0) {
-      btnElement.style.minWidth = `${currentWidth}px`;
-    }
-
     // Safely clear content without innerHTML
     while (btnElement.firstChild) {
       btnElement.removeChild(btnElement.firstChild);
@@ -419,7 +413,6 @@ export class PortsManager {
 
     btnElement._feedbackTimeout = setTimeout(() => {
       btnElement.classList.remove("is-copied");
-      btnElement.style.minWidth = "";
       while (btnElement.firstChild) {
         btnElement.removeChild(btnElement.firstChild);
       }
