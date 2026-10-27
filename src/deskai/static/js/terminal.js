@@ -61,6 +61,25 @@ function announce(message) {
   }
 }
 
+function updateTabStatus(isRunning) {
+  const tab = document.getElementById("tab-terminal");
+  if (!tab) return;
+  tab.textContent = "";
+  const label = document.createElement("span");
+  label.textContent = "Terminal";
+  tab.appendChild(label);
+
+  if (isRunning) {
+    const space = document.createTextNode(" ");
+    const chip = document.createElement("span");
+    chip.className = "terminal-status-chip running";
+    chip.setAttribute("aria-label", "(running)");
+    chip.textContent = "●";
+    tab.appendChild(space);
+    tab.appendChild(chip);
+  }
+}
+
 /**
  * Batched, memory-capped, text-safe LogView for read-only channel outputs (#channelOutput).
  */
@@ -269,6 +288,7 @@ export class TerminalView {
 
       if (res && res.status === "ok" && res.session_id) {
         this.sessionId = res.session_id;
+        updateTabStatus(true);
         this.connectWebSocket(this.sessionId);
         announce("Terminal started");
       } else {
@@ -334,6 +354,7 @@ export class TerminalView {
   }
 
   handleProcessExit(code) {
+    updateTabStatus(false);
     if (!this.host) return;
     this.removeExitBanner();
 
@@ -414,6 +435,7 @@ export class TerminalView {
   }
 
   destroy() {
+    updateTabStatus(false);
     if (this.ws) {
       try {
         this.ws.close();

@@ -51,6 +51,25 @@ export function initGlobalEvents() {
         const canClose = await NativeBridge.windowControl("close_request");
         if (!canClose) {
           const confirmModal = document.getElementById("confirmModal");
+          const descEl = document.getElementById("confirmModalDesc");
+          const titleEl = document.getElementById("confirmModalTitle");
+          const hasRunningTerminal = !!(window.DeskAITerminal && window.DeskAITerminal.sessionId);
+          const isDirty = !!(window.store && window.store.state && window.store.state.dirtyTabs && window.store.state.dirtyTabs.size > 0);
+
+          if (descEl && titleEl) {
+            titleEl.textContent = "Confirm Exit";
+            if (isDirty && hasRunningTerminal) {
+              descEl.textContent =
+                "You have unsaved changes in your open editor tabs and an active terminal running. Are you sure you want to exit?";
+            } else if (hasRunningTerminal) {
+              descEl.textContent =
+                "You have an active terminal session running. Are you sure you want to terminate it and exit?";
+            } else {
+              descEl.textContent =
+                "You have unsaved changes in your open editor tabs. Are you sure you want to discard them and exit?";
+            }
+          }
+
           if (confirmModal && typeof confirmModal.showModal === "function") {
             confirmModal.showModal();
           } else {
@@ -72,6 +91,9 @@ export function initGlobalEvents() {
         const confirmModal = document.getElementById("confirmModal");
         if (confirmModal && confirmModal.close) {
           confirmModal.close();
+        }
+        if (window.DeskAITerminal) {
+          window.DeskAITerminal.destroy();
         }
         await NativeBridge.setDirtyStatus(false);
         await NativeBridge.windowControl("close");

@@ -397,6 +397,13 @@
   user-select: none;
 }
 
+.terminal-status-chip {
+  font-size: 8px;
+  vertical-align: middle;
+  color: var(--color-success);
+  margin-left: 2px;
+}
+
 .terminal-status-banner {
   padding: 4px var(--space-2);
   font-family: var(--font-mono);

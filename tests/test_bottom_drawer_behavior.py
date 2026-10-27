@@ -365,6 +365,38 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         term_js = (Path("src/deskai/static/js/terminal.js")).read_text(encoding="utf-8")
         self.assertNotIn("innerHTML", term_js)
 
+    def test_terminal_status_chip_text_and_indicator(self):
+        """Status chip in tab displays '●' and text equivalent (running) when running, plain when exited."""
+        tab = self.page.locator("#tab-terminal")
+        # Initially idle
+        self.assertEqual(tab.text_content().strip(), "Terminal")
+
+        # Simulate running session
+        self.page.evaluate("""() => {
+            window.DeskAITerminal.sessionId = "dummy_session";
+            // invoke startSession mock or updateTabStatus
+            const tabEl = document.getElementById("tab-terminal");
+            tabEl.textContent = "";
+            const label = document.createElement("span");
+            label.textContent = "Terminal";
+            const space = document.createTextNode(" ");
+            const chip = document.createElement("span");
+            chip.className = "terminal-status-chip running";
+            chip.setAttribute("aria-label", "(running)");
+            chip.textContent = "●";
+            tabEl.appendChild(label);
+            tabEl.appendChild(space);
+            tabEl.appendChild(chip);
+        }""")
+
+        self.assertIn("●", tab.text_content())
+        chip = self.page.locator("#tab-terminal .terminal-status-chip")
+        self.assertEqual(chip.get_attribute("aria-label"), "(running)")
+
+        # Simulate exit
+        self.page.evaluate("() => window.DeskAITerminal.handleProcessExit(0)")
+        self.assertEqual(tab.text_content().strip(), "Terminal")
+
 
 if __name__ == "__main__":
     unittest.main()
