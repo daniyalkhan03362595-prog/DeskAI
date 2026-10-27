@@ -215,7 +215,7 @@ if (resizerBottom && bottomDrawer) {
 /* src/deskai/static/css/layout.css */
 .resizer-row {
   width: 100%;
-  height: 4px;
+  height: 1px;
   background-color: var(--border-subtle);
   cursor: row-resize;
   position: relative;
@@ -225,11 +225,21 @@ if (resizerBottom && bottomDrawer) {
   flex-shrink: 0;
 }
 
+.resizer-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  bottom: -3px;
+  cursor: row-resize;
+  z-index: 1;
+}
+
 .resizer-row:hover,
 .resizer-row.resizing,
 .resizer-row.is-resizing {
   background-color: var(--color-primary);
-  box-shadow: 0 0 8px var(--color-primary);
 }
 ```
 

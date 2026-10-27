@@ -155,7 +155,7 @@ html, body {
 
 /* Split-Pane Resizer Handles */
 .resizer-col {
-  width: 4px;
+  width: 1px;
   height: 100%;
   background-color: var(--border-subtle);
   cursor: col-resize;
@@ -165,10 +165,21 @@ html, body {
   user-select: none;
 }
 
+.resizer-col::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
 .resizer-col:hover,
-.resizer-col.resizing {
+.resizer-col.resizing,
+.resizer-col.is-resizing {
   background-color: var(--color-primary);
-  box-shadow: 0 0 8px var(--color-primary);
 }
 
 /* Custom Minimalist WebKit Scrollbars */
