@@ -104,11 +104,32 @@ export function initGlobalEvents() {
         console.log("Refreshing workspace tree...");
         break;
 
-      case "toggle-drawer":
-        document.getElementById("bottomDrawer").classList.toggle("collapsed");
+      case "toggle-drawer": {
+        const drawer = document.getElementById("bottomDrawer");
+        if (drawer) {
+          const isCollapsed = drawer.classList.toggle("collapsed");
+          trigger.setAttribute("aria-expanded", String(!isCollapsed));
+          if (isCollapsed) {
+            if (window.DeskAIPorts) window.DeskAIPorts.stopPolling();
+          } else {
+            const activeTab = document.querySelector(".drawer-tab.active");
+            if (activeTab && activeTab.getAttribute("data-target") === "ports" && window.DeskAIPorts) {
+              window.DeskAIPorts.refresh();
+              window.DeskAIPorts.startPolling();
+            }
+          }
+        }
         break;
+      }
       case "drawer-tab": {
         const target = trigger.getAttribute("data-target");
+        const drawer = document.getElementById("bottomDrawer");
+        if (drawer && drawer.classList.contains("collapsed")) {
+          drawer.classList.remove("collapsed");
+          const toggleBtn = document.getElementById("drawerToggleBtn");
+          if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
+        }
+
         document.querySelectorAll(".drawer-tab").forEach(t => {
           t.classList.remove("active");
           t.setAttribute("aria-selected", "false");
@@ -128,24 +149,41 @@ export function initGlobalEvents() {
 
         if (target === "ports" && window.DeskAIPorts) {
           window.DeskAIPorts.refresh();
+          window.DeskAIPorts.startPolling();
+        } else if (window.DeskAIPorts) {
+          window.DeskAIPorts.stopPolling();
         }
         break;
       }
 
+      case "watch-port":
       case "add-port":
         if (window.DeskAIPorts) window.DeskAIPorts.promptAddPort();
         break;
+      case "cancel-watch-port": {
+        const modal = document.getElementById("watchPortModal");
+        if (modal && typeof modal.close === "function") modal.close();
+        break;
+      }
       case "refresh-ports":
         if (window.DeskAIPorts) window.DeskAIPorts.refresh();
         break;
       case "open-port":
-        if (window.DeskAIPorts) window.DeskAIPorts.openPort(trigger.getAttribute("data-url"));
+        if (window.DeskAIPorts) {
+          const port = trigger.getAttribute("data-port");
+          const host = trigger.getAttribute("data-host") || "127.0.0.1";
+          window.DeskAIPorts.openPort(port, host);
+        }
         break;
       case "copy-port":
         if (window.DeskAIPorts) window.DeskAIPorts.copyPort(trigger.getAttribute("data-url"));
         break;
       case "remove-port":
-        if (window.DeskAIPorts) window.DeskAIPorts.removePort(trigger.getAttribute("data-port"));
+        if (window.DeskAIPorts) {
+          const port = trigger.getAttribute("data-port");
+          const host = trigger.getAttribute("data-host") || "127.0.0.1";
+          window.DeskAIPorts.removePort(port, host);
+        }
         break;
 
       case "uec-approve":

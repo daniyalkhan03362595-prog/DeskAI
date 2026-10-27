@@ -129,26 +129,40 @@
                 <div class="ports-toolbar-left">
                   <span class="ports-title">Forwarded &amp; Local Ports</span>
                   <span class="ports-count" id="portsCountBadge">0 active</span>
+                  <div class="ports-filter-wrapper">
+                    <input type="text" id="portsFilterInput" class="ports-filter-input" placeholder="Filter ports, process, PID..." aria-label="Filter ports by port number, process name, or PID" />
+                  </div>
+                  <label class="ports-toggle-label">
+                    <input type="checkbox" id="portsTransientToggle" />
+                    <span>Show transient ports (32768+)</span>
+                  </label>
                 </div>
                 <div class="ports-toolbar-right">
-                  <button class="ports-btn" id="addPortBtn" data-action="add-port" title="Forward a Port">
-                    <span class="ports-btn-icon">+</span> Forward Port
+                  <button class="ports-btn" id="addPortBtn" data-action="add-port" data-action-alias="watch-port" title="Watch a Port" aria-label="Watch a Port">
+                    <span class="ports-btn-icon">+</span> Watch Port
                   </button>
                   <button class="ports-btn icon-only" id="refreshPortsBtn" data-action="refresh-ports" title="Refresh Ports" aria-label="Refresh Ports">
                     ↻
                   </button>
                 </div>
               </div>
+
+              <div id="portsWarningBanner" class="ports-warning-banner" hidden role="region" aria-label="Port Scanner Notice">
+                <span id="portsWarningMessage" class="ports-warning-text"></span>
+                <button type="button" id="portsWarningDismissBtn" class="ports-warning-dismiss" aria-label="Dismiss notice">✕</button>
+              </div>
+
               <div class="ports-table-container">
                 <table class="ports-table" id="portsTable">
                   <thead>
                     <tr>
-                      <th scope="col">Port</th>
-                      <th scope="col">Protocol</th>
-                      <th scope="col">Local Address</th>
-                      <th scope="col">Process / Service</th>
-                      <th scope="col">Origin</th>
-                      <th scope="col">Status</th>
+                      <th scope="col" data-sort="port" aria-sort="ascending" tabindex="0" role="columnheader">Port</th>
+                      <th scope="col" data-sort="protocol" aria-sort="none" tabindex="0" role="columnheader">Protocol</th>
+                      <th scope="col" data-sort="address" aria-sort="none" tabindex="0" role="columnheader">Local Address</th>
+                      <th scope="col" data-sort="process" aria-sort="none" tabindex="0" role="columnheader">Process / Service</th>
+                      <th scope="col" data-sort="pid" aria-sort="none" tabindex="0" role="columnheader">PID</th>
+                      <th scope="col" data-sort="origin" aria-sort="none" tabindex="0" role="columnheader">Origin</th>
+                      <th scope="col" data-sort="status" aria-sort="none" tabindex="0" role="columnheader">Status</th>
                       <th scope="col">Actions</th>
                     </tr>
                   </thead>
@@ -205,9 +219,32 @@
       </div>
     </dialog>
 
+    <dialog class="confirm-dialog modal-dialog" id="watchPortModal" aria-labelledby="watchPortTitle">
+      <form method="dialog" class="confirm-dialog-content" id="watchPortForm">
+        <h3 id="watchPortTitle" class="confirm-dialog-title">Watch Port</h3>
+        <p class="confirm-dialog-body">Specify a local port to monitor for active listeners.</p>
+        <div class="modal-form-group">
+          <label for="watchPortNumberInput" class="modal-label">Port Number (1 - 65535)</label>
+          <input type="text" id="watchPortNumberInput" class="modal-input" placeholder="e.g. 3000, 5173, 8080" required autocomplete="off" />
+          <span class="modal-input-error" id="watchPortError" aria-live="polite"></span>
+        </div>
+        <div class="modal-form-group">
+          <label for="watchPortHostSelect" class="modal-label">Host Address</label>
+          <select id="watchPortHostSelect" class="modal-input modal-select">
+            <option value="127.0.0.1" selected>127.0.0.1 (IPv4 Loopback)</option>
+            <option value="[::1]">[::1] (IPv6 Loopback)</option>
+          </select>
+        </div>
+        <div class="confirm-dialog-actions">
+          <button type="button" class="btn secondary-btn" id="watchPortCancelBtn" data-action="cancel-watch-port">Cancel</button>
+          <button type="submit" class="btn primary-btn" id="watchPortSubmitBtn" data-action="submit-watch-port">Watch Port</button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- 5. Accessible Announcements & Toast Rack -->
     <div id="screenReaderAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-    <div class="toast-rack" id="toastRack" aria-live="assertive" role="alert"></div>
+    <div class="toast-rack" id="toastRack" aria-live="polite"></div>
 
     <!-- 6. Reusable HTML5 Component Templates -->
     <div id="templateStore" hidden aria-hidden="true">

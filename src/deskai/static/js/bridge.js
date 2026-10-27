@@ -88,7 +88,42 @@ export const NativeBridge = {
     return { status: "error", message: "API unavailable", entries: [] };
   },
 
+  whenReady() {
+    if (window.pywebview && window.pywebview.api) {
+      return Promise.resolve();
+    }
+    return new Promise(resolve => {
+      let resolved = false;
+      const onReady = () => {
+        if (!resolved) {
+          resolved = true;
+          window.removeEventListener("pywebviewready", onReady);
+          resolve();
+        }
+      };
+      window.addEventListener("pywebviewready", onReady);
+      setTimeout(onReady, 800);
+    });
+  },
+
+  async openPort(port, host = "127.0.0.1") {
+    await this.whenReady();
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_port) {
+      return await window.pywebview.api.open_port(Number(port), host);
+    }
+    return false;
+  },
+
+  async probePort(port, host = "127.0.0.1") {
+    await this.whenReady();
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.probe_port) {
+      return await window.pywebview.api.probe_port(Number(port), host);
+    }
+    return false;
+  },
+
   async listPorts() {
+    await this.whenReady();
     if (window.pywebview && window.pywebview.api && window.pywebview.api.get_listening_ports) {
       return await window.pywebview.api.get_listening_ports();
     }
@@ -97,13 +132,17 @@ export const NativeBridge = {
     if (location.port) {
       fallbackPorts.push({
         port: parseInt(location.port, 10),
+        host: location.hostname || "127.0.0.1",
         protocol: location.protocol.replace(":", "").toUpperCase(),
         address: `${location.protocol}//${location.hostname}:${location.port}`,
         process: "DeskAI Supervisor",
+        pid: null,
         status: "Listening",
-        origin: "System"
+        origin: "System",
+        exposure: "loopback",
+        openable: false
       });
     }
-    return { status: "ok", ports: fallbackPorts };
+    return { status: "ok", ports: fallbackPorts, warnings: [] };
   }
 };
