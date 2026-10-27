@@ -445,10 +445,10 @@
   transition: border-color 0.15s ease;
 }
 
+.ports-filter-input:focus,
 .ports-filter-input:focus-visible {
   border-color: var(--color-primary);
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
+  outline: none;
 }
 
 .ports-toggle-label {
@@ -802,16 +802,25 @@
   border-radius: 4px;
   outline: none;
   font-family: var(--font-mono);
+  transition: border-color 0.15s ease;
 }
 
+.modal-input:focus,
 .modal-input:focus-visible {
   border-color: var(--color-primary);
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
+  outline: none;
 }
 
 .modal-select {
   font-family: var(--font-sans);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.modal-select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
 }
 
 .modal-input-error {
