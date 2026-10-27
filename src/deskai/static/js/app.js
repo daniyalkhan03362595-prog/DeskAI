@@ -8,6 +8,7 @@ import { initPorts } from "./ports.js";
 import { TerminalView, LogView } from "./terminal.js";
 import { NativeBridge } from "./bridge.js";
 import { WelcomeScreenController } from "./welcome.js";
+import { ExplorerManager } from "./explorer.js";
 
 // Global singletons instantiated and wired
 window.store = store;
@@ -18,6 +19,7 @@ window.EditorManager = new EditorManager();
 window.DeskAIPorts = initPorts();
 window.DeskAITerminal = new TerminalView();
 window.DeskAIWelcome = new WelcomeScreenController();
+window.ExplorerManager = new ExplorerManager();
 
 const channelOutputEl = document.getElementById("channelOutput");
 if (channelOutputEl) {

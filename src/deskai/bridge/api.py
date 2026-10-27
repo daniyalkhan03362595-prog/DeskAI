@@ -456,6 +456,20 @@ class DesktopBridgeAPI:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    def create_dir(self, target_path: str) -> dict:
+        """Safely creates a directory within workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin"}
+        if not self._is_safe_path(target_path):
+            return {"status": "error", "message": "Access denied: Path outside workspace"}
+
+        canonical = canonicalize_path(target_path)
+        try:
+            os.makedirs(canonical, exist_ok=True)
+            return {"status": "ok", "path": canonical}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     def list_dir(self, target_path: str | None = None) -> dict:
         """Lists directory entries safely inside workspace root."""
         if not self._is_origin_allowed():

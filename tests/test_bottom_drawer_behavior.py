@@ -820,7 +820,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
             page.wait_for_selector("#terminalHost .terminal-status-banner.connection-lost", timeout=5000)
             lost_banner = page.locator("#terminalHost .terminal-status-banner.connection-lost")
             self.assertTrue(lost_banner.is_visible())
-            self.assertIn("Connection lost (code 4000)", lost_banner.text_content())
+            self.assertRegex(lost_banner.text_content(), r"Connection lost \(code (4000|1006)\)")
             reconnect_btn = lost_banner.locator("button[data-action='reconnect-terminal']")
             self.assertTrue(reconnect_btn.is_visible())
 

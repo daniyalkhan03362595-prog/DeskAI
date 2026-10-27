@@ -43,12 +43,13 @@
       <!-- Left Column: File Explorer & Hardware Dock -->
       <aside class="sidebar-left" id="sidebarLeft" role="region" aria-label="Explorer & System Dock">
         <section class="explorer-container">
-          <div class="panel-header">
-            <span class="panel-title">EXPLORER</span>
-            <div class="panel-actions" role="toolbar" aria-label="Explorer Actions">
-              <button class="icon-btn" data-action="new-file" title="New File" aria-label="New File">📄+</button>
-              <button class="icon-btn" data-action="new-folder" title="New Folder" aria-label="New Folder">📁+</button>
-              <button class="icon-btn" data-action="refresh-tree" title="Refresh Tree" aria-label="Refresh Tree">🔄</button>
+          <div class="panel-header" id="explorerHeader">
+            <span class="panel-title" id="explorerPanelTitle">EXPLORER</span>
+            <div class="panel-actions" id="explorerToolbar" role="toolbar" aria-label="Explorer Actions" aria-controls="fileTreeViewport">
+              <button class="icon-btn" id="btnNewFile" data-action="new-file" title="New File" aria-label="New File" tabindex="0">📄+</button>
+              <button class="icon-btn" id="btnNewFolder" data-action="new-folder" title="New Folder" aria-label="New Folder" tabindex="-1">📁+</button>
+              <button class="icon-btn" id="btnRefreshTree" data-action="refresh-tree" title="Refresh Tree" aria-label="Refresh Tree" tabindex="-1">🔄</button>
+              <button class="icon-btn" id="btnCollapseAll" data-action="collapse-all-folders" title="Collapse Folders" aria-label="Collapse All Folders" tabindex="-1">⊟</button>
             </div>
           </div>
           <div class="tree-viewport" id="fileTreeViewport" role="tree" tabindex="0" aria-label="Project Files">

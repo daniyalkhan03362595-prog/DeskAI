@@ -162,18 +162,36 @@ export function initGlobalEvents() {
       }
 
       case "new-file": {
-        const fileName = prompt("Enter new file name:") || "untitled.txt";
-        if (fileName && window.EditorManager) {
-          window.EditorManager.createBuffer(fileName);
+        if (window.ExplorerManager && typeof window.ExplorerManager.promptNewFile === "function") {
+          await window.ExplorerManager.promptNewFile();
+        } else {
+          const fileName = prompt("Enter new file name:") || "untitled.txt";
+          if (fileName && window.EditorManager) {
+            window.EditorManager.createBuffer(fileName);
+          }
         }
         break;
       }
-      case "new-folder":
-        prompt("Enter folder name:");
+      case "new-folder": {
+        if (window.ExplorerManager && typeof window.ExplorerManager.promptNewFolder === "function") {
+          await window.ExplorerManager.promptNewFolder();
+        } else {
+          prompt("Enter folder name:");
+        }
         break;
-      case "refresh-tree":
-        console.log("Refreshing workspace tree...");
+      }
+      case "refresh-tree": {
+        if (window.ExplorerManager && typeof window.ExplorerManager.refresh === "function") {
+          await window.ExplorerManager.refresh();
+        }
         break;
+      }
+      case "collapse-all-folders": {
+        if (window.ExplorerManager && typeof window.ExplorerManager.collapseAll === "function") {
+          window.ExplorerManager.collapseAll();
+        }
+        break;
+      }
 
       case "kill-terminal":
         if (window.DeskAITerminal) {

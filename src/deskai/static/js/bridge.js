@@ -98,6 +98,13 @@ export const NativeBridge = {
     return { status: "error", message: "API unavailable" };
   },
 
+  async createDir(dirPath) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.create_dir) {
+      return await window.pywebview.api.create_dir(dirPath);
+    }
+    return { status: "error", message: "API unavailable" };
+  },
+
   async listDir(dirPath = null) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.list_dir) {
       return await window.pywebview.api.list_dir(dirPath);
