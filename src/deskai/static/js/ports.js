@@ -505,6 +505,17 @@ export class PortsManager {
 
     if (!tableBody) return;
 
+    let restoreFocus = null;
+    if (tableBody.contains(document.activeElement)) {
+      const activeEl = document.activeElement;
+      const action = activeEl.getAttribute("data-action");
+      const port = activeEl.getAttribute("data-port");
+      const host = activeEl.getAttribute("data-host");
+      if (action && port) {
+        restoreFocus = { action, port, host };
+      }
+    }
+
     while (tableBody.firstChild) {
       tableBody.removeChild(tableBody.firstChild);
     }
@@ -634,6 +645,12 @@ export class PortsManager {
       row.appendChild(tdActions);
 
       tableBody.appendChild(row);
+    }
+
+    if (restoreFocus) {
+      const selector = `button[data-action="${restoreFocus.action}"][data-port="${restoreFocus.port}"]`;
+      const btn = tableBody.querySelector(selector);
+      if (btn) btn.focus();
     }
   }
 }
