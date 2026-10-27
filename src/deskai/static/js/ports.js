@@ -322,14 +322,20 @@ export class PortsManager {
     }
   }
 
-  async copyPort(url) {
+  async copyPort(url, btnElement = null) {
     if (!url) return;
     let success = false;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(url);
         success = true;
-      } else {
+      }
+    } catch (err) {
+      // Modern Clipboard API restricted/denied; fall through to textarea execCommand fallback
+    }
+
+    if (!success) {
+      try {
         const ta = document.createElement("textarea");
         ta.value = url;
         ta.style.position = "fixed";
@@ -338,15 +344,82 @@ export class PortsManager {
         ta.select();
         success = document.execCommand("copy");
         document.body.removeChild(ta);
+      } catch (err) {
+        console.warn("[PortsManager] Clipboard copy fallback failed:", err);
       }
-    } catch (err) {
-      console.warn("[PortsManager] Clipboard copy failed:", err);
     }
     if (success) {
-      this.showToast(`Copied ${url}`, "success");
+      if (btnElement && btnElement instanceof HTMLElement) {
+        this.setButtonCopiedState(btnElement);
+      } else {
+        this.showToast(`Copied ${url}`, "success");
+      }
     } else {
-      this.showToast(`Failed to copy address`, "error");
+      this.showToast("Failed to copy address", "error");
     }
+  }
+
+  setButtonCopiedState(btnElement) {
+    if (!btnElement) return;
+
+    if (btnElement._copyTimeout) {
+      clearTimeout(btnElement._copyTimeout);
+    }
+
+    const prevContent = btnElement._originalContent || btnElement.textContent || "📋 Copy";
+    const prevAriaLabel = btnElement._originalAriaLabel || btnElement.getAttribute("aria-label") || "";
+    const prevTitle = btnElement._originalTitle || btnElement.title || "Copy Address to Clipboard";
+
+    btnElement._originalContent = prevContent;
+    btnElement._originalAriaLabel = prevAriaLabel;
+    btnElement._originalTitle = prevTitle;
+
+    // Lock width to prevent layout shifting in table cell
+    const currentWidth = btnElement.offsetWidth;
+    if (currentWidth > 0) {
+      btnElement.style.minWidth = `${currentWidth}px`;
+    }
+
+    // Safely clear content without innerHTML
+    while (btnElement.firstChild) {
+      btnElement.removeChild(btnElement.firstChild);
+    }
+
+    // Build crisp vector SVG checkmark (matches top-row style 2 in Image 3)
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2.2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    svg.classList.add("port-check-icon");
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M3.5 8.5L6.5 11.5L12.5 4.5");
+    svg.appendChild(path);
+
+    btnElement.appendChild(svg);
+    btnElement.classList.add("is-copied");
+    btnElement.title = "Copied to Clipboard";
+    btnElement.setAttribute("aria-label", "Copied to clipboard");
+
+    btnElement._copyTimeout = setTimeout(() => {
+      btnElement.classList.remove("is-copied");
+      btnElement.style.minWidth = "";
+      while (btnElement.firstChild) {
+        btnElement.removeChild(btnElement.firstChild);
+      }
+      btnElement.textContent = btnElement._originalContent;
+      btnElement.title = btnElement._originalTitle;
+      if (btnElement._originalAriaLabel) {
+        btnElement.setAttribute("aria-label", btnElement._originalAriaLabel);
+      }
+      btnElement._copyTimeout = null;
+    }, 1500);
   }
 
   async probeSinglePort(custom) {
@@ -617,6 +690,7 @@ export class PortsManager {
       copyBtn.className = "port-action-btn";
       copyBtn.setAttribute("data-action", "copy-port");
       copyBtn.setAttribute("data-url", item.address);
+      copyBtn.setAttribute("data-port", String(item.port));
       copyBtn.setAttribute("aria-label", `Copy address for port ${item.port}`);
       copyBtn.title = "Copy Address to Clipboard";
       copyBtn.textContent = "📋 Copy";

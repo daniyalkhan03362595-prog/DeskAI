@@ -30,12 +30,15 @@ class TestBottomDrawerBehavior(unittest.TestCase):
 
     def setUp(self):
         index_file = Path("src/deskai/static/index.html").resolve()
-        self.page = self.browser.new_page()
+        self.context = self.browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+        self.page = self.context.new_page()
         self.page.goto(f"file://{index_file}")
 
     def tearDown(self):
         if hasattr(self, "page"):
             self.page.close()
+        if hasattr(self, "context"):
+            self.context.close()
 
     def test_clicking_any_tab_expands_collapsed_drawer(self):
         """Clicking any drawer tab must expand a collapsed drawer."""
@@ -150,6 +153,52 @@ class TestBottomDrawerBehavior(unittest.TestCase):
 
         self.page.evaluate("window.DeskAIPorts.render();")
         self.assertEqual(self.page.evaluate("document.activeElement.getAttribute('data-action')"), "copy-port")
+
+    def test_copy_port_inline_checkmark_feedback(self):
+        """Clicking copy-port displays inline SVG checkmark and does not show corner toast."""
+        self.page.locator("#tab-ports").click()
+        self.page.evaluate("""
+            window.DeskAIPorts.stopPolling();
+            window.DeskAIPorts.customPorts.push({
+                port: 5555,
+                host: "127.0.0.1",
+                protocol: "TCP",
+                address: "http://127.0.0.1:5555",
+                process: "test_srv",
+                status: "Listening",
+                origin: "Watched",
+                isCustom: true,
+                exposure: "loopback",
+                openable: true
+            });
+            window.DeskAIPorts.render();
+        """)
+
+        copy_btn = self.page.locator('button[data-action="copy-port"][data-url="http://127.0.0.1:5555"]')
+        self.assertEqual(copy_btn.text_content().strip(), "📋 Copy")
+
+        # Click the copy button
+        copy_btn.click()
+
+        # Wait for async clipboard copy to complete and class to be applied
+        self.page.wait_for_selector('button[data-action="copy-port"].is-copied', timeout=2000)
+        self.assertIn("is-copied", copy_btn.get_attribute("class"))
+        has_svg = self.page.evaluate("""
+            () => {
+                const btn = document.querySelector('button[data-action="copy-port"][data-url="http://127.0.0.1:5555"]');
+                return !!btn && !!btn.querySelector('svg.port-check-icon');
+            }
+        """)
+        self.assertTrue(has_svg)
+
+        # Confirm NO toast was shown in toastRack
+        toast_count = self.page.locator("#toastRack .toast").count()
+        self.assertEqual(toast_count, 0)
+
+        # After timeout (1.5s), button should revert back
+        self.page.wait_for_timeout(1700)
+        self.assertNotIn("is-copied", copy_btn.get_attribute("class"))
+        self.assertEqual(copy_btn.text_content().strip(), "📋 Copy")
 
 
 if __name__ == "__main__":

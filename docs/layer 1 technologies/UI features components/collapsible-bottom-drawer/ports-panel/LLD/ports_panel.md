@@ -117,7 +117,8 @@ export class PortsManager {
   submitWatchPort();
   removePort(portNum, host = "127.0.0.1");
   async openPort(port, host = "127.0.0.1");
-  async copyPort(url);
+  async copyPort(url, btnElement = null);
+  setButtonCopiedState(btnElement);
   async probeSinglePort(custom);
   probeWatchedPorts();
   async refresh();

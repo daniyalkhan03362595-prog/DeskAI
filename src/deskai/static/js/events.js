@@ -176,7 +176,9 @@ export function initGlobalEvents() {
         }
         break;
       case "copy-port":
-        if (window.DeskAIPorts) window.DeskAIPorts.copyPort(trigger.getAttribute("data-url"));
+        if (window.DeskAIPorts) {
+          window.DeskAIPorts.copyPort(trigger.getAttribute("data-url"), trigger);
+        }
         break;
       case "remove-port":
         if (window.DeskAIPorts) {

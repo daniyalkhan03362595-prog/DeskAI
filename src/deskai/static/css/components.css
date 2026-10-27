@@ -674,10 +674,22 @@
   transition: all 0.15s ease;
 }
 
-.port-action-btn:hover:not(:disabled):not(.disabled) {
+.port-action-btn:hover:not(:disabled):not(.disabled):not(.is-copied) {
   background: var(--bg-active);
   color: var(--text-primary);
   border-color: var(--border-focus);
+}
+
+.port-action-btn.is-copied {
+  color: var(--color-success);
+  border-color: var(--color-success);
+  background: var(--color-success-subtle);
+  cursor: default;
+}
+
+.port-action-btn .port-check-icon {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .port-action-btn:disabled,
