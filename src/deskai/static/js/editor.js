@@ -4,6 +4,7 @@ import { NativeBridge } from "./bridge.js";
 export class EditorManager {
   constructor() {
     this.buffers = new Map();
+    this.pathToId = new Map();
     this.activeTabId = null;
     this.tabStrip = document.getElementById("editorTabStrip");
     this.welcomeScreen = document.getElementById("welcomeScreen");
@@ -60,6 +61,15 @@ export class EditorManager {
     }
   }
 
+  normalizePath(filePath) {
+    if (!filePath || typeof filePath !== "string") return null;
+    let normalized = filePath.replace(/\\/g, "/");
+    while (normalized.length > 1 && normalized.endsWith("/")) {
+      normalized = normalized.slice(0, -1);
+    }
+    return normalized;
+  }
+
   detectFileIcon(filename) {
     if (!filename) return "📄";
     const lower = filename.toLowerCase();
@@ -85,13 +95,22 @@ export class EditorManager {
   }
 
   createBuffer(name = "untitled.txt", content = "", path = null) {
+    const normalizedPath = this.normalizePath(path);
+    if (normalizedPath && this.pathToId.has(normalizedPath)) {
+      const existingId = this.pathToId.get(normalizedPath);
+      this.selectTab(existingId);
+      return existingId;
+    }
+
     const id = "tab-" + crypto.randomUUID().slice(0, 8);
     const buffer = {
       id,
       name,
-      path: path || null,
-      content,
+      path: normalizedPath,
+      content: String(content ?? ""),
       isDirty: false,
+      mtime: Date.now(),
+      language: this.detectLanguage(name),
       state: null,
       view: null,
       container: null
@@ -130,7 +149,7 @@ export class EditorManager {
       });
 
       buffer.state = EditorState.create({
-        doc: content,
+        doc: buffer.content,
         extensions
       });
 
@@ -153,25 +172,45 @@ export class EditorManager {
     }
 
     this.buffers.set(id, buffer);
-    if (store && store.state && store.state.editor) {
-      store.state.editor.openTabs = Array.from(this.buffers.values()).map(b => ({
-        id: b.id,
-        name: b.name,
-        path: b.path,
-        isDirty: b.isDirty
-      }));
+    if (normalizedPath) {
+      this.pathToId.set(normalizedPath, id);
     }
+
+    this.syncStore();
     this.renderTabs();
     this.selectTab(id);
     return id;
   }
 
+  async openFile(filePath) {
+    if (!filePath) return null;
+    const normalizedPath = this.normalizePath(filePath);
+
+    if (this.pathToId.has(normalizedPath)) {
+      const existingId = this.pathToId.get(normalizedPath);
+      this.selectTab(existingId);
+      return existingId;
+    }
+
+    try {
+      const res = await NativeBridge.readFile(filePath);
+      if (!res || res.status !== "ok") {
+        console.error(`Failed to read file: ${filePath}`, res ? res.error : "Unknown error");
+        return null;
+      }
+
+      const filename = filePath.split("/").pop().split("\\").pop();
+      return this.createBuffer(filename, res.content, filePath);
+    } catch (err) {
+      console.error(`Exception opening file: ${filePath}`, err);
+      return null;
+    }
+  }
+
   selectTab(id) {
     if (!this.buffers.has(id)) return;
     this.activeTabId = id;
-    if (store && store.state && store.state.editor) {
-      store.state.editor.activeTabId = id;
-    }
+    this.syncStore();
 
     if (window.DeskAIWelcome) {
       window.DeskAIWelcome.sync();
@@ -209,16 +248,16 @@ export class EditorManager {
   }
 
   async closeTab(id, force = false) {
-    if (!this.buffers.has(id)) return;
+    if (!this.buffers.has(id)) return false;
     const buffer = this.buffers.get(id);
 
     if (!force && buffer.isDirty) {
       const confirmed = confirm(`Save changes to ${buffer.name} before closing?`);
       if (!confirmed) {
-        return;
+        return false;
       }
       const saved = await this.saveBuffer(id);
-      if (!saved) return;
+      if (!saved) return false;
     }
 
     if (buffer.view) {
@@ -228,21 +267,16 @@ export class EditorManager {
       buffer.container.parentElement.removeChild(buffer.container);
     }
 
-    this.buffers.delete(id);
-
-    if (store && store.state && store.state.editor) {
-      store.state.editor.openTabs = Array.from(this.buffers.values()).map((b) => ({
-        id: b.id,
-        name: b.name,
-        path: b.path,
-        isDirty: b.isDirty,
-      }));
+    if (buffer.path) {
+      this.pathToId.delete(buffer.path);
     }
+    this.buffers.delete(id);
+    this.syncStore();
 
     if (this.activeTabId === id) {
-      const nextTab = this.buffers.keys().next().value;
-      if (nextTab) {
-        this.selectTab(nextTab);
+      const remainingIds = Array.from(this.buffers.keys());
+      if (remainingIds.length > 0) {
+        this.selectTab(remainingIds[remainingIds.length - 1]);
       } else {
         this.activeTabId = null;
         if (window.DeskAIWelcome) {
@@ -254,37 +288,108 @@ export class EditorManager {
       }
     }
 
-    // Recompute dirty status across remaining tabs
-    const hasAnyDirty = Array.from(this.buffers.values()).some((b) => b.isDirty);
-    NativeBridge.setDirtyStatus(hasAnyDirty);
-
+    this.notifyNativeDirty();
     this.renderTabs();
+    return true;
+  }
+
+  async closeAllTabs(force = false) {
+    const ids = Array.from(this.buffers.keys());
+    for (const id of ids) {
+      const closed = await this.closeTab(id, force);
+      if (!closed && !force) {
+        return false;
+      }
+    }
+    return true;
   }
 
   async saveBuffer(id) {
     if (!id || !this.buffers.has(id)) return false;
     const buffer = this.buffers.get(id);
-    let filePath = buffer.path;
-    if (!filePath) {
+
+    if (!buffer.path) {
+      return await this.saveBufferAs(id);
+    }
+
+    try {
+      const writeRes = await NativeBridge.writeFile(buffer.path, buffer.content);
+      if (writeRes && writeRes.status === "ok") {
+        buffer.mtime = Date.now();
+        this.markDirty(id, false);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(`Exception saving buffer ${id}:`, err);
+      return false;
+    }
+  }
+
+  async saveBufferAs(id) {
+    if (!id || !this.buffers.has(id)) return false;
+    const buffer = this.buffers.get(id);
+
+    try {
       const res = await NativeBridge.saveFileDialog(buffer.name);
       if (res && res.status === "ok" && res.path) {
-        filePath = res.path;
-        buffer.path = filePath;
-        buffer.name = filePath.split("/").pop().split("\\").pop();
-      } else {
-        return false;
+        const oldNormalizedPath = buffer.path;
+        const newNormalizedPath = this.normalizePath(res.path);
+
+        if (oldNormalizedPath) {
+          this.pathToId.delete(oldNormalizedPath);
+        }
+        this.pathToId.set(newNormalizedPath, id);
+
+        buffer.path = newNormalizedPath;
+        buffer.name = res.path.split("/").pop().split("\\").pop();
+        buffer.language = this.detectLanguage(buffer.name);
+
+        const writeRes = await NativeBridge.writeFile(newNormalizedPath, buffer.content);
+        if (writeRes && writeRes.status === "ok") {
+          buffer.mtime = Date.now();
+          this.markDirty(id, false);
+          this.renderTabs();
+          this.syncStore();
+          return true;
+        }
       }
+      return false;
+    } catch (err) {
+      console.error(`Exception during saveBufferAs for ${id}:`, err);
+      return false;
     }
-    const writeRes = await NativeBridge.writeFile(filePath, buffer.content);
-    if (writeRes && writeRes.status === "ok") {
-      this.markDirty(id, false);
-      return true;
-    }
-    return false;
   }
 
   async saveActiveBuffer() {
     return await this.saveBuffer(this.activeTabId);
+  }
+
+  async revertBuffer(id) {
+    if (!id || !this.buffers.has(id)) return false;
+    const buffer = this.buffers.get(id);
+    if (!buffer.path) return false;
+
+    try {
+      const res = await NativeBridge.readFile(buffer.path);
+      if (res && res.status === "ok") {
+        buffer.content = res.content;
+        buffer.mtime = Date.now();
+
+        if (buffer.view && buffer.view.state) {
+          buffer.view.dispatch({
+            changes: { from: 0, to: buffer.view.state.doc.length, insert: buffer.content }
+          });
+        }
+
+        this.markDirty(id, false);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(`Exception reverting buffer ${id}:`, err);
+      return false;
+    }
   }
 
   markDirty(id, isDirty) {
@@ -292,9 +397,25 @@ export class EditorManager {
     if (buffer) {
       buffer.isDirty = Boolean(isDirty);
       this.renderTabs();
+      this.syncStore();
+      this.notifyNativeDirty();
+    }
+  }
 
-      const hasAnyDirty = Array.from(this.buffers.values()).some((b) => b.isDirty);
-      NativeBridge.setDirtyStatus(hasAnyDirty);
+  notifyNativeDirty() {
+    const hasAnyDirty = Array.from(this.buffers.values()).some((b) => b.isDirty);
+    NativeBridge.setDirtyStatus(hasAnyDirty);
+  }
+
+  syncStore() {
+    if (store && store.state && store.state.editor) {
+      store.state.editor.activeTabId = this.activeTabId;
+      store.state.editor.openTabs = Array.from(this.buffers.values()).map((b) => ({
+        id: b.id,
+        name: b.name,
+        path: b.path,
+        isDirty: b.isDirty
+      }));
     }
   }
 

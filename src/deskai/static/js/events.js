@@ -126,8 +126,6 @@ export function initGlobalEvents() {
       case "open-file-dialog": {
         const fileRes = await NativeBridge.selectFile();
         if (fileRes && fileRes.path) {
-          const contentRes = await NativeBridge.readFile(fileRes.path);
-          const content = contentRes && contentRes.status === "ok" ? contentRes.content : "";
           if (fileRes.workspace_root) {
             store.state.workspace.rootPath = fileRes.workspace_root;
             const dirName = fileRes.workspace_root.split("/").pop().split("\\").pop();
@@ -135,7 +133,7 @@ export function initGlobalEvents() {
             if (pill) pill.textContent = `DeskAI / ${dirName}`;
           }
           if (window.EditorManager) {
-            window.EditorManager.createBuffer(fileRes.name, content, fileRes.path);
+            await window.EditorManager.openFile(fileRes.path);
           }
         }
         break;
