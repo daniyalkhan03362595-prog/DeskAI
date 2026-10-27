@@ -107,6 +107,10 @@
   --terminal-cursor: #d99b26;         /* Brand Amber */
   --terminal-selection: rgba(217, 155, 38, 0.25);
 
+  /* CodeMirror 6 Surface Tokens */
+  --cm-active-line: rgba(255, 255, 255, 0.03);
+  --cm-selection: rgba(217, 155, 38, 0.25);
+
   /* ANSI Standard 16-Color Palette Ratios against --terminal-bg (#141518):
      black: 4.62:1, red: 6.58:1, green: 10.48:1, yellow: 10.94:1, blue: 7.18:1,
      magenta: 6.89:1, cyan: 8.52:1, white: 14.81:1, bright-black: 7.12:1,

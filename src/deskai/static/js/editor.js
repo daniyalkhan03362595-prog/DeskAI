@@ -46,6 +46,18 @@ export class EditorManager {
         }
       });
     }
+
+    if (this.editorHost && typeof ResizeObserver !== "undefined") {
+      this.resizeObserver = new ResizeObserver(() => {
+        if (this.activeTabId && this.buffers.has(this.activeTabId)) {
+          const activeBuf = this.buffers.get(this.activeTabId);
+          if (activeBuf.view && typeof activeBuf.view.requestMeasure === "function") {
+            requestAnimationFrame(() => activeBuf.view.requestMeasure());
+          }
+        }
+      });
+      this.resizeObserver.observe(this.editorHost);
+    }
   }
 
   detectFileIcon(filename) {
@@ -87,6 +99,21 @@ export class EditorManager {
 
     if (typeof window !== "undefined" && window.CodeMirror && window.CodeMirror.EditorState) {
       const { EditorState, EditorView, createBasicExtensions } = window.CodeMirror;
+
+      const keyboardTrapHandler = EditorView.domEventHandlers({
+        keydown: (e, view) => {
+          if (e.key === "Escape") {
+            view.contentDOM.blur();
+            if (this.tabStrip) {
+              const activeTab = this.tabStrip.querySelector(`[data-tab-id="${id}"]`);
+              if (activeTab) activeTab.focus();
+            }
+            return true;
+          }
+          return false;
+        }
+      });
+
       const extensions = createBasicExtensions({
         language: this.detectLanguage(name),
         extensions: [
@@ -97,7 +124,8 @@ export class EditorManager {
                 this.markDirty(id, true);
               }
             }
-          })
+          }),
+          keyboardTrapHandler
         ]
       });
 
@@ -108,6 +136,8 @@ export class EditorManager {
 
       buffer.container = document.createElement("div");
       buffer.container.className = "editor-view-container";
+      buffer.container.id = `editor-container-${id}`;
+      buffer.container.setAttribute("data-buffer-id", id);
       buffer.container.style.width = "100%";
       buffer.container.style.height = "100%";
       buffer.container.style.display = "none";
@@ -158,6 +188,9 @@ export class EditorManager {
           }
           if (buffer.view) {
             buffer.view.focus();
+            if (typeof buffer.view.requestMeasure === "function") {
+              buffer.view.requestMeasure();
+            }
           }
         } else {
           buffer.container.style.display = "none";
