@@ -142,6 +142,14 @@ export class PortsManager {
 | `this._again` | `boolean` | Coalescing flag indicating a queued refresh should execute once inflight finishes. |
 | `this._lastSignature` | `string` | Serialized signature used to skip redundant DOM re-renders. |
 
+### 3.2 Clipboard Copy & Inline Feedback (`copyPort`, `setButtonCopiedState`)
+
+To eliminate distracting corner toast popups during routine copy operations:
+* `copyPort(url, btnElement)` writes the target URL to clipboard via modern `navigator.clipboard.writeText` with a sandboxed `<textarea>` + `document.execCommand("copy")` fallback.
+* On success, `setButtonCopiedState(btnElement)` transforms the clicked button into a sleek vector SVG checkmark (`<svg class="port-check-icon">`) with `var(--color-success)` borders and `var(--color-success-subtle)` background.
+* The button's rendered width is temporarily locked via `minWidth` to prevent table column layout shift (CLS).
+* After 1500ms, the button smoothly reverts to resting `📋 Copy` content and original ARIA attributes.
+
 ---
 
 ## 4. NativeBridge Integration (`src/deskai/static/js/bridge.js`)

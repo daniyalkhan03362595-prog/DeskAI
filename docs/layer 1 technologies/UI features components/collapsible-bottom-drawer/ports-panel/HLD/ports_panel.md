@@ -25,7 +25,7 @@ Modern local software development and agentic coding workflows frequently spawn 
   3. **Watched Port Tracking:** Ability to manually watch specific ports (`+ Watch Port`) with accessible `<dialog id="watchPortModal">` dialog, regex validation (`/^\d{1,5}$/`), range check (`1-65535`), and persistence in `localStorage`.
   4. **Active Reachability Probing:** Watched ports are asynchronously checked via `probe_port(port, host)` with 150ms socket connect probing, displaying `"Listening"` when reachable and `"Not responding"` when inactive.
   5. **Network Exposure & Noise Filtering:** System scans apply a port $\ge 1024$ noise reduction filter (omitting OS-reserved ports) and badge all-interface listeners (`0.0.0.0` or `::`) with a `"Network-exposed"` indicator.
-  6. **Hardened One-Click Native Interaction:** Actions to launch validated local endpoints via `open_port(port, host)` (or hardened `open_external_url`), and copy addresses to clipboard with polite `#toastRack` feedback.
+  6. **Hardened One-Click Native Interaction:** Actions to launch validated local endpoints via `open_port(port, host)` (or hardened `open_external_url`), and copy addresses to clipboard with instantaneous inline vector checkmark (`✓`) feedback (auto-reverting after 1.5s, eliminating distracting corner toasts).
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
