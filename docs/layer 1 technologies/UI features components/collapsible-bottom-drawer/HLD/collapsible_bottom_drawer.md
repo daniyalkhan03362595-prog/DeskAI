@@ -1,12 +1,12 @@
 # High-Level Design (HLD): Collapsible Bottom Drawer
 
 **Document ID:** `ORX-HLD-COLLAPSIBLE-BOTTOM-DRAWER-V1`  
-**Version:** `1.0` (Synchronized with Implemented Vanilla JS & PyWebView Architecture)  
+**Version:** `1.1` (Synchronized with Implemented Vanilla JS & PyWebView Architecture)  
 **Target Codebase:** `DeskAI`  
 **Target Files:**
-* `src/deskai/static/index.html` (Lines 95-163)
-* `src/deskai/static/css/components.css` (Lines 316-360)
-* `src/deskai/static/css/layout.css` (Resizer row & split pane layout)
+* `src/deskai/static/index.html`
+* `src/deskai/static/css/components.css`
+* `src/deskai/static/css/layout.css`
 * `src/deskai/static/js/events.js` (`initResizers` & centralized delegation)
 **Status:** Approved  
 **Date:** October 27, 2026  
@@ -20,13 +20,14 @@ The **Collapsible Bottom Drawer** (`#bottomDrawer`) is the central lower viewpor
 * **Current State:** Developers and autonomous coding agents require continuous access to command execution, build output, linting diagnostics, and active socket monitoring without sacrificing valuable vertical code editing real estate.
 * **Target State (Implemented):** A unified, robust parent container that:
   1. **Hosts Core IDE Subsystems:** Encapsulates 5 dedicated sub-components:
-     * `drawer-header-controls`: 32px fixed header with tablist and minimize toggle.
+     * `drawer-header-controls`: 32px fixed header with tablist and minimize toggle (`#drawerToggleBtn`).
      * `terminal-panel`: Interactive host shell and process console.
      * `output-panel`: Monospace read-only supervisor telemetry and task channel logs.
      * `problems-panel`: Workspace diagnostics, linting errors, and language server warnings.
-     * `ports-panel`: Real-time loopback TCP socket monitor and port forwarder.
-  2. **Horizontal Draggable Resizer (`#resizerBottom`):** A bidirectional 4px split handle enabling smooth mouse dragging, keyboard step resizing (`ArrowUp`/`ArrowDown`), and double-click collapse/expand toggling.
-  3. **Dual Viewport States:** Instant toggling between **Expanded Mode** (default 240px or user-dragged height) and **Collapsed Mode** (32px header-only docked strip).
+     * `ports-panel`: On-demand & visible-only polling TCP socket monitor and port watcher.
+  2. **Horizontal Pointer-Captured Resizer (`#resizerBottom`):** A bidirectional 4px split handle using HTML5 Pointer Events (`setPointerCapture`) enabling smooth pointer dragging, keyboard step resizing (`ArrowUp`/`ArrowDown`/`Home`/`End`), and double-click collapse/expand toggling.
+  3. **Dual Viewport States:** Instant toggling between **Expanded Mode** (default 220px or user-dragged height) and **Collapsed Mode** (32px header-only docked strip with `.drawer-content { display: none; }`).
+  4. **Automatic Expansion on Tab Selection:** Clicking any tab ([Terminal], [Output], [Problems], [Ports]) immediately expands a collapsed drawer.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -37,7 +38,7 @@ The **Collapsible Bottom Drawer** (`#bottomDrawer`) is the central lower viewpor
 │ <section class="bottom-drawer" id="bottomDrawer">                           │
 │   ├── .drawer-header (32px fixed height)                                    │
 │   │     [Terminal] [Output] [Problems] [Ports]          [─] (toggle-drawer) │
-│   └── .drawer-content (Scrollable panel viewport)                           │
+│   └── .drawer-content (Scrollable panel viewport, hidden when collapsed)    │
 │         ├── #terminalPanel  (Default active)                                │
 │         ├── #outputPanel    (Hidden by default)                             │
 │         ├── #problemsPanel  (Hidden by default)                             │
@@ -53,12 +54,12 @@ The drawer container transitions across three primary operational states:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Expanded: App Initialization (Height: 240px)
-    Expanded --> Resizing: MouseDown on #resizerBottom
-    Resizing --> Expanded: MouseUp (Height >= 60px)
-    Resizing --> Collapsed: MouseUp (Dragged height < 50px threshold)
-    Expanded --> Collapsed: Click '─' Toggle Button OR Double-Click #resizerBottom
-    Collapsed --> Expanded: Click '─' Toggle Button OR Double-Click #resizerBottom
+    [*] --> Expanded: App Initialization (Height: 220px from tokens.css)
+    Expanded --> Resizing: PointerDown on #resizerBottom
+    Resizing --> Expanded: PointerUp (Height >= 50px)
+    Resizing --> Collapsed: PointerUp (Dragged height < 50px threshold -> snap to 48px)
+    Expanded --> Collapsed: Click '─' Toggle Button OR Double-Click #resizerBottom OR Home Key
+    Collapsed --> Expanded: Click '─' Toggle Button OR Double-Click #resizerBottom OR End Key
     Collapsed --> Expanded: Click any Tab ([Terminal], [Ports], etc.)
     Collapsed --> Resizing: Drag resizer upward
 ```
@@ -67,9 +68,9 @@ stateDiagram-v2
 
 | State | CSS Modifier | Container Height | Visual Layout | User Capabilities |
 | :--- | :--- | :--- | :--- | :--- |
-| **Expanded (Default)** | `.bottom-drawer` | `240px` (or custom px) | Full 32px header + scrollable `.drawer-content` | Full panel interaction, terminal typing, port forwarding, height resizing |
-| **Resizing (Active)** | `.bottom-drawer` + `body.resizing-row` | Dynamic ($60\text{px} \le h \le \text{viewport}-150\text{px}$) | Blue accent glow on `#resizerBottom`, cursor locked to `row-resize` | Real-time viewport calculation with user-select disabled |
-| **Collapsed** | `.bottom-drawer.collapsed` | `32px` | Content hidden; 32px header docked at bottom | Click tab to restore, click `─` to restore, double-click resizer to restore |
+| **Expanded (Default)** | `.bottom-drawer` | `220px` (or persisted custom px) | Full 32px header + scrollable `.drawer-content` | Full panel interaction, terminal typing, port monitoring, height resizing |
+| **Resizing (Active)** | `.bottom-drawer` + `#resizerBottom.is-resizing` | Dynamic ($48\text{px} \le h \le 0.8 \times \text{viewport}$) | Warm amber accent glow (`var(--color-primary)`), cursor locked to `row-resize` | High-frequency `requestAnimationFrame` calculation with pointer capture |
+| **Collapsed** | `.bottom-drawer.collapsed` | `32px` | Content hidden (`display: none`); 32px header docked at bottom | Click tab to restore, click `─` to restore, double-click resizer to restore |
 
 ---
 
@@ -80,64 +81,39 @@ stateDiagram-v2
                                         │
            ┌────────────────────────────┼────────────────────────────┐
            ▼                            ▼                            ▼
-[Mouse Drag on Resizer]      [Double-Click Resizer]        [Click Toggle Button (─)]
+[Pointer Drag on Resizer]    [Double-Click Resizer]        [Click Tab or Toggle (─)]
            │                            │                            │
            ▼                            ▼                            ▼
 [Calculate Delta Y]            [Check isCollapsed]           [classList.toggle('collapsed')]
-  - Clamp 60px to max H         - If true: restore last H    - Height clamped to 32px
-  - Auto-collapse if < 50px     - If false: add .collapsed
+  - Clamp 48px to 80% vh        - If true: restore last H    - Expand on tab click
+  - Auto-collapse if < 50px     - If false: add .collapsed   - Height clamped to 32px
            │                            │
            └────────────────────────────┴────────────────────────────┐
                                                                      ▼
                                                       [Update Layout & CSS Styles]
-                                                      - bottomDrawer.style.height
-                                                      - ARIA attribute updates
+                                                      - --bottom-drawer-h property
+                                                      - aria-valuenow & aria-expanded
+                                                      - localStorage persistence
 ```
 
 ### 3.1 Step-by-Step Execution
-1. **Interactive Resizing:**
-   * User presses mouse down on `#resizerBottom`.
-   * `mousemove` event listeners compute `window.innerHeight - e.clientY`, clamping between minimum 60px and maximum `window.innerHeight - 150px`.
-   * If dragged below 50px, the drawer automatically snaps to `.collapsed` (32px).
-2. **Keyboard Step Resizing:**
-   * Focusing `#resizerBottom` via `Tab` allows pressing `ArrowUp` to expand height by $+20\text{px}$ and `ArrowDown` to shrink height by $-20\text{px}$.
-3. **Double-Click Toggle:**
-   * Double-clicking `#resizerBottom` toggles `.collapsed`. If collapsed, it restores the previous height (`lastDrawerHeight || 240px`).
-4. **Header Toggle Action:**
-   * Clicking `<button class="close-drawer-btn" data-action="toggle-drawer">` toggles `.collapsed` directly.
+1. **Pointer Event Resizing:**
+   * User presses primary button on `#resizerBottom`.
+   * `setPointerCapture` binds all pointer movements directly to the element.
+   * `pointermove` calculates `startHeight + (startY - e.clientY)` clamped between floor 48px and `window.innerHeight * 0.8`, throttled via `requestAnimationFrame`.
+   * If dragged below 50px, snaps to collapsed (`48px`).
+   * On `pointerup` / `pointercancel`, releases capture and stores `lastExpandedHeight` in `localStorage`.
+2. **Keyboard Roving & Navigation:**
+   * `#resizerBottom`: `ArrowUp` (+16px), `ArrowDown` (-16px, collapses if < 50px), `Home` (collapses to 48px), `End` (expands to 80% viewport height), `Enter`/`Space` (toggles collapse).
+   * `.drawer-tabs`: `ArrowLeft` / `ArrowRight` roving focus with automatic tab activation.
+3. **Double-Click Height Restoration:**
+   * Double clicking `#resizerBottom` toggles between collapsed and `lastExpandedHeight`.
 
 ---
 
-## 4. Layout Constraints & Design Contracts
+## 4. Security & Performance Guarantees
 
-* **Parent Element:** Resides inside `<section class="center-workspace">` beneath `#editorStage`.
-* **CSS Flex Behavior:** The center workspace operates as a flex column; shrinking the drawer automatically expands `#editorStage` without horizontal layout shift.
-* **Minimum Operational Height:** `60px` (guarantees header plus at least one line of terminal or port content).
-* **Maximum Operational Height:** `window.innerHeight - 150px` (preserves visible editor tab bar and breadcrumbs).
-* **Collapsed Height:** Exactly `32px` (`.bottom-drawer.collapsed { height: 32px; }`).
-
----
-
-## 5. Accessibility (WCAG 2.1 AA) Compliance
-
-1. **Semantic Landmark Roles:**
-   * Drawer container uses `<section class="bottom-drawer" role="region" aria-label="Output Drawer">`.
-   * Resizer handle uses `<div id="resizerBottom" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize Bottom Drawer">`.
-2. **Keyboard Navigation:**
-   * Fully accessible via `Tab` sequence.
-   * `ArrowUp` and `ArrowDown` keys adjust drawer height predictably.
-3. **High Contrast Focus & Hover Rings:**
-   * `:focus-visible` on `#resizerBottom` provides a 2px outline in `var(--accent-primary)`.
-   * Hover state renders a 4px glow indicator using `var(--accent-primary)` with zero layout jump.
-
----
-
-## 6. Verification & Test Strategy
-
-| Test Area | Verification Target | Test Method |
-| :--- | :--- | :--- |
-| **DOM Semantics** | `#bottomDrawer` and `#resizerBottom` declared with ARIA roles | Static DOM Contract Test |
-| **Height Clamping** | Height remains clamped within $[60\text{px}, \text{maxH}]$ | Playwright E2E Test |
-| **Collapse Action** | `.collapsed` clamps computed height to `32px` | Playwright Style Test |
-| **Double-Click Toggle** | Double-clicking `#resizerBottom` alternates collapsed/expanded | Playwright Mouse Event Test |
-| **Keyboard Step** | `ArrowUp`/`ArrowDown` on focused resizer updates style height | Playwright Keyboard Test |
+1. **Focus Trapping Elimination:** When collapsed, `.bottom-drawer.collapsed .drawer-content { display: none; }` ensures interior buttons cannot receive keyboard focus while visually hidden.
+2. **Design Token Integrity:** Resizer glow uses `--color-primary` (`#d99b26`), with `--border-subtle` dividers. Zero hardcoded colors.
+3. **Overflow Protection:** `.bottom-drawer { overflow: hidden; }` prevents terminal or port table spillover.
+4. **Lifecycle Resource Conservation:** Collapsing the drawer or switching away from the Ports tab automatically halts socket polling timers.
