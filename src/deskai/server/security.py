@@ -23,6 +23,7 @@ class SessionSecurityManager:
     def __init__(self, port: int):
         self.port = port
         self.launch_token: str | None = secrets.token_urlsafe(32)
+        self.style_nonce = "deskai-term-style"
         # Tracks active sessions with creation timestamp: session_id -> created_at
         self.active_sessions: SessionStore = SessionStore()
         # Tracks open websockets per session: session_id -> set of active ws objects
@@ -96,7 +97,8 @@ class SessionSecurityManager:
         Dropping 'unsafe-eval' should be evaluated and tested per platform backend in future work.
         Strictly drops 'unsafe-inline'.
         """
-        style_rule = f"'self' 'nonce-{style_nonce}'" if style_nonce else "'self'"
+        nonce = style_nonce or getattr(self, "style_nonce", None)
+        style_rule = f"'self' 'nonce-{nonce}'" if nonce else "'self'"
         return (
             f"default-src 'self'; "
             f"connect-src 'self' ws://127.0.0.1:{self.port} http://127.0.0.1:{self.port}; "

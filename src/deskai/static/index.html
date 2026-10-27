@@ -11,11 +11,14 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/diff.css">
   <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="vendor/xterm.css">
 
   <!-- 1. Vendor Singletons (Synchronous Loading Before Modules) -->
   <script src="vendor/purify.min.js"></script>
   <script src="vendor/marked.min.js"></script>
   <script src="vendor/codemirror.bundle.js"></script>
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/xterm-addon-fit.js"></script>
 </head>
 <body>
   <div class="app-root" id="appRoot">
@@ -108,7 +111,8 @@
           <div class="drawer-content" id="drawerContent">
             <!-- Terminal Panel -->
             <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="0">
-              <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
+              <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
+              <div class="terminal-footer-hint" aria-hidden="true">Ctrl+Shift+M: Move focus out</div>
             </div>
 
             <!-- Output Channel Panel -->

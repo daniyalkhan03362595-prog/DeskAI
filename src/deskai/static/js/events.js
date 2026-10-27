@@ -147,7 +147,9 @@ export function initGlobalEvents() {
           }
         });
 
-        if (target === "ports" && window.DeskAIPorts) {
+        if (target === "terminal" && window.DeskAITerminal) {
+          window.DeskAITerminal.onTabShown();
+        } else if (target === "ports" && window.DeskAIPorts) {
           window.DeskAIPorts.refresh();
           window.DeskAIPorts.startPolling();
         } else if (window.DeskAIPorts) {
@@ -214,6 +216,18 @@ export function initGlobalEvents() {
     const isCmd = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
 
+    // Suppress global app hotkeys when terminal host or xterm textarea is focused
+    const terminalHost = document.getElementById("terminalHost");
+    if (
+      terminalHost &&
+      (terminalHost.contains(document.activeElement) ||
+        (document.activeElement && (document.activeElement.closest("#terminalHost") || document.activeElement.closest(".xterm"))))
+    ) {
+      if (isCmd && (key === "s" || key === "w" || e.key === "Enter")) {
+        return;
+      }
+    }
+
     if (isCmd && key === "s") {
       e.preventDefault();
       if (window.EditorManager && typeof window.EditorManager.saveActiveBuffer === "function") {
@@ -235,7 +249,15 @@ export function initGlobalEvents() {
   const drawerTabsContainer = document.querySelector(".drawer-tabs");
   if (drawerTabsContainer) {
     drawerTabsContainer.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      if (e.key === "Tab" && !e.shiftKey) {
+        const activeTab = drawerTabsContainer.querySelector(".drawer-tab.active");
+        if (activeTab && activeTab.getAttribute("data-target") === "terminal") {
+          e.preventDefault();
+          if (window.DeskAITerminal && window.DeskAITerminal.term) {
+            window.DeskAITerminal.term.focus();
+          }
+        }
+      } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
         const tabs = Array.from(drawerTabsContainer.querySelectorAll('.drawer-tab[role="tab"]'));
         const currentIndex = tabs.indexOf(document.activeElement);
         if (currentIndex !== -1) {
@@ -442,6 +464,7 @@ function initResizers() {
           root.style.setProperty("--bottom-drawer-h", `${clampedH}px`);
           resizerBottom.setAttribute("aria-valuenow", String(Math.round(clampedH)));
           lastExpandedHeight = clampedH;
+          if (window.DeskAITerminal) window.DeskAITerminal.fit();
         }
       });
     });
@@ -461,6 +484,7 @@ function initResizers() {
         // Ignored
       }
       resizerBottom.classList.remove("is-resizing", "resizing");
+      if (window.DeskAITerminal) window.DeskAITerminal.fit();
       if (!bottomDrawer.classList.contains("collapsed")) {
         try {
           localStorage.setItem("deskai_bottom_drawer_h", String(lastExpandedHeight));
@@ -482,7 +506,9 @@ function initResizers() {
         root.style.setProperty("--bottom-drawer-h", `${targetH}px`);
         resizerBottom.setAttribute("aria-valuenow", String(Math.round(targetH)));
         const activeTab = document.querySelector(".drawer-tab.active");
-        if (activeTab && activeTab.getAttribute("data-target") === "ports" && window.DeskAIPorts) {
+        if (activeTab && activeTab.getAttribute("data-target") === "terminal" && window.DeskAITerminal) {
+          window.DeskAITerminal.fit();
+        } else if (activeTab && activeTab.getAttribute("data-target") === "ports" && window.DeskAIPorts) {
           window.DeskAIPorts.refresh();
           window.DeskAIPorts.startPolling();
         }
@@ -554,4 +580,10 @@ function initResizers() {
       }
     });
   }
+
+  window.addEventListener("resize", () => {
+    if (window.DeskAITerminal) {
+      window.DeskAITerminal.fit();
+    }
+  });
 }

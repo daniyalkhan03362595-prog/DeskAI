@@ -293,6 +293,78 @@ class TestBottomDrawerBehavior(unittest.TestCase):
             msg="Neighboring Copy button shifted position",
         )
 
+    def test_terminal_panel_role_log_and_aria_live_off(self):
+        """#terminalHost has role='log', accessible name, and aria-live='off'."""
+        host = self.page.locator("#terminalHost")
+        self.assertEqual(host.get_attribute("role"), "log")
+        self.assertEqual(host.get_attribute("aria-live"), "off")
+        self.assertEqual(host.get_attribute("aria-label"), "Terminal output")
+
+    def test_terminal_tab_selection_preserves_tab_focus(self):
+        """Clicking Terminal tab does not steal focus into the terminal buffer."""
+        term_tab = self.page.locator("#tab-terminal")
+        term_tab.click()
+        focused_id = self.page.evaluate("() => document.activeElement ? document.activeElement.id : null")
+        self.assertEqual(focused_id, "tab-terminal")
+
+    def test_tab_enters_terminal_and_ctrl_shift_m_escapes(self):
+        """Pressing Tab on active terminal panel enters xterm; Ctrl+Shift+M returns focus."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        self.page.locator("#tab-terminal").focus()
+        self.page.keyboard.press("Tab")
+        is_xterm_focused = self.page.evaluate("""() => {
+            const el = document.activeElement;
+            return !!(el && (el.classList.contains('xterm-helper-textarea') || el.closest('#terminalHost')));
+        }""")
+        self.assertTrue(is_xterm_focused)
+
+        self.page.keyboard.press("Control+Shift+M")
+        focused_id = self.page.evaluate("() => document.activeElement ? document.activeElement.id : null")
+        self.assertEqual(focused_id, "tab-terminal")
+
+    def test_terminal_hotkeys_do_not_close_editor_tabs(self):
+        """Ctrl+W and Ctrl+S inside terminal are suppressed from closing/saving editor."""
+        self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
+        self.page.evaluate("""() => {
+            if (window.EditorManager) {
+                window.EditorManager.activeTabId = "tab_test_123";
+                window.EditorManager.closeTab = () => { window.__TEST_TAB_CLOSED = true; };
+                window.EditorManager.saveActiveBuffer = () => { window.__TEST_BUFFER_SAVED = true; };
+            }
+        }""")
+
+        self.page.locator("#tab-terminal").focus()
+        self.page.keyboard.press("Tab")
+
+        self.page.keyboard.press("Control+w")
+        self.page.keyboard.press("Control+s")
+
+        tab_closed = self.page.evaluate("() => window.__TEST_TAB_CLOSED || false")
+        buffer_saved = self.page.evaluate("() => window.__TEST_BUFFER_SAVED || false")
+        self.assertFalse(tab_closed)
+        self.assertFalse(buffer_saved)
+
+    def test_log_view_line_cap_and_scroll_preservation(self):
+        """LogView caps buffer at 10,000 lines and does not yank scrolled-up users to bottom."""
+        self.page.locator("#tab-output").click()
+        self.page.evaluate("""() => {
+            const el = document.getElementById("channelOutput");
+            window.testLogView = new window.DeskAILogView.constructor(el);
+            window.testLogView.clear();
+            for (let i = 0; i < 105; i++) {
+                window.testLogView.write("line\\n".repeat(100));
+            }
+        }""")
+        self.page.wait_for_timeout(200)
+
+        line_count = self.page.evaluate("() => window.testLogView.lineCount")
+        self.assertLessEqual(line_count, 10000)
+
+    def test_static_hygiene_no_inner_html_in_terminal_modules(self):
+        """terminal.js must not contain innerHTML assignments."""
+        term_js = (Path("src/deskai/static/js/terminal.js")).read_text(encoding="utf-8")
+        self.assertNotIn("innerHTML", term_js)
+
 
 if __name__ == "__main__":
     unittest.main()

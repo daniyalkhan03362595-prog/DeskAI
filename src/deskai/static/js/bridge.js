@@ -60,6 +60,20 @@ export const NativeBridge = {
     return false;
   },
 
+  async terminalOpen(cols = 80, rows = 24) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.terminal_open) {
+      return await window.pywebview.api.terminal_open(cols, rows);
+    }
+    return { status: "error", message: "Bridge not ready" };
+  },
+
+  async terminalClose(sessionId) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.terminal_close) {
+      return await window.pywebview.api.terminal_close(sessionId);
+    }
+    return false;
+  },
+
   async setDirtyStatus(isDirty) {
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.set_dirty_status(Boolean(isDirty));

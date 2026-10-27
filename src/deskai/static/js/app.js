@@ -5,6 +5,7 @@ import { store } from "./state.js";
 import { initGlobalEvents } from "./events.js";
 import { TokenStreamBuffer } from "./stream.js";
 import { initPorts } from "./ports.js";
+import { TerminalView, LogView } from "./terminal.js";
 
 // Global singletons instantiated and wired
 window.store = store;
@@ -12,6 +13,12 @@ window.wsClient = new WebSocketClient(`ws://${location.host}/ws`);
 window.UEC = new UECStateMachine();
 window.EditorManager = new EditorManager();
 window.DeskAIPorts = initPorts();
+window.DeskAITerminal = new TerminalView();
+
+const channelOutputEl = document.getElementById("channelOutput");
+if (channelOutputEl) {
+  window.DeskAILogView = new LogView(channelOutputEl);
+}
 
 // Wire incoming server push events to UEC state machine
 window.wsClient.on("agent.plan", (payload) => {
@@ -131,6 +138,11 @@ store.subscribe("telemetry", (data) => {
 
 // Initialize global hotkeys, router & resizers
 initGlobalEvents();
+
+const initialDrawerTab = document.querySelector(".drawer-tab.active");
+if (initialDrawerTab && initialDrawerTab.getAttribute("data-target") === "terminal") {
+  window.DeskAITerminal.init();
+}
 
 // Connect WebSocket
 window.wsClient.connect();

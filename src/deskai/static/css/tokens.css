@@ -98,6 +98,37 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
   --shadow-glow-amber: 0 0 12px rgba(245, 158, 11, 0.35);
+
+  /* ==========================================================================
+     Terminal Surface & WCAG 2.1 AA Compliant ANSI Palette (>= 4.5:1 against #141518)
+     ========================================================================== */
+  --terminal-bg: #141518;
+  --terminal-fg: #ededed;             /* 15.60:1 */
+  --terminal-cursor: #d99b26;         /* Brand Amber */
+  --terminal-selection: rgba(217, 155, 38, 0.25);
+
+  /* ANSI Standard 16-Color Palette Ratios against --terminal-bg (#141518):
+     black: 4.62:1, red: 6.58:1, green: 10.48:1, yellow: 10.94:1, blue: 7.18:1,
+     magenta: 6.89:1, cyan: 8.52:1, white: 14.81:1, bright-black: 7.12:1,
+     bright-red: 6.60:1, bright-green: 13.00:1, bright-yellow: 13.85:1,
+     bright-blue: 10.12:1, bright-magenta: 13.21:1, bright-cyan: 12.60:1, bright-white: 18.26:1 */
+  --ansi-black: #7c808a;
+  --ansi-red: #ff6b6b;
+  --ansi-green: #4ade80;
+  --ansi-yellow: #fbbf24;
+  --ansi-blue: #60a5fa;
+  --ansi-magenta: #f472b6;
+  --ansi-cyan: #38bdf8;
+  --ansi-white: #e2e8f0;
+
+  --ansi-bright-black: #94a3b8;
+  --ansi-bright-red: #f87171;
+  --ansi-bright-green: #86efac;
+  --ansi-bright-yellow: #fde047;
+  --ansi-bright-blue: #93c5fd;
+  --ansi-bright-magenta: #fbcfe8;
+  --ansi-bright-cyan: #67e8f9;
+  --ansi-bright-white: #ffffff;
 }
 
 /* 6. Accessible Focus Rings */
