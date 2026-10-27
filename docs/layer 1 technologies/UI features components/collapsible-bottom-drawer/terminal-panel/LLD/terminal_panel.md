@@ -48,10 +48,14 @@ A terminal exposes arbitrary shell execution and is the highest-privilege surfac
    * Working directory is strictly resolved from `bridge.get_workspace_root()`.
    * Enforces `is_disallowed_workspace_root(root) == False` and `is_safe_workspace_path(root) == True`.
    * Any client-provided `cwd` is rejected.
-3. **Child Environment Sanitization:**
+3. **Child Environment Sanitization & Security Trade-Offs:**
    * Only explicit allowlisted variables are passed to child processes:
-     `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_*`, `PATH`, `SHELL`, `TERM=xterm-256color`, `COLORTERM=truecolor` (Windows also: `SystemRoot`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, `ComSpec`, `PATHEXT`).
-   * Explicitly strips all `DESKAI_*` secrets and internal launch tokens.
+     * Base shell & locale: `HOME`, `USER`, `LOGNAME`, `LANG`, `LANGUAGE`, `LC_*`, `PATH`, `SHELL`, `TERM=xterm-256color`, `COLORTERM=truecolor`, `TERMINFO`.
+     * Desktop environment: `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `XDG_*`, `TMPDIR`.
+     * SSH agent socket: `SSH_AUTH_SOCK`.
+     * Windows platform equivalents: `SystemRoot`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, `ComSpec`, `PATHEXT`.
+   * **Security Trade-Off (`SSH_AUTH_SOCK`):** Exposing `SSH_AUTH_SOCK` enables seamless interactive git/ssh operations without repeated passphrase prompts, but grants processes in the user's shell access to the running `ssh-agent` socket. This trade-off is accepted exclusively because this terminal is a user-operated developer console (D1); AI agent commands are never executed in this shell and run under separate, isolated UEC environments.
+   * **Unconditional Stripping:** Explicitly strips all `DESKAI_*` secrets and any environment variable whose key contains `TOKEN` (case-insensitive).
 4. **Concurrency & Resource Limits:**
    * Maximum 4 concurrent terminal sessions per application.
    * Unguessable session IDs (`secrets.token_urlsafe(32)`).

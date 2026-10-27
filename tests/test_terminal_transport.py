@@ -13,6 +13,7 @@ Validates /ws/terminal/{session_id} for:
 import asyncio
 import json
 import os
+import sys
 import tempfile
 import time
 import unittest
@@ -227,6 +228,114 @@ class TestTerminalTransport(unittest.TestCase):
 
                 self.assertIsNotNone(exit_frame, "Exit frame was not delivered")
                 self.assertEqual(exit_frame.get("code"), 42)
+
+        asyncio.run(run())
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX SIGHUP trap test")
+    def test_other_websocket_stays_responsive_during_stubborn_terminal_close(self):
+        """Closing a SIGHUP-ignoring shell offloaded to a thread does not block other websocket traffic."""
+
+        async def run():
+            sess1 = self.server.terminal_manager.create_session(self.temp_workspace)
+            sess2 = self.server.terminal_manager.create_session(self.temp_workspace)
+
+            ws_url1 = f"ws://127.0.0.1:{self.server.port}/ws/terminal/{sess1.session_id}"
+            ws_url2 = f"ws://127.0.0.1:{self.server.port}/ws/terminal/{sess2.session_id}"
+
+            async with (
+                websockets.connect(ws_url1, additional_headers=self.ws_headers) as ws1,
+                websockets.connect(ws_url2, additional_headers=self.ws_headers) as ws2,
+            ):
+                sess1.write(b"trap '' HUP; sleep 10\n")
+                await asyncio.sleep(0.1)
+
+                close_task = asyncio.create_task(ws1.send(json.dumps({"type": "close"})))
+                await asyncio.sleep(0.1)
+
+                t_ping_start = time.time()
+                await ws2.send(json.dumps({"type": "resize", "cols": 120, "rows": 40}))
+                sess2.write(b"echo RESPONSIVE_OK\n")
+
+                received_ok = False
+                for _ in range(10):
+                    try:
+                        frame = await asyncio.wait_for(ws2.recv(), timeout=0.8)
+                        if isinstance(frame, bytes) and b"RESPONSIVE_OK" in frame:
+                            received_ok = True
+                            break
+                    except (TimeoutError, ConnectionClosed):
+                        break
+
+                t_ping_duration = time.time() - t_ping_start
+                self.assertTrue(received_ok, "ws2 failed to respond while sess1 was closing")
+                self.assertLess(
+                    t_ping_duration,
+                    1.5,
+                    f"ws2 response took {t_ping_duration:.2f}s, indicating event loop was blocked",
+                )
+
+                await close_task
+                sess2.close()
+
+        asyncio.run(run())
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX contiguous stream test")
+    def test_reattach_during_continuous_write_yields_contiguous_byte_stream(self):
+        """Atomically taking replay snapshot and subscribing prevents lost or duplicated bytes on reattach."""
+        import re
+
+        async def run():
+            session = self.server.terminal_manager.create_session(self.temp_workspace)
+            session.write(b"stty -echo\n")
+            await asyncio.sleep(0.1)
+
+            ws_url = f"ws://127.0.0.1:{self.server.port}/ws/terminal/{session.session_id}"
+
+            writer_cmd = (
+                b'python3 -c "'
+                b"import time; "
+                b"[print(f'BLK_{i:06d}', flush=True) or time.sleep(0.003) for i in range(1, 301)]; "
+                b"print('REATTACH_FINISHED', flush=True)"
+                b'"\n'
+            )
+            session.write(writer_cmd)
+
+            ws1_bytes = bytearray()
+            async with websockets.connect(ws_url, additional_headers=self.ws_headers) as ws1:
+                for _ in range(5):
+                    frame = await asyncio.wait_for(ws1.recv(), timeout=2.0)
+                    if isinstance(frame, bytes):
+                        ws1_bytes.extend(frame)
+
+            await asyncio.sleep(0.05)
+
+            ws2_bytes = bytearray()
+            async with websockets.connect(ws_url, additional_headers=self.ws_headers) as ws2:
+                while True:
+                    try:
+                        frame = await asyncio.wait_for(ws2.recv(), timeout=4.0)
+                        if isinstance(frame, bytes):
+                            ws2_bytes.extend(frame)
+                            if b"REATTACH_FINISHED" in frame:
+                                break
+                        elif isinstance(frame, str):
+                            data = json.loads(frame)
+                            if data.get("type") == "exit":
+                                break
+                    except (TimeoutError, ConnectionClosed):
+                        break
+
+            matches = re.findall(rb"BLK_(\d{6})", ws2_bytes)
+            nums = [int(m) for m in matches]
+            self.assertGreater(len(nums), 50, "Expected at least 50 block tokens in reattached stream")
+
+            expected_range = list(range(nums[0], nums[-1] + 1))
+            self.assertEqual(
+                nums,
+                expected_range,
+                f"Stream was not contiguous: {nums[:10]}...{nums[-10:]}",
+            )
+            session.close()
 
         asyncio.run(run())
 

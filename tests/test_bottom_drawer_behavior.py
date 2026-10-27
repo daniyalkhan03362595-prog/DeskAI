@@ -397,6 +397,50 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.page.evaluate("() => window.DeskAITerminal.handleProcessExit(0)")
         self.assertEqual(tab.text_content().strip(), "Terminal")
 
+    def test_dynamic_style_without_nonce_is_blocked_by_csp(self):
+        """Under strict CSP with random style nonce, a <style> element lacking the nonce is blocked."""
+        import httpx
+        from deskai.server.supervisor import DesktopServer
+
+        srv = DesktopServer()
+        srv.start()
+        try:
+            token = srv.security.create_launch_token()
+            with httpx.Client(follow_redirects=False) as http:
+                res = http.get(
+                    f"http://127.0.0.1:{srv.port}/auth/redeem?token={token}",
+                    headers={"Host": f"127.0.0.1:{srv.port}"},
+                )
+                cookie_val = res.cookies.get("deskai_session")
+
+            page = self.browser.new_page()
+            page.context.add_cookies(
+                [{"name": "deskai_session", "value": cookie_val, "domain": "127.0.0.1", "path": "/"}]
+            )
+            page.goto(f"http://127.0.0.1:{srv.port}/")
+
+            meta_nonce = page.locator('meta[name="csp-nonce"]').get_attribute("content")
+            self.assertEqual(meta_nonce, srv.security.style_nonce)
+
+            violation_occurred = page.evaluate("""() => {
+                return new Promise((resolve) => {
+                    const onViolation = (e) => {
+                        document.removeEventListener("securitypolicyviolation", onViolation);
+                        resolve(true);
+                    };
+                    document.addEventListener("securitypolicyviolation", onViolation);
+                    const badStyle = document.createElement("style");
+                    badStyle.nonce = "";
+                    badStyle.textContent = "#testCspBad { color: red; }";
+                    document.head.appendChild(badStyle);
+                    setTimeout(() => resolve(false), 500);
+                });
+            }""")
+            self.assertTrue(violation_occurred, "CSP securitypolicyviolation did not fire for style lacking nonce")
+            page.close()
+        finally:
+            srv.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

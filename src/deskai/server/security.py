@@ -23,7 +23,7 @@ class SessionSecurityManager:
     def __init__(self, port: int):
         self.port = port
         self.launch_token: str | None = secrets.token_urlsafe(32)
-        self.style_nonce = "deskai-term-style"
+        self.style_nonce: str = secrets.token_urlsafe(16)
         # Tracks active sessions with creation timestamp: session_id -> created_at
         self.active_sessions: SessionStore = SessionStore()
         # Tracks open websockets per session: session_id -> set of active ws objects

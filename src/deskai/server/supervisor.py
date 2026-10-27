@@ -67,7 +67,32 @@ class DesktopServer:
             response.set_cookie(key="deskai_session", value=session_id, httponly=True, samesite="strict", path="/")
             return self.security.apply_security_headers(response, is_no_store=True)
 
-        # 2. HTTP Middleware (Host, Cookie & CSP Guards)
+        # 2. Root Index Route (Injects dynamic per-launch CSP style nonce)
+        @self.app.get("/")
+        async def serve_index(request: Request):
+            index_path = self.static_dir / "index.html"
+            if not index_path.exists():
+                return Response(status_code=404, content="Not Found")
+            html = index_path.read_text(encoding="utf-8")
+            nonce = self.security.style_nonce
+            if '<meta name="csp-nonce"' in html:
+                import re
+
+                html = re.sub(
+                    r'<meta\s+name=["\']csp-nonce["\']\s+content=["\'][^"\']*["\']>',
+                    f'<meta name="csp-nonce" content="{nonce}">',
+                    html,
+                )
+            elif "<head>" in html:
+                html = html.replace("<head>", f'<head>\n  <meta name="csp-nonce" content="{nonce}">', 1)
+            resp = Response(content=html, media_type="text/html")
+            return self.security.apply_security_headers(resp, is_no_store=True)
+
+        @self.app.get("/index.html")
+        async def serve_index_html(request: Request):
+            return await serve_index(request)
+
+        # 3. HTTP Middleware (Host, Cookie & CSP Guards)
         @self.app.middleware("http")
         async def security_middleware(request: Request, call_next):
             path = request.url.path
@@ -325,15 +350,10 @@ class DesktopServer:
             session.has_active_websocket = True
 
             try:
-                # F. Send Replay Buffer Snapshot First
-                snapshot = session.replay_buffer.get_snapshot()
-                if snapshot:
-                    await ws.send_bytes(snapshot)
-
-                # G. Concurrent Output and Input Pumps with Flow Control
+                # F. Concurrent Output and Input Pumps with Atomic Replay Snapshot & Flow Control
                 async def output_pump():
                     try:
-                        async for chunk in session.read_chunks():
+                        async for chunk in session.read_chunks(with_snapshot=True):
                             while _get_write_buffer_size(ws) > 1_000_000:
                                 await asyncio.sleep(0.02)
                             await ws.send_bytes(chunk)
@@ -413,7 +433,7 @@ class DesktopServer:
                                             continue
                                         session.resize(cols, rows)
                                     elif ctype == "close":
-                                        session.close()
+                                        await asyncio.to_thread(session.close)
                                         break
                                     else:
                                         await ws.send_text(

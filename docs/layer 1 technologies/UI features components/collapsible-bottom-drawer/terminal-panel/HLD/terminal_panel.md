@@ -67,9 +67,18 @@ A host terminal provides arbitrary command execution by design. It represents th
    * It asserts `is_disallowed_workspace_root(root) == False` and `is_safe_workspace_path(root) == True`.
    * Client-supplied `cwd` paths are strictly rejected.
 
-3. **Strict Environment Policy:**
-   * The child process environment is constructed from an explicit allowlist: `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_*`, `PATH` (user's login PATH), `SHELL`, `TERM=xterm-256color`, `COLORTERM=truecolor` (Windows: `SystemRoot`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, `ComSpec`, `PATHEXT`).
-   * Explicitly strips all `DESKAI_*` secrets and the internal launch/session tokens.
+3. **Strict Environment Policy & Trade-Offs:**
+   * The child process environment is constructed from an explicit allowlist:
+     * Core identity & shell: `HOME`, `USER`, `LOGNAME`, `LANG`, `LANGUAGE`, `LC_*`, `PATH` (user's login PATH), `SHELL`, `TERM=xterm-256color`, `COLORTERM=truecolor`, `TERMINFO`.
+     * Desktop & GUI session: `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `XDG_*`, `TMPDIR`.
+     * Authentication agent: `SSH_AUTH_SOCK`.
+     * Windows platform equivalents: `SystemRoot`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, `ComSpec`, `PATHEXT`.
+   * **Security Trade-Off Analysis (`SSH_AUTH_SOCK`):**
+     * *Benefit:* Exposing `SSH_AUTH_SOCK` enables the developer's interactive shell to interact with remote git repositories (`git push`, `git fetch`), SSH tunnels, and commit signing without repeatedly prompting for SSH key passphrases.
+     * *Risk / Exposure:* Any process executing within the user's terminal gains access to the local UNIX domain socket of `ssh-agent`. If untrusted code is executed inside the terminal, it could request the SSH agent to sign challenge requests using loaded keys.
+     * *Mitigation & Justification:* Under Decision **D1**, this terminal is an interactive **USER shell only**. AI agent execution is completely isolated from this process and routed through separate, sandboxed UEC approval paths.
+   * **Unconditional Stripping:**
+     * All variables starting with `DESKAI_*` (internal secrets) and any environment variable whose key contains `TOKEN` (case-insensitive, e.g. `DESKAI_LAUNCH_TOKEN`, `AUTH_TOKEN`) are strictly stripped before process spawn.
    * The user's personal dotfiles (`.bashrc`, `.profile`) are trusted as the user's own configuration.
 
 4. **Resource Constraints & Concurrency:**

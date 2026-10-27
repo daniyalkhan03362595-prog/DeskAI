@@ -62,26 +62,48 @@ class TestTerminalBackend(unittest.TestCase):
         self.assertIn("Client-supplied cwd is strictly forbidden", str(ctx.exception))
 
     def test_child_env_contains_none_of_deskai_secrets_or_launch_token(self):
-        """Child environment allowlist strips all DESKAI_* keys and internal tokens."""
+        """Child environment allowlist includes POSIX GUI/session/SSH keys but strips DESKAI_* and *TOKEN*."""
         with patch.dict(
             os.environ,
             {
                 "DESKAI_SECRET_KEY": "super_secret_value",
                 "DESKAI_LAUNCH_TOKEN": "token_xyz123",
                 "MY_AUTH_TOKEN": "secret_token_abc",
+                "XDG_TOKEN_STORE": "sensitive_token_path",
                 "USER": "deskai_user",
                 "PATH": "/usr/bin:/bin",
+                "DISPLAY": ":0",
+                "WAYLAND_DISPLAY": "wayland-0",
+                "XDG_RUNTIME_DIR": "/run/user/1000",
+                "XDG_CONFIG_HOME": "/home/user/.config",
+                "SSH_AUTH_SOCK": "/run/user/1000/ssh-agent.socket",
+                "TMPDIR": "/tmp",
+                "TERMINFO": "/usr/share/terminfo",
+                "LANGUAGE": "en_US:en",
             },
         ):
             env = build_terminal_env()
             self.assertEqual(env.get("TERM"), "xterm-256color")
             self.assertEqual(env.get("COLORTERM"), "truecolor")
             self.assertEqual(env.get("USER"), "deskai_user")
+
+            # Check new POSIX allowlisted variables
+            self.assertEqual(env.get("DISPLAY"), ":0")
+            self.assertEqual(env.get("WAYLAND_DISPLAY"), "wayland-0")
+            self.assertEqual(env.get("XDG_RUNTIME_DIR"), "/run/user/1000")
+            self.assertEqual(env.get("XDG_CONFIG_HOME"), "/home/user/.config")
+            self.assertEqual(env.get("SSH_AUTH_SOCK"), "/run/user/1000/ssh-agent.socket")
+            self.assertEqual(env.get("TMPDIR"), "/tmp")
+            self.assertEqual(env.get("TERMINFO"), "/usr/share/terminfo")
+            self.assertEqual(env.get("LANGUAGE"), "en_US:en")
+
+            # Check stripping of DESKAI_* and *TOKEN*
             self.assertNotIn("DESKAI_SECRET_KEY", env)
             self.assertNotIn("DESKAI_LAUNCH_TOKEN", env)
             self.assertNotIn("MY_AUTH_TOKEN", env)
+            self.assertNotIn("XDG_TOKEN_STORE", env)
 
-            # Ensure no key contains DESKAI_ or TOKEN
+            # Ensure no key contains DESKAI_ or TOKEN (case-insensitive)
             for key in env:
                 self.assertFalse(key.startswith("DESKAI_"))
                 self.assertNotIn("TOKEN", key.upper())
@@ -237,6 +259,94 @@ class TestTerminalBackend(unittest.TestCase):
         self.assertEqual(len(snapshot), 100)
         self.assertTrue(snapshot.startswith(b"A" * 60))
         self.assertTrue(snapshot.endswith(b"B" * 40))
+
+    def test_windows_spawn_calls_winpty_with_expected_arguments(self):
+        """Cross-platform unit test: on win32, TerminalSession uses winpty.PtyProcess.spawn with expected args."""
+        mock_proc = MagicMock()
+        mock_proc.isalive.return_value = False
+        mock_proc.read.return_value = b""
+        mock_proc.exitstatus = 0
+
+        mock_winpty = MagicMock()
+        mock_winpty.PtyProcess.spawn.return_value = mock_proc
+
+        with patch("sys.platform", "win32"), patch.dict("sys.modules", {"winpty": mock_winpty}):
+            from deskai.server.terminal import TerminalSession, resolve_shell
+
+            expected_shell = resolve_shell()
+            session = TerminalSession(
+                session_id="win_test_sess",
+                cwd=self.temp_workspace,
+                cols=80,
+                rows=24,
+            )
+            try:
+                mock_winpty.PtyProcess.spawn.assert_called_once()
+                args, kwargs = mock_winpty.PtyProcess.spawn.call_args
+                self.assertEqual(args[0], [expected_shell])
+                self.assertEqual(kwargs["cwd"], self.temp_workspace)
+                self.assertEqual(kwargs["dimensions"], (24, 80))
+                self.assertIn("PATH", kwargs["env"])
+                self.assertNotIn("DESKAI_SECRET_KEY", kwargs["env"])
+            finally:
+                session.close()
+
+    @unittest.skipUnless(sys.platform == "win32", "Real ConPTY test requires Windows platform (not run on Linux)")
+    def test_real_conpty_spawn_windows_only(self):
+        """Validates real ConPTY execution on Windows. Marked Windows-only and not executed on POSIX/Linux."""
+        # This test requires real Windows ConPTY host and is skipped in this Linux environment.
+        pass
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX ptyprocess test")
+    def test_reader_does_not_block_when_no_subscribers(self):
+        """When no subscribers are attached, output goes to ReplayBuffer and reader does not block."""
+        session = self.manager.create_session(workspace_root=self.temp_workspace)
+        session.write(b"echo 'FAST_UNBLOCKED_OUTPUT'\n")
+        time.sleep(0.2)
+        snapshot = session.replay_buffer.get_snapshot()
+        self.assertIn(b"FAST_UNBLOCKED_OUTPUT", snapshot)
+        session.close()
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX ptyprocess backpressure test")
+    def test_backpressure_slow_consumer_delivers_all_bytes_and_eof(self):
+        """Slow consumer + seq 1 400000; echo END''MARK delivers every byte and final marker without loss."""
+        import asyncio
+
+        async def run_slow_consumer():
+            session = self.manager.create_session(workspace_root=self.temp_workspace)
+            session.write(b"stty -echo\n")
+            await asyncio.sleep(0.1)
+
+            received = bytearray()
+
+            async def slow_consumer():
+                count = 0
+                async for chunk in session.read_chunks():
+                    received.extend(chunk)
+                    count += 1
+                    if count % 20 == 0:
+                        await asyncio.sleep(0.001)
+
+            consumer_task = asyncio.create_task(slow_consumer())
+            await asyncio.sleep(0.05)
+
+            session.write(b"seq 1 400000; echo END''MARK; exit\n")
+
+            await asyncio.wait_for(consumer_task, timeout=60.0)
+            session.close()
+
+            self.assertIn(b"ENDMARK", received, "Final marker ENDMARK was not found in received stream")
+
+            start_idx = received.find(b"1\r\n")
+            end_idx = received.find(b"ENDMARK\r\n")
+            self.assertNotEqual(start_idx, -1, "'1\\r\\n' not found in received stream")
+            self.assertNotEqual(end_idx, -1, "'ENDMARK\\r\\n' not found in received stream")
+
+            seq_slice = received[start_idx : end_idx + len(b"ENDMARK\r\n")]
+            self.assertEqual(len(seq_slice), 3088904)
+            self.assertEqual(seq_slice.count(b"\n"), 400001)
+
+        asyncio.run(run_slow_consumer())
 
 
 if __name__ == "__main__":

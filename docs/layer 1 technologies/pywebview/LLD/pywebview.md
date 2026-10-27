@@ -511,3 +511,31 @@ DeskAI ke Content Security Policy (`get_content_security_policy()` in `src/deska
 - Terminal aur logs ke tamam views strictly `createElement`/`textContent` use karte hain (`innerHTML` 100% prohibited).
 - Terminal sessions aur bridge methods strict origin checks (`_is_origin_allowed()`), Host header validation, aur single-use session cookie validation enforce karte hain.
 
+### 6.4 Reproducible Per-Backend Spike Tool (`tools/csp_backend_spike.py`)
+
+Decision **D3** ki empirical confirmation ke liye repository mein standalone verification tool [`tools/csp_backend_spike.py`](file:///mnt/Data/Workspaces/Projects/DeskAI/tools/csp_backend_spike.py) add kiya gaya hai:
+
+```bash
+# Run backend spike on current platform:
+python tools/csp_backend_spike.py
+```
+
+#### Test Execution & Results:
+1. **Linux (GTK / WebKitGTK 4.0):**
+   * **Status:** **TESTED & CONFIRMED** in this Linux development environment.
+   * **Without `'unsafe-eval'`:** WebKitGTK engine raises `webview.errors.JavascriptException`:
+     ```text
+     EvalError: Refused to evaluate a string as JavaScript because 'unsafe-eval' or 'trusted-types-eval'
+     is not an allowed source of script in the following Content Security Policy directive: "script-src 'self'".
+     ```
+   * **With `'unsafe-eval'`:** `evaluate_js("2 + 2")` successfully returns `4`.
+2. **Windows (Edge WebView2 / WinForms):**
+   * **Status:** **NOT TESTED** in this Linux host (untestable in Linux environment; requires native Windows OS with Microsoft Edge WebView2 runtime).
+   * **Manual Verification Steps for Windows Developers:** Run `python tools/csp_backend_spike.py` on a Windows 10/11 machine with `pip install pywebview pywinpty`.
+3. **macOS (WebKit / Cocoa):**
+   * **Status:** **NOT TESTED** in this Linux host (untestable in Linux environment; requires macOS with PyObjC).
+
+#### Production Decision:
+Production CSP in `src/deskai/server/security.py` intentionally retains `'unsafe-eval'` in `script-src` to support PyWebView's desktop container bridge across platforms. No changes to production CSP.
+
+

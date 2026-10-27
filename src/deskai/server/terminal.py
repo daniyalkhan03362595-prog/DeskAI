@@ -22,18 +22,24 @@ except ImportError:
     ptyprocess = None
 
 try:
-    import pywinpty
+    import winpty
 except ImportError:
-    pywinpty = None
+    winpty = None
 
 
 def resolve_shell() -> str:
     """Resolves shell path from an immutable system allowlist."""
     if sys.platform == "win32":
-        pwsh = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
+        try:
+            pwsh = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
+        except Exception:
+            pwsh = None
         if pwsh:
             return pwsh
-        cmd = shutil.which("cmd.exe") or os.environ.get("ComSpec")
+        try:
+            cmd = shutil.which("cmd.exe") or os.environ.get("ComSpec")
+        except Exception:
+            cmd = os.environ.get("ComSpec")
         if cmd:
             return cmd
         return "cmd.exe"
@@ -71,7 +77,14 @@ def build_terminal_env() -> dict[str, str]:
         "USER",
         "LOGNAME",
         "LANG",
+        "LANGUAGE",
         "SHELL",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "SSH_AUTH_SOCK",
+        "TMPDIR",
+        "TERMINFO",
         "SystemRoot",
         "USERPROFILE",
         "APPDATA",
@@ -83,7 +96,7 @@ def build_terminal_env() -> dict[str, str]:
     }
     env: dict[str, str] = {}
     for k, v in os.environ.items():
-        if k in allowlisted_exact or k.startswith("LC_"):
+        if k in allowlisted_exact or k.startswith("LC_") or k.startswith("XDG_"):
             env[k] = v
         elif k == "PATH":
             env["PATH"] = v
@@ -168,9 +181,15 @@ class TerminalSession:
         shell = resolve_shell()
         env = build_terminal_env()
         if sys.platform == "win32":
-            if pywinpty is None:
-                raise RuntimeError("pywinpty is required on Windows")
-            self._process = pywinpty.PtyProcess.spawn(
+            winpty_mod = sys.modules.get("winpty") or winpty
+            if winpty_mod is None:
+                try:
+                    import winpty as winpty_mod
+                except ImportError:
+                    winpty_mod = None
+            if winpty_mod is None:
+                raise RuntimeError("winpty is required on Windows")
+            self._process = winpty_mod.PtyProcess.spawn(
                 [shell],
                 cwd=self.cwd,
                 env=env,
@@ -207,9 +226,9 @@ class TerminalSession:
                     data = os.read(self._process.fd, 4096)
                 if not data:
                     break
-                self.replay_buffer.append(data)
-                if self._loop and not self._loop.is_closed():
-                    self._loop.call_soon_threadsafe(self._dispatch_to_subscribers, data)
+                with self._lock:
+                    self.replay_buffer.append(data)
+                self._dispatch_to_subscribers(data)
         except (OSError, EOFError):
             pass
         finally:
@@ -223,14 +242,52 @@ class TerminalSession:
         except Exception:
             return False
 
-    def _dispatch_to_subscribers(self, data: bytes):
+    def _dispatch_to_subscribers(self, data: bytes, is_eof: bool = False):
+        """
+        Dispatches chunks (or EOF sentinel b'') to active subscribers with backpressure.
+        Blocks the reader thread with a short polling loop until all attached subscriber
+        queues accept the chunk, causing the PTY buffer to fill and child process to block.
+        When NO subscriber is attached, output goes only to ReplayBuffer and the reader does not block.
+        The EOF sentinel is never dropped.
+        """
+        if not self._loop or self._loop.is_closed():
+            return
+
         with self._lock:
-            subscribers = list(self._subscribers)
-        for queue in subscribers:
+            pending_queues = set(self._subscribers)
+
+        if not pending_queues:
+            return
+
+        while pending_queues and not self._closed:
+            done_event = threading.Event()
+            still_pending = set()
+
+            def try_enqueue():
+                with self._lock:
+                    active = set(self._subscribers)
+                for q in pending_queues:
+                    if q not in active:
+                        continue
+                    try:
+                        q.put_nowait(data)
+                    except asyncio.QueueFull:
+                        still_pending.add(q)
+                done_event.set()
+
             try:
-                queue.put_nowait(data)
-            except asyncio.QueueFull:
-                pass
+                self._loop.call_soon_threadsafe(try_enqueue)
+            except RuntimeError:
+                break
+
+            done_event.wait(timeout=0.005)
+            if not done_event.is_set():
+                time.sleep(0.001)
+                continue
+
+            pending_queues = still_pending
+            if pending_queues:
+                time.sleep(0.001)
 
     def _on_process_ended(self):
         if self._process:
@@ -243,17 +300,7 @@ class TerminalSession:
                     self._exit_code = self._process.exitstatus
             except Exception:
                 pass
-        if self._loop and not self._loop.is_closed():
-            self._loop.call_soon_threadsafe(self._notify_subscribers_eof)
-
-    def _notify_subscribers_eof(self):
-        with self._lock:
-            subscribers = list(self._subscribers)
-        for queue in subscribers:
-            try:
-                queue.put_nowait(b"")
-            except asyncio.QueueFull:
-                pass
+        self._dispatch_to_subscribers(b"", is_eof=True)
 
     @property
     def alive(self) -> bool:
@@ -296,12 +343,23 @@ class TerminalSession:
         if self._process:
             self._process.setwinsize(rows, cols)
 
-    async def read_chunks(self) -> AsyncIterator[bytes]:
-        """Asynchronously yields chunks of binary terminal output as they arrive."""
+    async def read_chunks(self, with_snapshot: bool = False) -> AsyncIterator[bytes]:
+        """
+        Asynchronously yields chunks of binary terminal output as they arrive.
+        If with_snapshot is True, takes the replay snapshot and registers the subscriber queue
+        atomically under self._lock so no bytes are lost or duplicated between snapshot and live output.
+        """
         self._loop = asyncio.get_running_loop()
-        queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=1000)
+        queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=64)
+        snapshot = b""
         with self._lock:
+            if with_snapshot:
+                snapshot = self.replay_buffer.get_snapshot()
             self._subscribers.append(queue)
+
+        if snapshot:
+            yield snapshot
+
         try:
             while True:
                 chunk = await queue.get()

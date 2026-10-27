@@ -26,6 +26,11 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", csp)
         self.assertIn("base-uri 'none'", csp)
         self.assertIn("form-action 'none'", csp)
+        self.assertIn(f"'nonce-{sec.style_nonce}'", csp)
+
+        sec2 = SessionSecurityManager(8000)
+        self.assertNotEqual(sec.style_nonce, sec2.style_nonce)
+        self.assertGreaterEqual(len(sec.style_nonce), 16)
 
     def test_http_security_headers_present_on_root_and_redeem(self):
         """Root (/) and redeem (/auth/redeem) must have strict security headers and Cache-Control: no-store."""
@@ -51,6 +56,7 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         self.assertEqual(res_root.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
         self.assertEqual(res_root.headers.get("Permissions-Policy"), "camera=(), microphone=(), geolocation=()")
         self.assertEqual(res_root.headers.get("Cache-Control"), "no-store")
+        self.assertIn(f'<meta name="csp-nonce" content="{self.server.security.style_nonce}">', res_root.text)
 
         # Test static asset endpoint with valid cookie
         res_static = self.client.get(
