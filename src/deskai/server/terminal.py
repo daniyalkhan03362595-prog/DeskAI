@@ -233,8 +233,12 @@ class TerminalSession:
                 pass
 
     def _on_process_ended(self):
-        if self._exit_code is None and self._process:
+        if self._process:
             try:
+                for _ in range(20):
+                    if not self._is_alive():
+                        break
+                    time.sleep(0.05)
                 if hasattr(self._process, "exitstatus") and self._process.exitstatus is not None:
                     self._exit_code = self._process.exitstatus
             except Exception:
@@ -261,8 +265,14 @@ class TerminalSession:
     def exit_code(self) -> int | None:
         if self._exit_code is not None:
             return self._exit_code
-        if self._process and hasattr(self._process, "exitstatus"):
-            return self._process.exitstatus
+        if self._process:
+            try:
+                self._is_alive()
+                if hasattr(self._process, "exitstatus") and self._process.exitstatus is not None:
+                    self._exit_code = self._process.exitstatus
+                    return self._exit_code
+            except Exception:
+                pass
         return None
 
     def write(self, data: bytes):

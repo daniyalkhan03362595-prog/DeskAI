@@ -4,6 +4,7 @@ Pre-bound loopback socket, root static asset mounting, single-use token redempti
 and hardened WebSocket gateway.
 """
 
+import asyncio
 import json
 import threading
 import time
@@ -269,6 +270,167 @@ class DesktopServer:
                 pass
             finally:
                 self.security.unregister_socket(cookie, ws)
+
+        # 4. Dedicated Terminal WebSocket Transport (/ws/terminal/{session_id})
+        def _get_write_buffer_size(ws: WebSocket) -> int:
+            for attr in ("_transport", "transport"):
+                t = getattr(ws, attr, None)
+                if t and hasattr(t, "get_write_buffer_size"):
+                    try:
+                        return t.get_write_buffer_size()
+                    except Exception:
+                        pass
+            raw = getattr(ws, "_websocket", None)
+            if raw:
+                t = getattr(raw, "transport", None)
+                if t and hasattr(t, "get_write_buffer_size"):
+                    try:
+                        return t.get_write_buffer_size()
+                    except Exception:
+                        pass
+            return 0
+
+        @self.app.websocket("/ws/terminal/{session_id}")
+        async def terminal_websocket_endpoint(ws: WebSocket, session_id: str):
+            await ws.accept()
+
+            # A. Verify Host Header
+            host = ws.headers.get("host", "")
+            if not is_valid_loopback_host(host, self.port):
+                await ws.close(code=4403, reason="Invalid Host")
+                return
+
+            # B. Verify Origin Header (Strict Match)
+            origin = ws.headers.get("origin")
+            if origin != f"http://127.0.0.1:{self.port}":
+                await ws.close(code=4403, reason="Cross-Origin WebSocket Denied")
+                return
+
+            # C. Verify Session Cookie
+            cookie = ws.cookies.get("deskai_session")
+            if not self.security.is_valid_session(cookie):
+                await ws.close(code=4401, reason="Unauthorized Session")
+                return
+
+            # D. Lookup Terminal Session
+            session = self.terminal_manager.get_session(session_id)
+            if not session:
+                await ws.close(code=4404, reason="Terminal Session Not Found")
+                return
+
+            # E. Enforce One WebSocket Attachment per Terminal Session
+            if getattr(session, "has_active_websocket", False):
+                await ws.close(code=4429, reason="Terminal Session Already Attached")
+                return
+            session.has_active_websocket = True
+
+            try:
+                # F. Send Replay Buffer Snapshot First
+                snapshot = session.replay_buffer.get_snapshot()
+                if snapshot:
+                    await ws.send_bytes(snapshot)
+
+                # G. Concurrent Output and Input Pumps with Flow Control
+                async def output_pump():
+                    try:
+                        async for chunk in session.read_chunks():
+                            while _get_write_buffer_size(ws) > 1_000_000:
+                                await asyncio.sleep(0.02)
+                            await ws.send_bytes(chunk)
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            code = session.exit_code if session.exit_code is not None else 0
+                            await ws.send_text(json.dumps({"type": "exit", "code": code}))
+                            await ws.close(code=1000)
+                        except Exception:
+                            pass
+
+                async def input_pump():
+                    input_tokens = 256 * 1024.0
+                    last_input_time = time.monotonic()
+                    try:
+                        while True:
+                            msg = await ws.receive()
+                            if msg["type"] == "websocket.disconnect":
+                                break
+
+                            if msg["type"] == "websocket.receive":
+                                raw_bytes = msg.get("bytes")
+                                raw_text = msg.get("text")
+
+                                payload_size = (
+                                    len(raw_bytes)
+                                    if raw_bytes is not None
+                                    else (len(raw_text.encode("utf-8")) if raw_text is not None else 0)
+                                )
+
+                                if payload_size > 65536:
+                                    await ws.send_text(json.dumps({"type": "error", "code": "ERR_PAYLOAD_TOO_LARGE"}))
+                                    continue
+
+                                # 256 KB/s paste flood rate limiter
+                                now = time.monotonic()
+                                elapsed = now - last_input_time
+                                last_input_time = now
+                                input_tokens = min(256 * 1024.0, input_tokens + elapsed * (256 * 1024.0))
+                                if input_tokens < payload_size:
+                                    await ws.close(code=4429, reason="Input Rate Limit Exceeded")
+                                    return
+                                input_tokens -= payload_size
+
+                                if raw_bytes is not None:
+                                    session.write(raw_bytes)
+                                    continue
+
+                                if raw_text is not None:
+                                    try:
+                                        ctrl = json.loads(raw_text)
+                                    except json.JSONDecodeError:
+                                        await ws.send_text(json.dumps({"type": "error", "code": "ERR_MALFORMED_JSON"}))
+                                        continue
+
+                                    if not isinstance(ctrl, dict):
+                                        await ws.send_text(
+                                            json.dumps({"type": "error", "code": "ERR_INVALID_CONTROL_FRAME"})
+                                        )
+                                        continue
+
+                                    ctype = ctrl.get("type")
+                                    if ctype == "resize":
+                                        cols = ctrl.get("cols")
+                                        rows = ctrl.get("rows")
+                                        if type(cols) is not int or type(rows) is not int:
+                                            await ws.send_text(
+                                                json.dumps({"type": "error", "code": "ERR_INVALID_CONTROL_FRAME"})
+                                            )
+                                            continue
+                                        if not (10 <= cols <= 500) or not (2 <= rows <= 200):
+                                            await ws.send_text(
+                                                json.dumps({"type": "error", "code": "ERR_INVALID_CONTROL_FRAME"})
+                                            )
+                                            continue
+                                        session.resize(cols, rows)
+                                    elif ctype == "close":
+                                        session.close()
+                                        break
+                                    else:
+                                        await ws.send_text(
+                                            json.dumps({"type": "error", "code": "ERR_INVALID_CONTROL_FRAME"})
+                                        )
+                    except Exception:
+                        pass
+
+                out_task = asyncio.create_task(output_pump())
+                in_task = asyncio.create_task(input_pump())
+                done, pending = await asyncio.wait([out_task, in_task], return_when=asyncio.FIRST_COMPLETED)
+                for task in pending:
+                    task.cancel()
+            except (WebSocketDisconnect, ConnectionResetError, RuntimeError):
+                pass
+            finally:
+                session.has_active_websocket = False
 
         # 4. Root Static File Mounting (Directly at / so relative css/..., js/... all resolve)
         if self.static_dir.exists():
