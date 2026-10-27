@@ -7,6 +7,7 @@ import { TokenStreamBuffer } from "./stream.js";
 import { initPorts } from "./ports.js";
 import { TerminalView, LogView } from "./terminal.js";
 import { NativeBridge } from "./bridge.js";
+import { WelcomeScreenController } from "./welcome.js";
 
 // Global singletons instantiated and wired
 window.store = store;
@@ -16,6 +17,7 @@ window.UEC = new UECStateMachine();
 window.EditorManager = new EditorManager();
 window.DeskAIPorts = initPorts();
 window.DeskAITerminal = new TerminalView();
+window.DeskAIWelcome = new WelcomeScreenController();
 
 const channelOutputEl = document.getElementById("channelOutput");
 if (channelOutputEl) {
@@ -145,6 +147,9 @@ const initialDrawerTab = document.querySelector(".drawer-tab.active");
 if (initialDrawerTab && initialDrawerTab.getAttribute("data-target") === "terminal") {
   window.DeskAITerminal.init();
 }
+
+// Initialize Welcome Screen Overlay
+window.DeskAIWelcome.sync();
 
 // Connect WebSocket
 window.wsClient.connect();

@@ -4,6 +4,7 @@
  */
 export const NativeBridge = {
   async selectFolder() {
+    await this.whenReady();
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.select_folder();
     }
@@ -12,6 +13,7 @@ export const NativeBridge = {
   },
 
   async selectFile() {
+    await this.whenReady();
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.select_file();
     }
@@ -19,6 +21,7 @@ export const NativeBridge = {
   },
 
   async saveFileDialog(filename = "untitled.txt") {
+    await this.whenReady();
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.save_file_dialog(filename);
     }

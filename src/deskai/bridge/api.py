@@ -170,7 +170,16 @@ class DesktopBridgeAPI:
         selected = self._window.create_file_dialog(DIALOG_OPEN)
         if selected and len(selected) > 0:
             file_path = canonicalize_path(selected[0])
-            return {"status": "ok", "path": file_path, "name": os.path.basename(file_path)}
+            if not self.workspace_root:
+                parent_dir = os.path.dirname(file_path)
+                if not is_disallowed_workspace_root(parent_dir):
+                    self.workspace_root = parent_dir
+            return {
+                "status": "ok",
+                "path": file_path,
+                "name": os.path.basename(file_path),
+                "workspace_root": self.workspace_root,
+            }
         return {"status": "cancelled", "path": None}
 
     def save_file_dialog(self, default_name: str = "untitled.txt") -> dict:

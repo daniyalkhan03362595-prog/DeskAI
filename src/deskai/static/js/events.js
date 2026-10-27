@@ -107,18 +107,67 @@ export function initGlobalEvents() {
         window.EditorManager.selectTab(param);
         break;
 
-      case "open-folder-dialog":
+      case "open-folder-dialog": {
         const dir = await NativeBridge.selectFolder();
         if (dir && dir.path) {
           store.state.workspace.rootPath = dir.path;
           const pill = document.getElementById("headerWorkspacePill");
           if (pill) pill.textContent = `DeskAI / ${dir.name}`;
+          if (window.DeskAIWelcome) {
+            window.DeskAIWelcome.saveRecentProject(dir.path, dir.name);
+            window.DeskAIWelcome.sync();
+          }
         }
         break;
-      case "new-file":
-        const fileName = prompt("Enter new file name:");
-        if (fileName) window.EditorManager.createBuffer(fileName);
+      }
+
+      case "open-file-dialog": {
+        const fileRes = await NativeBridge.selectFile();
+        if (fileRes && fileRes.path) {
+          const contentRes = await NativeBridge.readFile(fileRes.path);
+          const content = contentRes && contentRes.status === "ok" ? contentRes.content : "";
+          if (fileRes.workspace_root) {
+            store.state.workspace.rootPath = fileRes.workspace_root;
+            const dirName = fileRes.workspace_root.split("/").pop().split("\\").pop();
+            const pill = document.getElementById("headerWorkspacePill");
+            if (pill) pill.textContent = `DeskAI / ${dirName}`;
+          }
+          if (window.EditorManager) {
+            window.EditorManager.createBuffer(fileRes.name, content, fileRes.path);
+          }
+        }
         break;
+      }
+
+      case "open-recent-project": {
+        if (param) {
+          store.state.workspace.rootPath = param;
+          const name = param.split("/").pop().split("\\").pop() || param;
+          const pill = document.getElementById("headerWorkspacePill");
+          if (pill) pill.textContent = `DeskAI / ${name}`;
+          if (window.DeskAIWelcome) {
+            window.DeskAIWelcome.saveRecentProject(param, name);
+            window.DeskAIWelcome.sync();
+          }
+        }
+        break;
+      }
+
+      case "remove-recent-project": {
+        e.stopPropagation();
+        if (param && window.DeskAIWelcome) {
+          window.DeskAIWelcome.removeRecentProject(param);
+        }
+        break;
+      }
+
+      case "new-file": {
+        const fileName = prompt("Enter new file name:") || "untitled.txt";
+        if (fileName && window.EditorManager) {
+          window.EditorManager.createBuffer(fileName);
+        }
+        break;
+      }
       case "new-folder":
         prompt("Enter folder name:");
         break;
@@ -270,6 +319,22 @@ export function initGlobalEvents() {
       e.preventDefault();
       const form = document.getElementById("promptForm");
       if (form) form.requestSubmit();
+    } else if (isCmd && key === "o") {
+      e.preventDefault();
+      const btn = document.querySelector('[data-action="open-folder-dialog"]');
+      if (btn) btn.click();
+    } else if (isCmd && key === "n") {
+      e.preventDefault();
+      const btn = document.querySelector('[data-action="new-file"]');
+      if (btn) btn.click();
+    } else if (isCmd && key === "l") {
+      e.preventDefault();
+      const promptInput = document.getElementById("promptTextarea");
+      if (promptInput) promptInput.focus();
+    } else if (isCmd && (key === "`" || e.code === "Backquote")) {
+      e.preventDefault();
+      const drawerToggleBtn = document.getElementById("drawerToggleBtn");
+      if (drawerToggleBtn) drawerToggleBtn.click();
     }
   });
 

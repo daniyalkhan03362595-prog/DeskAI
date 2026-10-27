@@ -38,11 +38,12 @@ export class EditorManager {
     return "plaintext";
   }
 
-  createBuffer(name = "untitled.txt", content = "") {
+  createBuffer(name = "untitled.txt", content = "", path = null) {
     const id = "tab-" + crypto.randomUUID().slice(0, 8);
     const buffer = {
       id,
       name,
+      path: path || null,
       content,
       isDirty: false,
       state: null,
@@ -88,6 +89,14 @@ export class EditorManager {
     }
 
     this.buffers.set(id, buffer);
+    if (store && store.state && store.state.editor) {
+      store.state.editor.openTabs = Array.from(this.buffers.values()).map(b => ({
+        id: b.id,
+        name: b.name,
+        path: b.path,
+        isDirty: b.isDirty
+      }));
+    }
     this.renderTabs();
     this.selectTab(id);
     return id;
@@ -100,7 +109,9 @@ export class EditorManager {
       store.state.editor.activeTabId = id;
     }
 
-    if (this.welcomeScreen) {
+    if (window.DeskAIWelcome) {
+      window.DeskAIWelcome.sync();
+    } else if (this.welcomeScreen) {
       this.welcomeScreen.style.display = "none";
     }
 
@@ -136,13 +147,27 @@ export class EditorManager {
 
     this.buffers.delete(id);
 
+    if (store && store.state && store.state.editor) {
+      store.state.editor.openTabs = Array.from(this.buffers.values()).map(b => ({
+        id: b.id,
+        name: b.name,
+        path: b.path,
+        isDirty: b.isDirty
+      }));
+    }
+
     if (this.activeTabId === id) {
       const nextTab = this.buffers.keys().next().value;
       if (nextTab) {
         this.selectTab(nextTab);
       } else {
         this.activeTabId = null;
-        if (this.welcomeScreen) this.welcomeScreen.style.display = "flex";
+        if (window.DeskAIWelcome) {
+          window.DeskAIWelcome.sync();
+          window.DeskAIWelcome.focusPrimary();
+        } else if (this.welcomeScreen) {
+          this.welcomeScreen.style.display = "flex";
+        }
       }
     }
 

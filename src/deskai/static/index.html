@@ -86,10 +86,21 @@
         </div>
 
         <div class="editor-viewport" id="editorViewport" role="tabpanel" aria-label="Active File Editor">
-          <div class="welcome-screen" id="welcomeScreen">
-            <h2>Welcome to DeskAI</h2>
-            <p>Select a project folder to begin.</p>
-            <button class="primary-btn" data-action="open-folder-dialog">Open Project Folder</button>
+          <div class="welcome-screen" id="welcomeScreen" role="region" aria-label="Welcome and Quick Actions" tabindex="-1">
+            <div class="welcome-container" id="welcomeContainer">
+              <header class="welcome-header">
+                <div class="welcome-badge">
+                  <span class="welcome-badge-icon" aria-hidden="true">⚡</span>
+                  <span class="welcome-badge-text">DeskAI Studio</span>
+                </div>
+                <h1 class="welcome-title" id="welcomeTitle">Welcome to DeskAI</h1>
+                <p class="welcome-subtitle" id="welcomeSubtitle">Local-first autonomous AI developer studio</p>
+              </header>
+              <main class="welcome-grid" id="welcomeGrid">
+                <!-- Dynamically rendered by WelcomeScreenController via createElement/textContent -->
+              </main>
+              <div class="sr-only" id="welcomeSrLive" role="status" aria-live="polite"></div>
+            </div>
           </div>
           <!-- CodeMirror 6 Mount Node -->
           <div class="codemirror-host" id="codeEditorHost" role="region" aria-label="Code Surface"></div>
