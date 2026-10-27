@@ -1,13 +1,13 @@
 /* GPU Active Status Pulsing Glow */
 @keyframes pulse-glow {
   0% {
-    box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+    box-shadow: 0 0 0 0 var(--glow-success);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(46, 204, 113, 0);
+    box-shadow: 0 0 0 6px var(--glow-success-transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+    box-shadow: 0 0 0 0 var(--glow-success-transparent);
   }
 }
 

@@ -202,11 +202,11 @@ body.is-maximized .window-resize-handles,
   color: var(--text-primary);
   padding: var(--space-4);
   max-width: 420px;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-dialog);
 }
 
 .confirm-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--backdrop-scrim);
   backdrop-filter: blur(2px);
 }
 

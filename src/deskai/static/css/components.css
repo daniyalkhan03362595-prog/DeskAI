@@ -424,6 +424,8 @@
   color: var(--color-primary);
   border-radius: 10px;
   padding: 1px 6px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 .ports-filter-wrapper {
@@ -609,6 +611,7 @@
   color: var(--color-amber);
   margin-left: 6px;
   font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 .port-protocol-badge {
@@ -618,6 +621,8 @@
   background: var(--bg-card);
   border: 1px solid var(--border-regular);
   color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 .port-addr-cell {

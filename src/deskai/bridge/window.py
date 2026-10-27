@@ -10,6 +10,9 @@ from deskai.bridge.api import DesktopBridgeAPI
 from deskai.bridge.lifecycle import WindowLifecycleHandler
 from deskai.server.supervisor import DesktopServer
 
+# Shell window background color; matches --bg-app in src/deskai/static/css/tokens.css
+BG_APP = "#121315"
+
 
 class WindowManager:
     def __init__(self, title: str = "DeskAI Studio", width: int = 1280, height: int = 800):
@@ -41,7 +44,7 @@ class WindowManager:
             frameless=True,
             easy_drag=False,
             confirm_close=False,  # Managed by WindowLifecycleHandler
-            background_color="#121315",
+            background_color=BG_APP,
         )
 
         # 4. Attach lifecycle listeners
