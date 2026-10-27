@@ -92,39 +92,39 @@
         </div>
 
         <!-- Resizer Handle Bottom Drawer -->
-        <div class="resizer-row" id="resizerBottom" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize Bottom Drawer"></div>
+        <div class="resizer-row" id="resizerBottom" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize Bottom Drawer" aria-valuenow="220" aria-valuemin="48" aria-valuemax="800"></div>
 
         <!-- Collapsible Bottom Drawer -->
         <section class="bottom-drawer" id="bottomDrawer" role="region" aria-label="Output Drawer">
           <div class="drawer-header">
             <div class="drawer-tabs" role="tablist" aria-label="Drawer Panels">
-              <button class="drawer-tab active" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true">Terminal</button>
-              <button class="drawer-tab" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false">Output</button>
-              <button class="drawer-tab" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false">Problems</button>
-              <button class="drawer-tab" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false">Ports</button>
+              <button class="drawer-tab active" id="tab-terminal" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true" aria-controls="terminalPanel">Terminal</button>
+              <button class="drawer-tab" id="tab-output" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false" aria-controls="outputPanel">Output</button>
+              <button class="drawer-tab" id="tab-problems" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false" aria-controls="problemsPanel">Problems</button>
+              <button class="drawer-tab" id="tab-ports" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false" aria-controls="portsPanel">Ports</button>
             </div>
-            <button class="icon-btn close-drawer-btn" data-action="toggle-drawer" aria-label="Toggle Drawer">─</button>
+            <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer">─</button>
           </div>
           <div class="drawer-content" id="drawerContent">
             <!-- Terminal Panel -->
-            <div class="drawer-panel active" id="terminalPanel">
+            <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="0">
               <pre class="terminal-view" id="terminalOutput"><code>DeskAI Host Shell Ready. Workspace active.</code></pre>
             </div>
 
             <!-- Output Channel Panel -->
-            <div class="drawer-panel" id="outputPanel" hidden>
+            <div class="drawer-panel" id="outputPanel" role="tabpanel" aria-labelledby="tab-output" tabindex="0" hidden>
               <pre class="terminal-view" id="channelOutput"><code>[DeskAI System] Supervisor active on loopback. Ready for tasks.</code></pre>
             </div>
 
             <!-- Problems Panel -->
-            <div class="drawer-panel" id="problemsPanel" hidden>
+            <div class="drawer-panel" id="problemsPanel" role="tabpanel" aria-labelledby="tab-problems" tabindex="0" hidden>
               <div class="problems-view">
                 <span class="problems-empty">No problems have been detected in the workspace.</span>
               </div>
             </div>
 
             <!-- Ports Panel -->
-            <div class="drawer-panel" id="portsPanel" hidden>
+            <div class="drawer-panel" id="portsPanel" role="tabpanel" aria-labelledby="tab-ports" tabindex="0" hidden>
               <div class="ports-toolbar">
                 <div class="ports-toolbar-left">
                   <span class="ports-title">Forwarded &amp; Local Ports</span>

@@ -318,10 +318,15 @@
   background-color: var(--bg-header);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .bottom-drawer.collapsed {
   height: 32px;
+}
+
+.bottom-drawer.collapsed .drawer-content {
+  display: none;
 }
 
 .drawer-header {

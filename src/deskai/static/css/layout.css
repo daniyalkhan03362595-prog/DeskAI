@@ -42,7 +42,8 @@ html, body {
 }
 
 .resizer-col:hover,
-.resizer-col.resizing {
+.resizer-col.resizing,
+.resizer-col.is-resizing {
   background-color: var(--color-primary);
   box-shadow: 0 0 8px var(--color-primary);
 }
@@ -60,7 +61,8 @@ html, body {
 }
 
 .resizer-row:hover,
-.resizer-row.resizing {
+.resizer-row.resizing,
+.resizer-row.is-resizing {
   background-color: var(--color-primary);
   box-shadow: 0 0 8px var(--color-primary);
 }
