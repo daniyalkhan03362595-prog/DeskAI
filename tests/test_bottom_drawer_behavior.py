@@ -195,10 +195,50 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         toast_count = self.page.locator("#toastRack .toast").count()
         self.assertEqual(toast_count, 0)
 
-        # After timeout (1.5s), button should revert back
-        self.page.wait_for_timeout(1700)
+        # After timeout (300ms), button should revert back
+        self.page.wait_for_timeout(450)
         self.assertNotIn("is-copied", copy_btn.get_attribute("class"))
         self.assertEqual(copy_btn.text_content().strip(), "📋 Copy")
+
+    def test_open_port_inline_checkmark_feedback(self):
+        """Clicking open-port displays inline SVG checkmark and reverts within 300ms."""
+        self.page.locator("#tab-ports").click()
+        self.page.evaluate("""
+            window.DeskAIPorts.stopPolling();
+            window.DeskAIPorts.customPorts = [{
+                port: 6666,
+                host: "127.0.0.1",
+                protocol: "TCP",
+                address: "http://127.0.0.1:6666",
+                process: "web_app",
+                status: "Listening",
+                origin: "Watched",
+                isCustom: true,
+                exposure: "loopback",
+                openable: true
+            }];
+            window.pywebview = {
+                api: {
+                    open_port: async (port, host) => true
+                }
+            };
+            window.DeskAIPorts.render();
+        """)
+
+        open_btn = self.page.locator('button[data-action="open-port"][data-port="6666"]')
+        self.assertEqual(open_btn.text_content().strip(), "🌐 Open")
+
+        # Click open button
+        open_btn.click()
+
+        # Should show checkmark
+        self.page.wait_for_selector('button[data-action="open-port"][data-port="6666"].is-copied', timeout=2000)
+        self.assertIn("is-copied", open_btn.get_attribute("class"))
+
+        # After 450ms (> 300ms), it should revert back to "🌐 Open"
+        self.page.wait_for_timeout(450)
+        self.assertNotIn("is-copied", open_btn.get_attribute("class"))
+        self.assertEqual(open_btn.text_content().strip(), "🌐 Open")
 
 
 if __name__ == "__main__":

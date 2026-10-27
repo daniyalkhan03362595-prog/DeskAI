@@ -313,11 +313,15 @@ export class PortsManager {
     this.refresh();
   }
 
-  async openPort(port, host = "127.0.0.1") {
+  async openPort(port, host = "127.0.0.1", btnElement = null) {
     if (!port) return;
     const portNum = Number(port);
     const success = await NativeBridge.openPort(portNum, host);
-    if (!success) {
+    if (success) {
+      if (btnElement && btnElement instanceof HTMLElement) {
+        this.setButtonSuccessState(btnElement, 300);
+      }
+    } else {
       this.showToast(`Failed to open port ${portNum} on ${host}`, "error");
     }
   }
@@ -350,7 +354,7 @@ export class PortsManager {
     }
     if (success) {
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonCopiedState(btnElement);
+        this.setButtonSuccessState(btnElement, 300);
       } else {
         this.showToast(`Copied ${url}`, "success");
       }
@@ -359,16 +363,20 @@ export class PortsManager {
     }
   }
 
-  setButtonCopiedState(btnElement) {
+  setButtonCopiedState(btnElement, duration = 300) {
+    return this.setButtonSuccessState(btnElement, duration);
+  }
+
+  setButtonSuccessState(btnElement, duration = 300) {
     if (!btnElement) return;
 
-    if (btnElement._copyTimeout) {
-      clearTimeout(btnElement._copyTimeout);
+    if (btnElement._feedbackTimeout) {
+      clearTimeout(btnElement._feedbackTimeout);
     }
 
-    const prevContent = btnElement._originalContent || btnElement.textContent || "📋 Copy";
+    const prevContent = btnElement._originalContent || btnElement.textContent || "";
     const prevAriaLabel = btnElement._originalAriaLabel || btnElement.getAttribute("aria-label") || "";
-    const prevTitle = btnElement._originalTitle || btnElement.title || "Copy Address to Clipboard";
+    const prevTitle = btnElement._originalTitle || btnElement.title || "";
 
     btnElement._originalContent = prevContent;
     btnElement._originalAriaLabel = prevAriaLabel;
@@ -404,10 +412,12 @@ export class PortsManager {
 
     btnElement.appendChild(svg);
     btnElement.classList.add("is-copied");
-    btnElement.title = "Copied to Clipboard";
-    btnElement.setAttribute("aria-label", "Copied to clipboard");
 
-    btnElement._copyTimeout = setTimeout(() => {
+    const isCopy = btnElement.getAttribute("data-action") === "copy-port";
+    btnElement.title = isCopy ? "Copied to Clipboard" : "Opened in Browser";
+    btnElement.setAttribute("aria-label", isCopy ? "Copied to clipboard" : "Opened in browser");
+
+    btnElement._feedbackTimeout = setTimeout(() => {
       btnElement.classList.remove("is-copied");
       btnElement.style.minWidth = "";
       while (btnElement.firstChild) {
@@ -418,8 +428,8 @@ export class PortsManager {
       if (btnElement._originalAriaLabel) {
         btnElement.setAttribute("aria-label", btnElement._originalAriaLabel);
       }
-      btnElement._copyTimeout = null;
-    }, 1500);
+      btnElement._feedbackTimeout = null;
+    }, duration);
   }
 
   async probeSinglePort(custom) {

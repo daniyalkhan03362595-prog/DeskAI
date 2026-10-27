@@ -172,7 +172,7 @@ export function initGlobalEvents() {
         if (window.DeskAIPorts) {
           const port = trigger.getAttribute("data-port");
           const host = trigger.getAttribute("data-host") || "127.0.0.1";
-          window.DeskAIPorts.openPort(port, host);
+          window.DeskAIPorts.openPort(port, host, trigger);
         }
         break;
       case "copy-port":

@@ -116,9 +116,10 @@ export class PortsManager {
   promptAddPort();
   submitWatchPort();
   removePort(portNum, host = "127.0.0.1");
-  async openPort(port, host = "127.0.0.1");
+  async openPort(port, host = "127.0.0.1", btnElement = null);
   async copyPort(url, btnElement = null);
-  setButtonCopiedState(btnElement);
+  setButtonSuccessState(btnElement, duration = 300);
+  setButtonCopiedState(btnElement, duration = 300);
   async probeSinglePort(custom);
   probeWatchedPorts();
   async refresh();
@@ -142,13 +143,14 @@ export class PortsManager {
 | `this._again` | `boolean` | Coalescing flag indicating a queued refresh should execute once inflight finishes. |
 | `this._lastSignature` | `string` | Serialized signature used to skip redundant DOM re-renders. |
 
-### 3.2 Clipboard Copy & Inline Feedback (`copyPort`, `setButtonCopiedState`)
+### 3.2 Action Button Inline Feedback (`openPort`, `copyPort`, `setButtonSuccessState`)
 
-To eliminate distracting corner toast popups during routine copy operations:
-* `copyPort(url, btnElement)` writes the target URL to clipboard via modern `navigator.clipboard.writeText` with a sandboxed `<textarea>` + `document.execCommand("copy")` fallback.
-* On success, `setButtonCopiedState(btnElement)` transforms the clicked button into a sleek vector SVG checkmark (`<svg class="port-check-icon">`) with `var(--color-success)` borders and `var(--color-success-subtle)` background.
+To eliminate distracting corner toast popups and provide immediate interaction feedback:
+* `openPort(port, host, btnElement)` calls `NativeBridge.openPort` and on success triggers `setButtonSuccessState(btnElement, 300)`.
+* `copyPort(url, btnElement)` writes the target URL to clipboard via modern `navigator.clipboard.writeText` with a sandboxed `<textarea>` + `document.execCommand("copy")` fallback, and on success triggers `setButtonSuccessState(btnElement, 300)`.
+* On success, `setButtonSuccessState(btnElement, duration = 300)` transforms the clicked button into a sleek vector SVG checkmark (`<svg class="port-check-icon">`) with `var(--color-success)` borders and `var(--color-success-subtle)` background.
 * The button's rendered width is temporarily locked via `minWidth` to prevent table column layout shift (CLS).
-* After 1500ms, the button smoothly reverts to resting `📋 Copy` content and original ARIA attributes.
+* After a snappy 300ms (0.3s), the button smoothly reverts to its resting label (`🌐 Open` or `📋 Copy`) and original ARIA attributes.
 
 ---
 
