@@ -12,11 +12,13 @@ export class EditorManager {
     if (this.tabStrip) {
       this.tabStrip.setAttribute("role", "tablist");
       this.tabStrip.addEventListener("keydown", (e) => {
+        const tabIds = Array.from(this.buffers.keys());
+        if (tabIds.length === 0) return;
+        const currentIndex = tabIds.indexOf(this.activeTabId);
+
         if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
           e.preventDefault();
-          const tabIds = Array.from(this.buffers.keys());
           if (tabIds.length <= 1) return;
-          const currentIndex = tabIds.indexOf(this.activeTabId);
           let newIndex = e.key === "ArrowRight" ? currentIndex + 1 : currentIndex - 1;
           if (newIndex >= tabIds.length) newIndex = 0;
           if (newIndex < 0) newIndex = tabIds.length - 1;
@@ -24,9 +26,41 @@ export class EditorManager {
           this.selectTab(newTabId);
           const activeEl = this.tabStrip.querySelector(`[data-tab-id="${newTabId}"]`);
           if (activeEl) activeEl.focus();
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          const firstId = tabIds[0];
+          this.selectTab(firstId);
+          const activeEl = this.tabStrip.querySelector(`[data-tab-id="${firstId}"]`);
+          if (activeEl) activeEl.focus();
+        } else if (e.key === "End") {
+          e.preventDefault();
+          const lastId = tabIds[tabIds.length - 1];
+          this.selectTab(lastId);
+          const activeEl = this.tabStrip.querySelector(`[data-tab-id="${lastId}"]`);
+          if (activeEl) activeEl.focus();
+        } else if (e.key === "Delete") {
+          e.preventDefault();
+          if (this.activeTabId) {
+            this.closeTab(this.activeTabId);
+          }
         }
       });
     }
+  }
+
+  detectFileIcon(filename) {
+    if (!filename) return "📄";
+    const lower = filename.toLowerCase();
+    if (lower.endsWith(".py") || lower.endsWith(".pyw")) return "🐍";
+    if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".cjs")) return "🟨";
+    if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "🔷";
+    if (lower.endsWith(".json")) return "📦";
+    if (lower.endsWith(".html") || lower.endsWith(".htm")) return "🌐";
+    if (lower.endsWith(".css") || lower.endsWith(".scss")) return "🎨";
+    if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "📝";
+    if (lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh")) return "🐚";
+    if (lower.endsWith(".sql")) return "🗄️";
+    return "📄";
   }
 
   detectLanguage(filename) {
@@ -132,11 +166,27 @@ export class EditorManager {
     }
 
     this.renderTabs();
+
+    if (this.tabStrip) {
+      const activeEl = this.tabStrip.querySelector(`[data-tab-id="${id}"]`);
+      if (activeEl && typeof activeEl.scrollIntoView === "function") {
+        activeEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      }
+    }
   }
 
-  closeTab(id) {
+  async closeTab(id, force = false) {
     if (!this.buffers.has(id)) return;
     const buffer = this.buffers.get(id);
+
+    if (!force && buffer.isDirty) {
+      const confirmed = confirm(`Save changes to ${buffer.name} before closing?`);
+      if (!confirmed) {
+        return;
+      }
+      const saved = await this.saveBuffer(id);
+      if (!saved) return;
+    }
 
     if (buffer.view) {
       buffer.view.destroy();
@@ -148,11 +198,11 @@ export class EditorManager {
     this.buffers.delete(id);
 
     if (store && store.state && store.state.editor) {
-      store.state.editor.openTabs = Array.from(this.buffers.values()).map(b => ({
+      store.state.editor.openTabs = Array.from(this.buffers.values()).map((b) => ({
         id: b.id,
         name: b.name,
         path: b.path,
-        isDirty: b.isDirty
+        isDirty: b.isDirty,
       }));
     }
 
@@ -172,15 +222,15 @@ export class EditorManager {
     }
 
     // Recompute dirty status across remaining tabs
-    const hasAnyDirty = Array.from(this.buffers.values()).some(b => b.isDirty);
+    const hasAnyDirty = Array.from(this.buffers.values()).some((b) => b.isDirty);
     NativeBridge.setDirtyStatus(hasAnyDirty);
 
     this.renderTabs();
   }
 
-  async saveActiveBuffer() {
-    if (!this.activeTabId || !this.buffers.has(this.activeTabId)) return false;
-    const buffer = this.buffers.get(this.activeTabId);
+  async saveBuffer(id) {
+    if (!id || !this.buffers.has(id)) return false;
+    const buffer = this.buffers.get(id);
     let filePath = buffer.path;
     if (!filePath) {
       const res = await NativeBridge.saveFileDialog(buffer.name);
@@ -194,10 +244,14 @@ export class EditorManager {
     }
     const writeRes = await NativeBridge.writeFile(filePath, buffer.content);
     if (writeRes && writeRes.status === "ok") {
-      this.markDirty(this.activeTabId, false);
+      this.markDirty(id, false);
       return true;
     }
     return false;
+  }
+
+  async saveActiveBuffer() {
+    return await this.saveBuffer(this.activeTabId);
   }
 
   markDirty(id, isDirty) {
@@ -206,7 +260,7 @@ export class EditorManager {
       buffer.isDirty = Boolean(isDirty);
       this.renderTabs();
 
-      const hasAnyDirty = Array.from(this.buffers.values()).some(b => b.isDirty);
+      const hasAnyDirty = Array.from(this.buffers.values()).some((b) => b.isDirty);
       NativeBridge.setDirtyStatus(hasAnyDirty);
     }
   }
@@ -216,19 +270,24 @@ export class EditorManager {
     this.tabStrip.replaceChildren();
 
     for (const [id, buffer] of this.buffers.entries()) {
+      const isSelected = id === this.activeTabId;
+
       const tabEl = document.createElement("div");
-      tabEl.className = "editor-tab";
+      tabEl.className = isSelected ? "editor-tab active" : "editor-tab";
       tabEl.setAttribute("role", "tab");
+      tabEl.id = `tab-${id}`;
       tabEl.setAttribute("data-tab-id", id);
-      tabEl.setAttribute("aria-selected", id === this.activeTabId ? "true" : "false");
+      tabEl.setAttribute("aria-selected", isSelected ? "true" : "false");
       tabEl.setAttribute("aria-controls", "editorViewport");
-      tabEl.setAttribute("tabindex", id === this.activeTabId ? "0" : "-1");
+      tabEl.setAttribute("tabindex", isSelected ? "0" : "-1");
       tabEl.setAttribute("data-action", "select-tab");
       tabEl.setAttribute("data-param", id);
+      tabEl.setAttribute("title", buffer.path || buffer.name);
 
       const iconSpan = document.createElement("span");
       iconSpan.className = "tab-icon";
-      iconSpan.textContent = "📄";
+      iconSpan.setAttribute("aria-hidden", "true");
+      iconSpan.textContent = this.detectFileIcon(buffer.name);
       tabEl.appendChild(iconSpan);
 
       const labelSpan = document.createElement("span");
@@ -239,15 +298,18 @@ export class EditorManager {
       if (buffer.isDirty) {
         const dirtySpan = document.createElement("span");
         dirtySpan.className = "tab-dirty-indicator";
+        dirtySpan.setAttribute("aria-label", "Unsaved changes");
         dirtySpan.textContent = "●";
         tabEl.appendChild(dirtySpan);
       }
 
       const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
       closeBtn.className = "tab-close-btn";
       closeBtn.setAttribute("data-action", "tab-close");
       closeBtn.setAttribute("data-param", id);
-      closeBtn.setAttribute("aria-label", "Close Tab");
+      closeBtn.setAttribute("aria-label", `Close ${buffer.name}`);
+      closeBtn.setAttribute("tabindex", "-1");
       closeBtn.textContent = "✕";
       tabEl.appendChild(closeBtn);
 

@@ -70,6 +70,7 @@
   color: var(--text-inverse);
   box-shadow: var(--shadow-sm);
   display: none;
+  pointer-events: none;
 }
 
 .connection-banner.warning {
@@ -246,26 +247,75 @@
   display: flex;
   align-items: center;
   overflow-x: auto;
+  overflow-y: hidden;
+  user-select: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-regular) transparent;
+}
+
+.tab-strip::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tab-strip::-webkit-scrollbar-thumb {
+  background-color: var(--border-regular);
+  border-radius: 2px;
+}
+
+.tab-strip::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
 }
 
 .editor-tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
   height: 100%;
   border-right: 1px solid var(--border-subtle);
+  border-top: 2px solid transparent;
   background-color: var(--bg-header);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: all var(--transition-fast);
 }
 
-.editor-tab[aria-selected="true"] {
-  background-color: var(--bg-surface);
+.editor-tab:hover {
+  background-color: var(--bg-hover);
   color: var(--text-primary);
-  border-bottom: 2px solid var(--color-primary);
+}
+
+.editor-tab[aria-selected="true"],
+.editor-tab.active {
+  background-color: var(--bg-surface);
+  color: var(--color-primary);
+  border-top: 2px solid var(--color-primary);
+  border-bottom: 2px solid transparent;
+  font-weight: 600;
+}
+
+.tab-icon {
+  font-size: var(--text-xs);
+  display: inline-flex;
+  align-items: center;
+}
+
+.tab-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-dirty-indicator {
+  font-size: 8px;
+  color: var(--color-warning);
+  line-height: 1;
 }
 
 .tab-close-btn {
@@ -274,13 +324,21 @@
   color: var(--text-muted);
   font-size: 11px;
   cursor: pointer;
-  padding: 2px;
-  border-radius: 2px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
 }
 
 .tab-close-btn:hover {
   background-color: var(--bg-hover);
-  color: var(--text-primary);
+  color: var(--color-danger);
+}
+
+.tab-close-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
 }
 
 .editor-viewport {

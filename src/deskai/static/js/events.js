@@ -101,7 +101,9 @@ export function initGlobalEvents() {
       }
 
       case "tab-close":
-        window.EditorManager.closeTab(param);
+        if (window.EditorManager) {
+          await window.EditorManager.closeTab(param);
+        }
         break;
       case "select-tab":
         window.EditorManager.selectTab(param);
@@ -679,4 +681,33 @@ function initResizers() {
       window.DeskAITerminal.fit();
     }
   });
+
+  // Middle-click (auxclick, button: 1) on editor tabs closes them
+  document.addEventListener("auxclick", (e) => {
+    if (e.button === 1) {
+      const tabEl = e.target.closest(".editor-tab");
+      if (tabEl) {
+        e.preventDefault();
+        const tabId = tabEl.getAttribute("data-tab-id");
+        if (tabId && window.EditorManager) {
+          window.EditorManager.closeTab(tabId);
+        }
+      }
+    }
+  });
+
+  // Horizontal wheel scroll translation on editor tab strip
+  const editorTabStrip = document.getElementById("editorTabStrip");
+  if (editorTabStrip) {
+    editorTabStrip.addEventListener(
+      "wheel",
+      (e) => {
+        if (e.deltaY !== 0) {
+          e.preventDefault();
+          editorTabStrip.scrollLeft += e.deltaY;
+        }
+      },
+      { passive: false }
+    );
+  }
 }
