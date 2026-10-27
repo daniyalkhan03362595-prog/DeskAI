@@ -4,8 +4,11 @@ Exposed to JavaScript via window.pywebview.api.
 Handles native dialogs, external URL dispatch, window controls, and path sandboxing.
 """
 
+import ipaddress
 import os
+import socket
 import sys
+from urllib.parse import urlsplit
 import webbrowser
 from typing import TYPE_CHECKING
 import webview
@@ -14,6 +17,52 @@ from deskai.utils.path import is_safe_workspace_path, canonicalize_path, is_disa
 
 if TYPE_CHECKING:
     from deskai.bridge.window import WindowManager
+
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "[::1]"}
+
+
+def _is_safe_external_url(url: str) -> bool:
+    """
+    Validates external URL string strictly.
+    Rejects control characters, length > 2048, missing hostname, userinfo spoofing, and dangerous schemes.
+    """
+    if not isinstance(url, str) or len(url) > 2048:
+        return False
+    url = url.strip()
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in url):
+        return False
+    try:
+        p = urlsplit(url)
+    except ValueError:
+        return False
+    scheme = p.scheme.lower()
+    if scheme in ("http", "https"):
+        return bool(p.hostname) and not p.username
+    if scheme == "mailto":
+        return bool(p.path)
+    return False
+
+
+def _reachable_host(ip: str):
+    """
+    Translates an IP string to (host, exposure) for loopback reachability.
+    Unwraps IPv4-mapped IPv6, returning ('127.0.0.1' or '[::1]', 'loopback' | 'all-interfaces')
+    for local or unspecified binds, or None if external/LAN-only.
+    """
+    try:
+        clean_ip = ip.split("%", 1)[0]
+        addr = ipaddress.ip_address(clean_ip)
+    except ValueError:
+        return None
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    host = "127.0.0.1" if addr.version == 4 else "[::1]"
+    if addr.is_loopback:
+        return host, "loopback"
+    if addr.is_unspecified:
+        return host, "all-interfaces"
+    return None
 
 
 # Support both pywebview 6.x (webview.FileDialog) and 5.x (webview.FOLDER_DIALOG)
@@ -135,17 +184,50 @@ class DesktopBridgeAPI:
     def open_external_url(self, url: str) -> bool:
         """
         Dispatches web URLs to the user's default OS browser.
-        Blocks javascript: or file: URLs to prevent sandbox breakout.
+        Blocks javascript:, file:, or malformed/hostile URLs.
         """
         if not self._is_origin_allowed():
             return False
-        if not url:
+        if not _is_safe_external_url(url):
             return False
-        clean_url = url.strip()
-        if clean_url.startswith(("http://", "https://", "mailto:")):
-            webbrowser.open(clean_url)
-            return True
-        return False
+        return bool(webbrowser.open(url.strip()))
+
+    def open_port(self, port: int, host: str = "127.0.0.1") -> bool:
+        """
+        Opens a validated loopback port in the default browser.
+        Origin guarded; only accepts real integer port numbers and loopback hosts.
+        Refuses the internal supervisor port (which requires internal launch cookie).
+        """
+        if not self._is_origin_allowed():
+            return False
+        if isinstance(port, bool) or not isinstance(port, int) or not (1 <= port <= 65535):
+            return False
+        if host not in _LOOPBACK_HOSTS:
+            return False
+        supervisor_port = getattr(getattr(self._manager, "server", None), "port", None)
+        if supervisor_port and port == supervisor_port:
+            return False
+        return bool(webbrowser.open(f"http://{host}:{port}"))
+
+    def probe_port(self, port: int, host: str = "127.0.0.1") -> bool:
+        """
+        Probes whether a loopback port is actively listening with ~150ms timeout.
+        """
+        if not self._is_origin_allowed():
+            return False
+        if isinstance(port, bool) or not isinstance(port, int) or not (1 <= port <= 65535):
+            return False
+        if host not in _LOOPBACK_HOSTS:
+            return False
+        target_host = "::1" if host == "[::1]" else host
+        family = socket.AF_INET6 if ":" in target_host else socket.AF_INET
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.15)
+                res = sock.connect_ex((target_host, port))
+                return res == 0
+        except Exception:
+            return False
 
     def drag_window(self, timestamp: float | None = None) -> bool:
         """Initiates native window move drag across Windows and Linux (Wayland/X11)."""
@@ -441,56 +523,79 @@ class DesktopBridgeAPI:
         if not self._is_origin_allowed():
             return {"status": "error", "message": "Unauthorized origin", "ports": []}
 
-        ports = []
-        seen_ports = set()
-        supervisor_port = getattr(getattr(self._manager, "server", None), "port", None)
-        if supervisor_port:
-            seen_ports.add(supervisor_port)
-            ports.append(
-                {
-                    "port": supervisor_port,
-                    "protocol": "HTTP",
-                    "address": f"http://127.0.0.1:{supervisor_port}",
-                    "process": "DeskAI Supervisor",
-                    "status": "Listening",
-                    "origin": "System",
-                }
-            )
+        warnings = []
+        rows = {}
 
         try:
             import psutil
+        except ImportError:
+            psutil = None
+            warnings.append("psutil_missing")
 
-            for conn in psutil.net_connections(kind="inet"):
-                if conn.status == "LISTEN" and conn.laddr:
-                    ip = conn.laddr.ip
-                    port = conn.laddr.port
-                    if port in seen_ports:
-                        continue
-                    if ip in ("127.0.0.1", "::1", "0.0.0.0", "::") and port >= 1024:
-                        seen_ports.add(port)
-                        proc_name = "Process"
-                        if conn.pid:
-                            try:
-                                proc = psutil.Process(conn.pid)
-                                proc_name = proc.name()
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                proc_name = f"PID {conn.pid}"
+        if psutil:
+            try:
+                conns = psutil.net_connections(kind="inet")
+            except (psutil.AccessDenied, PermissionError):
+                conns = []
+                warnings.append("socket_table_denied")
+            except Exception:
+                conns = []
 
-                        ports.append(
-                            {
-                                "port": port,
-                                "protocol": "HTTP",
-                                "address": f"http://localhost:{port}",
-                                "process": proc_name,
-                                "status": "Listening",
-                                "origin": "Local",
-                            }
-                        )
-        except Exception:
-            pass
+            names: dict[int, str] = {}
+            listen_status = getattr(psutil, "CONN_LISTEN", "LISTEN")
+            for c in conns:
+                status = getattr(c, "status", None)
+                if status != listen_status and status != "LISTEN":
+                    continue
+                laddr = getattr(c, "laddr", None)
+                if not laddr or not hasattr(laddr, "port") or laddr.port < 1024:
+                    continue
+                target = _reachable_host(getattr(laddr, "ip", ""))
+                if target is None:
+                    continue
+                host, exposure = target
+                port = laddr.port
+                pid = getattr(c, "pid", None)
+                if pid is not None and pid not in names:
+                    try:
+                        proc = psutil.Process(pid)
+                        names[pid] = proc.name()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        names[pid] = f"PID {pid}"
+                    except Exception:
+                        names[pid] = f"PID {pid}"
 
-        ports.sort(key=lambda x: x["port"])
-        return {"status": "ok", "ports": ports}
+                proc_name = names.get(pid, "Restricted") if pid is not None else "Restricted"
+                rows[(port, host)] = {
+                    "port": port,
+                    "host": host,
+                    "address": f"http://{host}:{port}",
+                    "protocol": "TCP",
+                    "process": proc_name,
+                    "pid": pid,
+                    "status": "Listening",
+                    "origin": "Local",
+                    "exposure": exposure,
+                    "openable": True,
+                }
+
+        supervisor_port = getattr(getattr(self._manager, "server", None), "port", None)
+        if supervisor_port:
+            rows[(supervisor_port, "127.0.0.1")] = {
+                "port": supervisor_port,
+                "host": "127.0.0.1",
+                "address": f"http://127.0.0.1:{supervisor_port}",
+                "protocol": "HTTP",
+                "process": "DeskAI Supervisor",
+                "pid": None,
+                "status": "Listening",
+                "origin": "System",
+                "exposure": "loopback",
+                "openable": False,
+            }
+
+        ports = sorted(rows.values(), key=lambda r: (r["port"], r["host"]))
+        return {"status": "ok", "ports": ports, "warnings": warnings}
 
     def _is_safe_path(self, target_path: str) -> bool:
         """Internal sandbox helper."""
