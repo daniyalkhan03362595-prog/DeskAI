@@ -319,7 +319,7 @@ export class PortsManager {
     const success = await NativeBridge.openPort(portNum, host);
     if (success) {
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonSuccessState(btnElement, 300);
+        this.setButtonSuccessState(btnElement, 100);
       }
     } else {
       this.showToast(`Failed to open port ${portNum} on ${host}`, "error");
@@ -354,7 +354,7 @@ export class PortsManager {
     }
     if (success) {
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonSuccessState(btnElement, 300);
+        this.setButtonSuccessState(btnElement, 100);
       } else {
         this.showToast(`Copied ${url}`, "success");
       }
@@ -363,11 +363,11 @@ export class PortsManager {
     }
   }
 
-  setButtonCopiedState(btnElement, duration = 300) {
+  setButtonCopiedState(btnElement, duration = 100) {
     return this.setButtonSuccessState(btnElement, duration);
   }
 
-  setButtonSuccessState(btnElement, duration = 300) {
+  setButtonSuccessState(btnElement, duration = 100) {
     if (!btnElement) return;
 
     if (btnElement._feedbackTimeout) {
@@ -674,7 +674,7 @@ export class PortsManager {
       openBtn.setAttribute("data-port", String(item.port));
       openBtn.setAttribute("data-host", item.host || "127.0.0.1");
       openBtn.setAttribute("aria-label", `Open port ${item.port} on ${item.host || "127.0.0.1"}`);
-      openBtn.textContent = "🌐 Open";
+      openBtn.textContent = "Open";
 
       if (item.openable === false) {
         openBtn.disabled = true;
@@ -696,7 +696,7 @@ export class PortsManager {
       copyBtn.setAttribute("data-port", String(item.port));
       copyBtn.setAttribute("aria-label", `Copy address for port ${item.port}`);
       copyBtn.title = "Copy Address to Clipboard";
-      copyBtn.textContent = "📋 Copy";
+      copyBtn.textContent = "Copy";
       tdActions.appendChild(copyBtn);
 
       // Remove button for watched custom ports

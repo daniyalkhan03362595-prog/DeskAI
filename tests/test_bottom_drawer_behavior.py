@@ -175,7 +175,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         """)
 
         copy_btn = self.page.locator('button[data-action="copy-port"][data-url="http://127.0.0.1:5555"]')
-        self.assertEqual(copy_btn.text_content().strip(), "📋 Copy")
+        self.assertEqual(copy_btn.text_content().strip(), "Copy")
 
         # Click the copy button
         copy_btn.click()
@@ -195,13 +195,13 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         toast_count = self.page.locator("#toastRack .toast").count()
         self.assertEqual(toast_count, 0)
 
-        # After timeout (300ms), button should revert back
-        self.page.wait_for_timeout(450)
+        # After timeout (100ms), button should revert back
+        self.page.wait_for_timeout(200)
         self.assertNotIn("is-copied", copy_btn.get_attribute("class"))
-        self.assertEqual(copy_btn.text_content().strip(), "📋 Copy")
+        self.assertEqual(copy_btn.text_content().strip(), "Copy")
 
     def test_open_port_inline_checkmark_feedback(self):
-        """Clicking open-port displays inline SVG checkmark and reverts within 300ms."""
+        """Clicking open-port displays inline SVG checkmark and reverts within 100ms."""
         self.page.locator("#tab-ports").click()
         self.page.evaluate("""
             window.DeskAIPorts.stopPolling();
@@ -226,7 +226,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         """)
 
         open_btn = self.page.locator('button[data-action="open-port"][data-port="6666"]')
-        self.assertEqual(open_btn.text_content().strip(), "🌐 Open")
+        self.assertEqual(open_btn.text_content().strip(), "Open")
 
         # Click open button
         open_btn.click()
@@ -235,10 +235,10 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.page.wait_for_selector('button[data-action="open-port"][data-port="6666"].is-copied', timeout=2000)
         self.assertIn("is-copied", open_btn.get_attribute("class"))
 
-        # After 450ms (> 300ms), it should revert back to "🌐 Open"
-        self.page.wait_for_timeout(450)
+        # After 200ms (> 100ms), it should revert back to "Open"
+        self.page.wait_for_timeout(200)
         self.assertNotIn("is-copied", open_btn.get_attribute("class"))
-        self.assertEqual(open_btn.text_content().strip(), "🌐 Open")
+        self.assertEqual(open_btn.text_content().strip(), "Open")
 
     def test_action_buttons_trigger_zero_layout_shift(self):
         """Action button feedback preserves exact column widths and positions (zero layout jitter)."""

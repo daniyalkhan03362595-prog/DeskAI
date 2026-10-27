@@ -118,8 +118,8 @@ export class PortsManager {
   removePort(portNum, host = "127.0.0.1");
   async openPort(port, host = "127.0.0.1", btnElement = null);
   async copyPort(url, btnElement = null);
-  setButtonSuccessState(btnElement, duration = 300);
-  setButtonCopiedState(btnElement, duration = 300);
+  setButtonSuccessState(btnElement, duration = 100);
+  setButtonCopiedState(btnElement, duration = 100);
   async probeSinglePort(custom);
   probeWatchedPorts();
   async refresh();
@@ -146,11 +146,11 @@ export class PortsManager {
 ### 3.2 Action Button Inline Feedback (`openPort`, `copyPort`, `setButtonSuccessState`)
 
 To eliminate distracting corner toast popups and provide immediate interaction feedback:
-* `openPort(port, host, btnElement)` calls `NativeBridge.openPort` and on success triggers `setButtonSuccessState(btnElement, 300)`.
-* `copyPort(url, btnElement)` writes the target URL to clipboard via modern `navigator.clipboard.writeText` with a sandboxed `<textarea>` + `document.execCommand("copy")` fallback, and on success triggers `setButtonSuccessState(btnElement, 300)`.
-* On success, `setButtonSuccessState(btnElement, duration = 300)` transforms the clicked button into a sleek vector SVG checkmark (`<svg class="port-check-icon">`) with `var(--color-success)` borders and `var(--color-success-subtle)` background.
+* `openPort(port, host, btnElement)` calls `NativeBridge.openPort` and on success triggers `setButtonSuccessState(btnElement, 100)`.
+* `copyPort(url, btnElement)` writes the target URL to clipboard via modern `navigator.clipboard.writeText` with a sandboxed `<textarea>` + `document.execCommand("copy")` fallback, and on success triggers `setButtonSuccessState(btnElement, 100)`.
+* On success, `setButtonSuccessState(btnElement, duration = 100)` transforms the clicked button into a sleek vector SVG checkmark (`<svg class="port-check-icon">`) with `var(--color-success)` borders and `var(--color-success-subtle)` background.
 * Table columns employ deterministic `table-layout: fixed` with explicit widths and action buttons use fixed dimensions (`width: 56px; height: 22px; box-sizing: border-box`), ensuring mathematical zero layout shift (`diff = 0.00px`) during state transitions.
-* After a snappy 300ms (0.3s), the button smoothly reverts to its resting label (`🌐 Open` or `📋 Copy`) and original ARIA attributes.
+* After an ultra-fast 100ms (0.1s), the button smoothly reverts to its resting label (`Open` or `Copy`) and original ARIA attributes.
 
 ---
 

@@ -25,7 +25,7 @@ Modern local software development and agentic coding workflows frequently spawn 
   3. **Watched Port Tracking:** Ability to manually watch specific ports (`+ Watch Port`) with accessible `<dialog id="watchPortModal">` dialog, regex validation (`/^\d{1,5}$/`), range check (`1-65535`), and persistence in `localStorage`.
   4. **Active Reachability Probing:** Watched ports are asynchronously checked via `probe_port(port, host)` with 150ms socket connect probing, displaying `"Listening"` when reachable and `"Not responding"` when inactive.
   5. **Network Exposure & Noise Filtering:** System scans apply a port $\ge 1024$ noise reduction filter (omitting OS-reserved ports) and badge all-interface listeners (`0.0.0.0` or `::`) with a `"Network-exposed"` indicator.
-  6. **Hardened One-Click Native Interaction:** Actions to launch validated local endpoints via `open_port(port, host)` (or hardened `open_external_url`), and copy addresses to clipboard with instantaneous inline vector checkmark (`✓`) feedback on both Open and Copy buttons (auto-reverting in a snappy 0.3s / 300ms, eliminating distracting corner toasts).
+  6. **Hardened One-Click Native Interaction:** Actions to launch validated local endpoints via `open_port(port, host)` (or hardened `open_external_url`), and copy addresses to clipboard with instantaneous inline vector checkmark (`✓`) feedback on both clean text Open and Copy buttons (auto-reverting in an ultra-fast 0.1s / 100ms, eliminating distracting corner toasts).
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -33,9 +33,9 @@ Modern local software development and agentic coding workflows frequently spawn 
 ├───────┬──────────┬────────────────────────┬───────────────────┬──────┬─────────┬───────────┤
 │ Port  │ Protocol │ Local Address          │ Process / Service │ PID  │ Status  │ Actions   │
 ├───────┼──────────┼────────────────────────┼───────────────────┼──────┼─────────┼───────────┤
-│ 3000  │ TCP      │ http://127.0.0.1:3000  │ node              │ 4120 │Listening│ [🌐] [📋] │
-│ 8000  │ HTTP     │ http://127.0.0.1:8000  │ DeskAI Supervisor │ 3810 │Listening│ [🔒] [📋] │
-│ 5173  │ TCP      │ http://127.0.0.1:5173  │ Watched           │ --   │Listening│ [🌐][📋][✕]│
+│ 3000  │ TCP      │ http://127.0.0.1:3000  │ node              │ 4120 │Listening│[Open][Copy]│
+│ 8000  │ HTTP     │ http://127.0.0.1:8000  │ DeskAI Supervisor │ 3810 │Listening│[Open][Copy]│
+│ 5173  │ TCP      │ http://127.0.0.1:5173  │ Watched           │ --   │Listening│[Open][Copy][✕]│
 └───────┴──────────┴────────────────────────┴───────────────────┴──────┴─────────┴───────────┘
 ```
 
@@ -62,9 +62,9 @@ stateDiagram-v2
 
 | State Mode | Data Source | Persistence | User Actions Available |
 | :--- | :--- | :--- | :--- |
-| **System Detected** | OS TCP table via `psutil.net_connections(kind="inet")` | Dynamic per scan | Open in Browser (`🌐` via `open_port`), Copy Address (`📋`) |
-| **Supervisor Origin** | `self._manager.server.port` | Session lifetime | Copy Address (`📋`), Open disabled (`🔒` requires session auth) |
-| **User Watched** | `localStorage` (`deskai_watched_ports_<workspace>`) | Persistent | Open (`🌐`), Copy (`📋`), Stop Watching (`✕`), Background Probing |
+| **System Detected** | OS TCP table via `psutil.net_connections(kind="inet")` | Dynamic per scan | Open in Browser (`open_port`), Copy Address |
+| **Supervisor Origin** | `self._manager.server.port` | Session lifetime | Copy Address, Open disabled (requires session auth) |
+| **User Watched** | `localStorage` (`deskai_watched_ports_<workspace>`) | Persistent | Open, Copy, Stop Watching (`✕`), Background Probing |
 
 ---
 
