@@ -42,7 +42,10 @@ class TestTreeNodeItem(unittest.TestCase):
             self.context.close()
 
     def test_tni_01_semantic_filetype_badges(self):
-        """TC-TNI-01: Files render correct emoji badges matching extension."""
+        """TC-TNI-01: Files render correct semantic slate SVG vector outline icons (Zed/Cursor style).
+        Note: Evolved from legacy raw Unicode emojis (🐍, 🟨, 📝) to unified vector SVG outline icons
+        ('file-code', 'file-text') rendered with currentColor and data-icon attributes.
+        """
         res = self.page.evaluate("""() => {
             window.ExplorerManager.entries = [
                 { name: "script.py", is_dir: false, path: "/workspace/script.py" },
@@ -54,31 +57,39 @@ class TestTreeNodeItem(unittest.TestCase):
                 { name: "README.md", is_dir: false, path: "/workspace/README.md" },
                 { name: "deploy.sh", is_dir: false, path: "/workspace/deploy.sh" },
                 { name: "schema.sql", is_dir: false, path: "/workspace/schema.sql" },
-                { name: "notes.txt", is_dir: false, path: "/workspace/notes.txt" }
+                { name: "notes.txt", is_dir: false, path: "/workspace/notes.txt" },
+                { name: ".gitignore", is_dir: false, path: "/workspace/.gitignore" },
+                { name: "pyproject.toml", is_dir: false, path: "/workspace/pyproject.toml" }
             ];
             window.ExplorerManager.render();
 
             const items = document.querySelectorAll("#fileTreeViewport .tree-item");
             return Array.from(items).map(item => ({
                 label: item.querySelector(".tree-label").textContent,
-                icon: item.querySelector(".tree-icon").textContent
+                icon: item.querySelector(".tree-icon").getAttribute("data-icon"),
+                hasSvg: !!item.querySelector(".tree-icon svg.deskai-svg-icon")
             }));
         }""")
 
         badge_map = {item["label"]: item["icon"] for item in res}
-        self.assertEqual(badge_map["script.py"], "🐍")
-        self.assertEqual(badge_map["bundle.js"], "🟨")
-        self.assertEqual(badge_map["types.ts"], "🔷")
-        self.assertEqual(badge_map["data.json"], "📦")
-        self.assertEqual(badge_map["index.html"], "🌐")
-        self.assertEqual(badge_map["styles.css"], "🎨")
-        self.assertEqual(badge_map["README.md"], "📝")
-        self.assertEqual(badge_map["deploy.sh"], "🐚")
-        self.assertEqual(badge_map["schema.sql"], "🗄️")
-        self.assertEqual(badge_map["notes.txt"], "📄")
+        self.assertTrue(all(item["hasSvg"] for item in res))
+        self.assertEqual(badge_map["script.py"], "file-code")
+        self.assertEqual(badge_map["bundle.js"], "file-code")
+        self.assertEqual(badge_map["types.ts"], "file-code")
+        self.assertEqual(badge_map["data.json"], "file-code")
+        self.assertEqual(badge_map["index.html"], "file-code")
+        self.assertEqual(badge_map["styles.css"], "file-code")
+        self.assertEqual(badge_map["README.md"], "file-text")
+        self.assertEqual(badge_map["deploy.sh"], "file-code")
+        self.assertEqual(badge_map["schema.sql"], "file-code")
+        self.assertEqual(badge_map["notes.txt"], "file-text")
+        self.assertEqual(badge_map[".gitignore"], "file-code")
+        self.assertEqual(badge_map["pyproject.toml"], "file-code")
 
     def test_tni_02_folder_chevrons_and_icons(self):
-        """TC-TNI-02: Folder renders ► 📁 when closed, and ▼ 📂 when expanded."""
+        """TC-TNI-02: Folder renders ► folder when closed, and ▼ folder-open when expanded.
+        Note: Evolved from legacy emojis (📁/📂) to minimalist slate outline SVG icons.
+        """
         res = self.page.evaluate("""() => {
             window.ExplorerManager.entries = [
                 { name: "src", is_dir: true, path: "/workspace/src" }
@@ -88,7 +99,8 @@ class TestTreeNodeItem(unittest.TestCase):
 
             const closedItem = document.querySelector("#fileTreeViewport .tree-item");
             const closedArrow = closedItem.querySelector(".tree-arrow").textContent;
-            const closedIcon = closedItem.querySelector(".tree-icon").textContent;
+            const closedIcon = closedItem.querySelector(".tree-icon").getAttribute("data-icon");
+            const closedHasSvg = !!closedItem.querySelector(".tree-icon svg.deskai-svg-icon");
 
             // Expand folder
             window.ExplorerManager.expandedDirs.add("/workspace/src");
@@ -99,20 +111,25 @@ class TestTreeNodeItem(unittest.TestCase):
 
             const openItem = document.querySelector("#fileTreeViewport .tree-item.is-folder");
             const openArrow = openItem.querySelector(".tree-arrow").textContent;
-            const openIcon = openItem.querySelector(".tree-icon").textContent;
+            const openIcon = openItem.querySelector(".tree-icon").getAttribute("data-icon");
+            const openHasSvg = !!openItem.querySelector(".tree-icon svg.deskai-svg-icon");
 
             return {
                 closedArrow,
                 closedIcon,
+                closedHasSvg,
                 openArrow,
-                openIcon
+                openIcon,
+                openHasSvg
             };
         }""")
 
         self.assertEqual(res["closedArrow"], "►")
-        self.assertEqual(res["closedIcon"], "📁")
+        self.assertEqual(res["closedIcon"], "folder")
+        self.assertTrue(res["closedHasSvg"])
         self.assertEqual(res["openArrow"], "▼")
-        self.assertEqual(res["openIcon"], "📂")
+        self.assertEqual(res["openIcon"], "folder-open")
+        self.assertTrue(res["openHasSvg"])
 
     def test_tni_03_hierarchical_indent_level(self):
         """TC-TNI-03: Indentation spaces reflect nesting depth."""

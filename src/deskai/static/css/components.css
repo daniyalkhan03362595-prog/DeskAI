@@ -325,7 +325,23 @@
 }
 
 .tree-item .tree-icon {
-  margin-right: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: var(--space-1-5);
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.tree-item .tree-icon .deskai-svg-icon {
+  display: block;
+}
+
+.tree-item:hover .tree-icon,
+.tree-item.active .tree-icon,
+.tree-item.is-selected .tree-icon {
+  color: var(--color-amber);
 }
 
 .tree-item .tree-label {

@@ -27,6 +27,9 @@ DIALOG_FOLDER = _get_dialog_type("FOLDER", "FOLDER_DIALOG", 20)
 DIALOG_OPEN = _get_dialog_type("OPEN", "OPEN_DIALOG", 10)
 DIALOG_SAVE = _get_dialog_type("SAVE", "SAVE_DIALOG", 30)
 
+# System and VCS metadata excluded from file explorer listings (VS Code style)
+EXCLUDED_EXPLORER_ENTRIES = frozenset({".git", ".DS_Store"})
+
 
 class WorkspaceFSBridge(BaseBridgeModule):
     """Bridge methods for sandboxed workspace file system operations."""
@@ -270,7 +273,7 @@ class WorkspaceFSBridge(BaseBridgeModule):
             entries = []
             with os.scandir(canonical) as it:
                 for entry in it:
-                    if entry.name.startswith("."):
+                    if entry.name in EXCLUDED_EXPLORER_ENTRIES:
                         continue
                     if not self._is_safe_path(entry.path):
                         continue

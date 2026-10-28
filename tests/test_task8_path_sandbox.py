@@ -426,6 +426,34 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
                 res3 = self.api.save_file_dialog("hacked.txt")
                 self.assertEqual(res3["status"], "error")
 
+    def test_list_dir_allows_developer_dotfiles_and_filters_vcs_metadata(self):
+        """Task 8: list_dir includes developer dotfiles (.gitignore, .github, .env) and excludes .git, .DS_Store."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ws_root = os.path.realpath(os.path.join(temp_dir, "ws"))
+            os.makedirs(ws_root)
+            self.api.workspace_root = ws_root
+
+            open(os.path.join(ws_root, "app.py"), "w").close()
+            open(os.path.join(ws_root, ".gitignore"), "w").close()
+            open(os.path.join(ws_root, ".env"), "w").close()
+            open(os.path.join(ws_root, ".DS_Store"), "w").close()
+            os.makedirs(os.path.join(ws_root, ".github"))
+            os.makedirs(os.path.join(ws_root, ".git"))
+
+            res = self.api.list_dir()
+            self.assertEqual(res.get("status"), "ok")
+            entry_names = [e["name"] for e in res.get("entries", [])]
+
+            # Developer dotfiles and regular files are present
+            self.assertIn("app.py", entry_names)
+            self.assertIn(".gitignore", entry_names)
+            self.assertIn(".env", entry_names)
+            self.assertIn(".github", entry_names)
+
+            # Internal VCS and OS noise files are excluded
+            self.assertNotIn(".git", entry_names)
+            self.assertNotIn(".DS_Store", entry_names)
+
 
 if __name__ == "__main__":
     unittest.main()

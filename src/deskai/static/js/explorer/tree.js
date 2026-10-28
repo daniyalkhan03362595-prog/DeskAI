@@ -4,19 +4,64 @@
 import { createSvgIcon } from "../icons.js";
 
 export function detectFileIcon(filename, isDir) {
-  if (isDir) return "📁";
-  if (!filename) return "📄";
+  if (isDir) return "folder";
+  if (!filename) return "file";
   const lower = filename.toLowerCase();
-  if (lower.endsWith(".py") || lower.endsWith(".pyw")) return "🐍";
-  if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".cjs")) return "🟨";
-  if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "🔷";
-  if (lower.endsWith(".json")) return "📦";
-  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "🌐";
-  if (lower.endsWith(".css") || lower.endsWith(".scss")) return "🎨";
-  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "📝";
-  if (lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh")) return "🐚";
-  if (lower.endsWith(".sql")) return "🗄️";
-  return "📄";
+
+  // Code & script extensions
+  if (
+    lower.endsWith(".py") ||
+    lower.endsWith(".pyw") ||
+    lower.endsWith(".js") ||
+    lower.endsWith(".mjs") ||
+    lower.endsWith(".cjs") ||
+    lower.endsWith(".ts") ||
+    lower.endsWith(".tsx") ||
+    lower.endsWith(".jsx") ||
+    lower.endsWith(".json") ||
+    lower.endsWith(".html") ||
+    lower.endsWith(".htm") ||
+    lower.endsWith(".css") ||
+    lower.endsWith(".scss") ||
+    lower.endsWith(".sass") ||
+    lower.endsWith(".less") ||
+    lower.endsWith(".sh") ||
+    lower.endsWith(".bash") ||
+    lower.endsWith(".zsh") ||
+    lower.endsWith(".sql") ||
+    lower.endsWith(".toml") ||
+    lower.endsWith(".yaml") ||
+    lower.endsWith(".yml") ||
+    lower.endsWith(".xml") ||
+    lower.endsWith(".in") ||
+    lower.endsWith(".rs") ||
+    lower.endsWith(".go") ||
+    lower.endsWith(".c") ||
+    lower.endsWith(".cpp") ||
+    lower.endsWith(".h") ||
+    lower.endsWith(".java") ||
+    lower.endsWith(".env") ||
+    lower.endsWith(".gitignore") ||
+    lower.endsWith(".gitattributes") ||
+    lower.endsWith(".editorconfig")
+  ) {
+    return "file-code";
+  }
+
+  // Text, markdown & documentation extensions
+  if (
+    lower.endsWith(".md") ||
+    lower.endsWith(".markdown") ||
+    lower.endsWith(".txt") ||
+    lower.endsWith(".rst") ||
+    lower.endsWith(".log") ||
+    lower.endsWith(".csv") ||
+    lower.endsWith(".tsv")
+  ) {
+    return "file-text";
+  }
+
+  return "file";
 }
 
 export function initToolbarKeyboard(toolbar) {
@@ -228,7 +273,9 @@ export function renderTreeNodes(entries, parentEl, level, state) {
     const iconSpan = document.createElement("span");
     iconSpan.className = "tree-icon";
     iconSpan.setAttribute("aria-hidden", "true");
-    iconSpan.textContent = isDir ? (isExpanded ? "📂" : "📁") : detectFileIcon(entry.name, false);
+    const iconName = isDir ? (isExpanded ? "folder-open" : "folder") : detectFileIcon(entry.name, false);
+    iconSpan.setAttribute("data-icon", iconName);
+    iconSpan.appendChild(createSvgIcon(iconName, 14, "deskai-svg-icon tree-svg-icon"));
     itemEl.appendChild(iconSpan);
 
     const labelSpan = document.createElement("span");

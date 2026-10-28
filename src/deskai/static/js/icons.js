@@ -14,6 +14,19 @@ const ICON_DEFS = {
     { tag: "path", attrs: { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" } },
     { tag: "polyline", attrs: { points: "14 2 14 8 20 8" } },
   ],
+  "file-code": [
+    { tag: "path", attrs: { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" } },
+    { tag: "polyline", attrs: { points: "14 2 14 8 20 8" } },
+    { tag: "polyline", attrs: { points: "10 13 8 15 10 17" } },
+    { tag: "polyline", attrs: { points: "14 13 16 15 14 17" } },
+  ],
+  "file-text": [
+    { tag: "path", attrs: { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" } },
+    { tag: "polyline", attrs: { points: "14 2 14 8 20 8" } },
+    { tag: "line", attrs: { x1: "16", y1: "13", x2: "8", y2: "13" } },
+    { tag: "line", attrs: { x1: "16", y1: "17", x2: "8", y2: "17" } },
+    { tag: "line", attrs: { x1: "10", y1: "9", x2: "8", y2: "9" } },
+  ],
   "file-plus": [
     { tag: "path", attrs: { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" } },
     { tag: "polyline", attrs: { points: "14 2 14 8 20 8" } },
@@ -22,6 +35,9 @@ const ICON_DEFS = {
   ],
   "folder": [
     { tag: "path", attrs: { d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" } },
+  ],
+  "folder-open": [
+    { tag: "path", attrs: { d: "m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.7.9l.8 1.2a2 2 0 0 0 1.7.9H18a2 2 0 0 1 2 2v2" } },
   ],
   "folder-plus": [
     { tag: "path", attrs: { d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" } },
