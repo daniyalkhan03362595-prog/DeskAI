@@ -66,7 +66,7 @@ export function detectFileIcon(filename, isDir) {
 
 export function initToolbarKeyboard(toolbar) {
   if (!toolbar) return;
-  const buttons = Array.from(toolbar.querySelectorAll("button.icon-btn"));
+  const buttons = Array.from(toolbar.querySelectorAll("button.icon-btn, button.toggle-slider-btn"));
   if (buttons.length === 0) return;
 
   function updateToolbarFocus(targetIndex) {

@@ -55,6 +55,7 @@
             <div class="panel-actions" id="explorerToolbar" role="toolbar" aria-label="Explorer Actions" aria-controls="fileTreeViewport">
               <button class="icon-btn" id="btnRefreshTree" data-action="refresh-tree" title="Refresh Tree" aria-label="Refresh Tree" tabindex="0"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
               <button class="icon-btn" id="btnCollapseAll" data-action="collapse-all-folders" title="Collapse Folders" aria-label="Collapse All Folders" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+              <button class="toggle-slider-btn active" id="btnToggleSidebar" data-action="toggle-sidebar" role="switch" aria-checked="true" aria-label="Toggle Explorer Sidebar" title="Collapse Explorer Sidebar" tabindex="-1"><span class="toggle-slider-track"><span class="toggle-knob"></span></span></button>
             </div>
           </div>
           <div class="tree-viewport" id="fileTreeViewport" role="tree" tabindex="0" aria-label="Project Files">
@@ -87,6 +88,7 @@
 
       <!-- Center Column: Multi-tab Code Stage with CodeMirror 6 -->
       <section class="editor-stage" id="editorStage" role="region" aria-label="Code Editor Stage">
+        <button class="sidebar-expand-pill" id="btnExpandSidebar" data-action="toggle-sidebar" title="Expand Explorer Sidebar" aria-label="Expand Explorer Sidebar"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
         <div class="tab-strip" id="editorTabStrip" role="tablist" aria-label="Open Files">
           <span class="tab-strip-empty-label" id="tabStripEmptyLabel">No files open</span>
         </div>

@@ -35,6 +35,51 @@ button, input, select, textarea {
   position: relative;
 }
 
+#appBody.sidebar-left-collapsed {
+  grid-template-columns: 0px 0px 1fr 1px var(--sidebar-right-w);
+}
+
+#sidebarLeft.collapsed {
+  display: none;
+}
+
+#resizerLeft.collapsed {
+  display: none;
+}
+
+.sidebar-expand-pill {
+  display: none;
+  position: absolute;
+  left: var(--space-2);
+  top: 6px;
+  z-index: 20;
+  width: 28px;
+  height: 28px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-regular);
+  border-radius: var(--radius-sm);
+  color: var(--color-amber);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+#appBody.sidebar-left-collapsed .sidebar-expand-pill {
+  display: flex;
+}
+
+.sidebar-expand-pill:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--color-amber);
+}
+
+.sidebar-expand-pill:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 1px;
+}
+
 /* Responsive Side Panel Default Constraints at Compact Screen Sizes */
 @media (max-width: 1024px) {
   :root {

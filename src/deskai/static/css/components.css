@@ -218,6 +218,81 @@
   pointer-events: none;
 }
 
+.icon-btn.is-refreshing svg {
+  animation: deskai-spin 0.4s ease-in-out;
+}
+
+@keyframes deskai-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Modern Toggle Switch / Slider (Style 1) */
+.toggle-slider-btn {
+  width: 30px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: var(--space-05);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.toggle-slider-btn:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 1px;
+}
+
+.toggle-slider-track {
+  width: 24px;
+  height: 14px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-pill);
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 1px;
+  box-sizing: border-box;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  pointer-events: none;
+}
+
+.toggle-slider-btn:hover .toggle-slider-track {
+  border-color: var(--color-amber);
+}
+
+.toggle-slider-btn.active .toggle-slider-track {
+  background-color: var(--color-amber);
+  border-color: var(--color-amber);
+}
+
+.toggle-knob {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-white);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
+  transform: translateX(10px);
+  pointer-events: none;
+}
+
+.toggle-slider-btn:not(.active) .toggle-knob {
+  transform: translateX(0px);
+  background-color: var(--text-muted);
+}
+
 .tree-viewport {
   flex: 1;
   overflow-y: auto;

@@ -210,6 +210,24 @@ export function initGlobalEvents() {
         break;
       }
 
+      case "toggle-sidebar": {
+        const appBody = document.getElementById("appBody");
+        const sidebar = document.getElementById("sidebarLeft");
+        const resizer = document.getElementById("resizerLeft");
+        const toggleBtn = document.getElementById("btnToggleSidebar");
+        if (appBody && sidebar) {
+          const isCollapsed = appBody.classList.toggle("sidebar-left-collapsed");
+          sidebar.classList.toggle("collapsed", isCollapsed);
+          if (resizer) resizer.classList.toggle("collapsed", isCollapsed);
+          if (toggleBtn) {
+            toggleBtn.classList.toggle("active", !isCollapsed);
+            toggleBtn.setAttribute("aria-checked", String(!isCollapsed));
+            toggleBtn.setAttribute("title", isCollapsed ? "Expand Explorer Sidebar" : "Collapse Explorer Sidebar");
+          }
+        }
+        break;
+      }
+
       case "kill-terminal":
         if (window.DeskAITerminal) {
           window.DeskAITerminal.kill();

@@ -763,9 +763,28 @@ export class ExplorerManager {
     const currentScrollTop = this.viewport ? this.viewport.scrollTop : 0;
     const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
 
+    const refreshBtn = document.getElementById("btnRefreshTree");
+    if (refreshBtn) {
+      refreshBtn.classList.add("is-refreshing");
+      setTimeout(() => refreshBtn.classList.remove("is-refreshing"), 400);
+    }
+
     const res = await NativeBridge.listDir(rootPath);
     if (res && res.status === "ok" && Array.isArray(res.entries)) {
       this.entries = res.entries;
+
+      if (this.expandedDirs && this.expandedDirs.size > 0) {
+        const fetchPromises = Array.from(this.expandedDirs).map(async (dirPath) => {
+          const subRes = await NativeBridge.listDir(dirPath);
+          if (subRes && subRes.status === "ok" && Array.isArray(subRes.entries)) {
+            this.dirChildren.set(dirPath, subRes.entries);
+          } else {
+            this.dirChildren.set(dirPath, []);
+          }
+        });
+        await Promise.all(fetchPromises);
+      }
+
       this.render();
       if (this.viewport) {
         this.viewport.scrollTop = currentScrollTop;

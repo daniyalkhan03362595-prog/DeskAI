@@ -59,6 +59,12 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertEqual(btn_collapse.get_attribute("aria-label"), "Collapse All Folders")
         self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
 
+        btn_toggle = toolbar.locator("#btnToggleSidebar")
+        self.assertEqual(btn_toggle.get_attribute("aria-label"), "Toggle Explorer Sidebar")
+        self.assertEqual(btn_toggle.get_attribute("role"), "switch")
+        self.assertEqual(btn_toggle.get_attribute("aria-checked"), "true")
+        self.assertEqual(btn_toggle.get_attribute("tabindex"), "-1")
+
     def test_tht_02_new_file_action_dispatch(self):
         """TC-THT-02: Clicking inline folder new-file shows inline creation, writes file, and opens tab."""
         res = self.page.evaluate("""async () => {
@@ -196,6 +202,7 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         """TC-THT-06: Arrow keys rove focus across toolbar buttons and update tabindex."""
         btn_refresh = self.page.locator("#btnRefreshTree")
         btn_collapse = self.page.locator("#btnCollapseAll")
+        btn_toggle = self.page.locator("#btnToggleSidebar")
 
         btn_refresh.focus()
         self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
@@ -204,9 +211,21 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertEqual(btn_collapse.get_attribute("tabindex"), "0")
         self.assertEqual(btn_refresh.get_attribute("tabindex"), "-1")
 
-        self.page.keyboard.press("ArrowLeft")
-        self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
+        self.page.keyboard.press("ArrowRight")
+        self.assertEqual(btn_toggle.get_attribute("tabindex"), "0")
         self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
+
+        self.page.keyboard.press("ArrowLeft")
+        self.assertEqual(btn_collapse.get_attribute("tabindex"), "0")
+        self.assertEqual(btn_toggle.get_attribute("tabindex"), "-1")
+
+        self.page.keyboard.press("End")
+        self.assertEqual(btn_toggle.get_attribute("tabindex"), "0")
+        self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
+
+        self.page.keyboard.press("Home")
+        self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
+        self.assertEqual(btn_toggle.get_attribute("tabindex"), "-1")
 
     def test_tht_07_rename_collision_error_shows_toast_and_announces(self):
         """Task 5: When renamePath fails with collision/EEXIST, toast and screenReaderAnnouncer are updated."""
@@ -295,3 +314,101 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         }""")
 
         self.assertTrue(res["rowRemoved"])
+
+    def test_tht_10_refresh_tree_animation_and_deep_fetch(self):
+        """TC-THT-10: Refresh tree triggers spin animation and deeply re-fetches expanded directories."""
+        res = self.page.evaluate("""async () => {
+            const fetchedPaths = [];
+            window.NativeBridge.listDir = async (path) => {
+                fetchedPaths.push(path);
+                if (!path) {
+                    return {
+                        status: "ok",
+                        entries: [
+                            { name: "src", is_dir: true, path: "/workspace/src" },
+                            { name: "main.py", is_dir: false, path: "/workspace/main.py" }
+                        ]
+                    };
+                }
+                if (path === "/workspace/src") {
+                    return {
+                        status: "ok",
+                        entries: [
+                            { name: "app.py", is_dir: false, path: "/workspace/src/app.py" }
+                        ]
+                    };
+                }
+                return { status: "ok", entries: [] };
+            };
+
+            window.ExplorerManager.expandedDirs.add("/workspace/src");
+            const btn = document.getElementById("btnRefreshTree");
+
+            // Trigger refresh
+            const refreshPromise = window.ExplorerManager.refresh();
+            const hasSpinClassDuring = btn.classList.contains("is-refreshing");
+
+            await refreshPromise;
+            const hasChildren = window.ExplorerManager.dirChildren.has("/workspace/src");
+            const childCount = (window.ExplorerManager.dirChildren.get("/workspace/src") || []).length;
+
+            return {
+                hasSpinClassDuring,
+                fetchedPaths,
+                hasChildren,
+                childCount
+            };
+        }""")
+
+        self.assertTrue(res["hasSpinClassDuring"])
+        self.assertIn("/workspace/src", res["fetchedPaths"])
+        self.assertTrue(res["hasChildren"])
+        self.assertEqual(res["childCount"], 1)
+
+    def test_tht_11_toggle_sidebar_collapse_and_expand(self):
+        """TC-THT-11: Toggle slider collapses left sidebar, reveals expand pill; pill restores sidebar."""
+        res = self.page.evaluate("""async () => {
+            const appBody = document.getElementById("appBody");
+            const sidebar = document.getElementById("sidebarLeft");
+            const toggleBtn = document.getElementById("btnToggleSidebar");
+            const expandPill = document.getElementById("btnExpandSidebar");
+
+            const initialCollapsed = appBody.classList.contains("sidebar-left-collapsed");
+            const initialAriaChecked = toggleBtn.getAttribute("aria-checked");
+
+            // Click toggle switch to collapse
+            toggleBtn.click();
+            await new Promise(r => setTimeout(r, 20));
+
+            const afterCollapseBody = appBody.classList.contains("sidebar-left-collapsed");
+            const afterCollapseSidebar = sidebar.classList.contains("collapsed");
+            const afterCollapseAria = toggleBtn.getAttribute("aria-checked");
+
+            // Click expand pill to restore
+            expandPill.click();
+            await new Promise(r => setTimeout(r, 20));
+
+            const afterRestoreBody = appBody.classList.contains("sidebar-left-collapsed");
+            const afterRestoreSidebar = sidebar.classList.contains("collapsed");
+            const afterRestoreAria = toggleBtn.getAttribute("aria-checked");
+
+            return {
+                initialCollapsed,
+                initialAriaChecked,
+                afterCollapseBody,
+                afterCollapseSidebar,
+                afterCollapseAria,
+                afterRestoreBody,
+                afterRestoreSidebar,
+                afterRestoreAria
+            };
+        }""")
+
+        self.assertFalse(res["initialCollapsed"])
+        self.assertEqual(res["initialAriaChecked"], "true")
+        self.assertTrue(res["afterCollapseBody"])
+        self.assertTrue(res["afterCollapseSidebar"])
+        self.assertEqual(res["afterCollapseAria"], "false")
+        self.assertFalse(res["afterRestoreBody"])
+        self.assertFalse(res["afterRestoreSidebar"])
+        self.assertEqual(res["afterRestoreAria"], "true")
