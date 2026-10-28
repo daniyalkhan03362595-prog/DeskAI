@@ -112,6 +112,13 @@ export const NativeBridge = {
     return { status: "error", message: "API unavailable" };
   },
 
+  async deletePath(targetPath) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.delete_path) {
+      return await window.pywebview.api.delete_path(targetPath);
+    }
+    return { status: "error", message: "API unavailable" };
+  },
+
   async listDir(dirPath = null) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.list_dir) {
       return await window.pywebview.api.list_dir(dirPath);

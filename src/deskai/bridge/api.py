@@ -489,6 +489,31 @@ class DesktopBridgeAPI:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    def delete_path(self, target_path: str) -> dict:
+        """Safely deletes a file or directory within workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin"}
+        if not self._is_safe_path(target_path):
+            return {"status": "error", "message": "Access denied: Path outside workspace"}
+
+        canonical = canonicalize_path(target_path)
+        if self.workspace_root and canonical == canonicalize_path(self.workspace_root):
+            return {"status": "error", "message": "Cannot delete workspace root"}
+
+        if not os.path.exists(canonical):
+            return {"status": "error", "message": "Path not found"}
+
+        try:
+            import shutil
+
+            if os.path.isdir(canonical):
+                shutil.rmtree(canonical)
+            else:
+                os.remove(canonical)
+            return {"status": "ok", "path": canonical}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     def list_dir(self, target_path: str | None = None) -> dict:
         """Lists directory entries safely inside workspace root."""
         if not self._is_origin_allowed():

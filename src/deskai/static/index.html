@@ -322,6 +322,43 @@
 
     </div>
 
+    <!-- Floating Context Menu for Explorer -->
+    <div 
+      class="context-menu" 
+      id="treeContextMenu" 
+      role="menu" 
+      aria-label="File Actions" 
+      hidden>
+      <div class="menu-item" role="menuitem" data-action="ctx-new-file" tabindex="-1">
+        <span class="menu-icon" aria-hidden="true">📄</span>
+        <span class="menu-label">New File...</span>
+      </div>
+      <div class="menu-item" role="menuitem" data-action="ctx-new-folder" tabindex="-1">
+        <span class="menu-icon" aria-hidden="true">📁</span>
+        <span class="menu-label">New Folder...</span>
+      </div>
+      <div class="menu-separator" role="separator" aria-hidden="true"></div>
+      <div class="menu-item" role="menuitem" data-action="ctx-rename" tabindex="-1">
+        <span class="menu-icon" aria-hidden="true">✏️</span>
+        <span class="menu-label">Rename</span>
+        <span class="menu-shortcut">F2</span>
+      </div>
+      <div class="menu-item destructive" role="menuitem" data-action="ctx-delete" tabindex="-1">
+        <span class="menu-icon" aria-hidden="true">🗑️</span>
+        <span class="menu-label">Delete</span>
+        <span class="menu-shortcut">Del</span>
+      </div>
+      <div class="menu-separator" role="separator" aria-hidden="true"></div>
+      <div class="menu-item" role="menuitem" data-action="ctx-copy-path" tabindex="-1">
+        <span class="menu-icon" aria-hidden="true">📋</span>
+        <span class="menu-label">Copy Path</span>
+      </div>
+      <div class="menu-item" role="menuitem" data-action="ctx-copy-relative-path" tabindex="-1">
+        <span class="menu-icon" aria-hidden="true">🔗</span>
+        <span class="menu-label">Copy Relative Path</span>
+      </div>
+    </div>
+
     <!-- 7. Native Window Perimeter Resize Handles -->
     <div class="window-resize-handles" id="windowResizeHandles" aria-hidden="true">
       <div class="resize-handle top" data-edge="top"></div>

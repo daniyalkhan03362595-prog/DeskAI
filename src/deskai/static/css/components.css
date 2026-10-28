@@ -280,6 +280,70 @@
   outline: none;
 }
 
+/* Floating Context Menu */
+.context-menu {
+  position: fixed;
+  z-index: var(--z-modal, 500);
+  min-width: 180px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1) 0;
+  user-select: none;
+  outline: none;
+}
+
+.context-menu .menu-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.context-menu .menu-item:hover,
+.context-menu .menu-item:focus {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.context-menu .menu-item.destructive {
+  color: var(--color-danger);
+}
+
+.context-menu .menu-item.destructive:hover,
+.context-menu .menu-item.destructive:focus {
+  background-color: var(--bg-hover);
+  color: var(--color-danger);
+}
+
+.context-menu .menu-icon {
+  margin-right: var(--space-2);
+  width: 14px;
+  text-align: center;
+}
+
+.context-menu .menu-label {
+  flex: 1;
+}
+
+.context-menu .menu-shortcut {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: var(--space-3);
+}
+
+.context-menu .menu-separator {
+  height: 1px;
+  background-color: var(--border-subtle);
+  margin: var(--space-1) 0;
+}
+
 /* Hardware Status Dock */
 .hardware-dock {
   position: absolute;

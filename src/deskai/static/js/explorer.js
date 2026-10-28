@@ -9,10 +9,13 @@ export class ExplorerManager {
     this.expandedDirs = new Set();
     this.dirChildren = new Map();
     this.entries = [];
+    this.contextMenu = document.getElementById("treeContextMenu");
+    this.contextTarget = null;
 
     this.initToolbarKeyboard();
     this.initTreeKeyboard();
     this.initClickDelegation();
+    this.initContextMenuEvents();
   }
 
   detectFileIcon(filename, isDir) {
@@ -169,6 +172,32 @@ export class ExplorerManager {
           }
           break;
         }
+
+        case "F10": {
+          if (e.shiftKey && currentItem) {
+            e.preventDefault();
+            const rect = currentItem.getBoundingClientRect();
+            this.showContextMenu(rect.left + 24, rect.bottom, this.selectedNode || {
+              path: currentItem.getAttribute("data-path"),
+              isDir: currentItem.getAttribute("data-is-dir") === "true",
+              name: currentItem.querySelector(".tree-label") ? currentItem.querySelector(".tree-label").textContent : ""
+            });
+          }
+          break;
+        }
+
+        case "ContextMenu": {
+          if (currentItem) {
+            e.preventDefault();
+            const rect = currentItem.getBoundingClientRect();
+            this.showContextMenu(rect.left + 24, rect.bottom, this.selectedNode || {
+              path: currentItem.getAttribute("data-path"),
+              isDir: currentItem.getAttribute("data-is-dir") === "true",
+              name: currentItem.querySelector(".tree-label") ? currentItem.querySelector(".tree-label").textContent : ""
+            });
+          }
+          break;
+        }
       }
     });
   }
@@ -181,6 +210,164 @@ export class ExplorerManager {
       if (!itemEl) return;
       await this.activateNode(itemEl);
     });
+  }
+
+  initContextMenuEvents() {
+    this.contextMenu = document.getElementById("treeContextMenu");
+    if (!this.viewport || !this.contextMenu) return;
+
+    this.viewport.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const itemEl = e.target.closest(".tree-item");
+      if (itemEl) {
+        this.selectNode(itemEl);
+        this.showContextMenu(e.clientX, e.clientY, this.selectedNode);
+      } else {
+        const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
+        this.showContextMenu(e.clientX, e.clientY, {
+          path: rootPath,
+          isDir: true,
+          name: "workspace"
+        });
+      }
+    });
+
+    this.contextMenu.addEventListener("click", async (e) => {
+      const item = e.target.closest(".menu-item");
+      if (!item) return;
+      const action = item.getAttribute("data-action");
+      if (action) {
+        await this.handleContextAction(action);
+      }
+    });
+
+    this.contextMenu.addEventListener("keydown", async (e) => {
+      const items = Array.from(this.contextMenu.querySelectorAll(".menu-item"));
+      if (items.length === 0) return;
+      const currentIndex = items.indexOf(document.activeElement);
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = (currentIndex + 1) % items.length;
+        items[next].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = (currentIndex - 1 + items.length) % items.length;
+        items[prev].focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        this.hideContextMenu();
+        if (this.selectedNode) {
+          const node = this.viewport.querySelector(`[data-path="${this.selectedNode.path}"]`);
+          if (node) node.focus();
+        }
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (currentIndex !== -1) {
+          const action = items[currentIndex].getAttribute("data-action");
+          if (action) await this.handleContextAction(action);
+        }
+      }
+    });
+
+    document.addEventListener("pointerdown", (e) => {
+      if (this.contextMenu && !this.contextMenu.hidden && !this.contextMenu.contains(e.target)) {
+        this.hideContextMenu();
+      }
+    });
+  }
+
+  showContextMenu(x, y, targetNode) {
+    if (!this.contextMenu) return;
+    this.contextTarget = targetNode;
+
+    this.contextMenu.style.display = "block";
+    this.contextMenu.removeAttribute("hidden");
+
+    const menuW = this.contextMenu.offsetWidth || 180;
+    const menuH = this.contextMenu.offsetHeight || 200;
+    const maxX = window.innerWidth - menuW - 8;
+    const maxY = window.innerHeight - menuH - 8;
+
+    const clampedX = Math.max(8, Math.min(x, maxX));
+    const clampedY = Math.max(8, Math.min(y, maxY));
+
+    this.contextMenu.style.left = `${clampedX}px`;
+    this.contextMenu.style.top = `${clampedY}px`;
+
+    const firstItem = this.contextMenu.querySelector(".menu-item");
+    if (firstItem) firstItem.focus();
+  }
+
+  hideContextMenu() {
+    if (!this.contextMenu) return;
+    this.contextMenu.style.display = "none";
+    this.contextMenu.setAttribute("hidden", "");
+    this.contextTarget = null;
+  }
+
+  async handleContextAction(action) {
+    const target = this.contextTarget || this.selectedNode;
+    this.hideContextMenu();
+    if (!target) return;
+
+    switch (action) {
+      case "ctx-new-file":
+        await this.promptNewFile();
+        break;
+
+      case "ctx-new-folder":
+        await this.promptNewFolder();
+        break;
+
+      case "ctx-rename": {
+        const nodeEl = this.viewport.querySelector(`[data-path="${target.path}"]`);
+        if (nodeEl) this.startInlineRename(nodeEl);
+        break;
+      }
+
+      case "ctx-delete":
+        await this.deleteNode(target);
+        break;
+
+      case "ctx-copy-path":
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(target.path);
+        }
+        break;
+
+      case "ctx-copy-relative-path": {
+        const root = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
+        let relPath = target.path;
+        if (root && relPath.startsWith(root)) {
+          relPath = relPath.substring(root.length).replace(/^\/+/, "");
+        }
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(relPath);
+        }
+        break;
+      }
+    }
+  }
+
+  async deleteNode(target) {
+    const isDir = target.isDir;
+    const confirmed = confirm(`Are you sure you want to delete ${target.name || "this item"}?`);
+    if (!confirmed) return;
+
+    const res = await NativeBridge.deletePath(target.path);
+    if (res && res.status === "ok") {
+      if (!isDir && window.EditorManager && window.EditorManager.buffers) {
+        for (const [id, buf] of window.EditorManager.buffers.entries()) {
+          if (buf.path === target.path) {
+            await window.EditorManager.closeTab(id, true);
+          }
+        }
+      }
+      await this.refresh();
+    } else {
+      alert(`Delete failed: ${res ? res.message : "Unknown error"}`);
+    }
   }
 
   focusNode(nodeEl) {
