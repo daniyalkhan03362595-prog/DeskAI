@@ -18,10 +18,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Linting Tools
+      - name: Install Linting & Audit Tools
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 black
+          pip install flake8 black mypy pip-audit
 
       - name: Code Formatting Check (black)
         run: black --check src tests
@@ -29,8 +29,17 @@ jobs:
       - name: Code Quality & Style Check (flake8)
         run: flake8
 
+      - name: Type Checking (mypy)
+        run: mypy src
+
+      - name: Dependency Security Audit (pip-audit)
+        run: pip-audit --local
+
       - name: WCAG 2.1 Contrast Check
         run: python tools/check_contrast.py
+
+      - name: JavaScript Syntax Check
+        run: python tools/check_js.py
 
   test:
     needs: lint

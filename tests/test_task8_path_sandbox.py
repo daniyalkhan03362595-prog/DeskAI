@@ -306,6 +306,126 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
             with open(file_b, "r") as f:
                 self.assertEqual(f.read(), "content_a")
 
+    def test_select_file_dialog_sandboxing(self):
+        """Native select_file dialog must enforce sandbox containment and disallowed root checks."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_home = os.path.realpath(os.path.join(temp_dir, "home", "bob"))
+            ssh_dir = os.path.join(temp_home, ".ssh")
+            os.makedirs(ssh_dir, exist_ok=True)
+            id_rsa = os.path.join(ssh_dir, "id_rsa")
+            with open(id_rsa, "w") as f:
+                f.write("KEY")
+
+            ws_root = os.path.realpath(os.path.join(temp_home, "my_project"))
+            os.makedirs(ws_root, exist_ok=True)
+            inside_file = os.path.join(ws_root, "main.py")
+            with open(inside_file, "w") as f:
+                f.write("print(1)")
+
+            outside_file = os.path.realpath(os.path.join(temp_dir, "outside.txt"))
+            with open(outside_file, "w") as f:
+                f.write("outside")
+
+            with patch.dict(os.environ, {"HOME": temp_home, "USERPROFILE": temp_home}):
+                # 1. When workspace_root is set, file inside workspace is accepted
+                self.api.workspace_root = ws_root
+                self.mock_window.create_file_dialog.return_value = [inside_file]
+                res_ok = self.api.select_file()
+                self.assertEqual(res_ok["status"], "ok")
+                self.assertEqual(res_ok["path"], inside_file)
+
+                # 2. When workspace_root is set, file outside workspace is rejected
+                self.mock_window.create_file_dialog.return_value = [outside_file]
+                res_outside = self.api.select_file()
+                self.assertEqual(res_outside["status"], "error")
+                self.assertIn("Path outside workspace", res_outside["message"])
+
+                # 3. When workspace_root is set, file in sensitive home subdir (~/.ssh) is rejected
+                self.mock_window.create_file_dialog.return_value = [id_rsa]
+                res_ssh = self.api.select_file()
+                self.assertEqual(res_ssh["status"], "error")
+
+                # 4. When workspace_root is NOT set: picking file in sensitive home subdir rejects parent adoption
+                self.api.workspace_root = None
+                self.mock_window.create_file_dialog.return_value = [id_rsa]
+                res_adopt_sensitive = self.api.select_file()
+                self.assertEqual(res_adopt_sensitive["status"], "error")
+                self.assertIsNone(self.api.workspace_root)
+
+                # 5. When workspace_root is NOT set: picking file in disallowed system prefix rejects parent adoption
+                sys_file = "C:\\Windows\\notepad.exe" if os.name == "nt" else "/etc/passwd"
+                self.mock_window.create_file_dialog.return_value = [sys_file]
+                res_sys = self.api.select_file()
+                self.assertEqual(res_sys["status"], "error")
+                self.assertIsNone(self.api.workspace_root)
+
+                # 6. When workspace_root is NOT set: picking safe project file adopts its parent directory
+                self.mock_window.create_file_dialog.return_value = [inside_file]
+                res_adopt_ok = self.api.select_file()
+                self.assertEqual(res_adopt_ok["status"], "ok")
+                self.assertEqual(self.api.workspace_root, ws_root)
+
+    def test_save_file_dialog_sandboxing(self):
+        """Native save_file_dialog must enforce workspace containment when workspace is open."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_home = os.path.realpath(os.path.join(temp_dir, "home", "bob"))
+            ws_root = os.path.realpath(os.path.join(temp_home, "my_project"))
+            os.makedirs(ws_root, exist_ok=True)
+            inside_save = os.path.join(ws_root, "output.txt")
+            outside_save = os.path.realpath(os.path.join(temp_dir, "outside_saved.txt"))
+            sensitive_save = os.path.join(temp_home, ".ssh", "stolen_key")
+
+            with patch.dict(os.environ, {"HOME": temp_home, "USERPROFILE": temp_home}):
+                # 1. When workspace_root is open: save inside workspace succeeds
+                self.api.workspace_root = ws_root
+                self.mock_window.create_file_dialog.return_value = inside_save
+                res_ok = self.api.save_file_dialog("output.txt")
+                self.assertEqual(res_ok["status"], "ok")
+                self.assertEqual(res_ok["path"], inside_save)
+
+                # 2. When workspace_root is open: save outside workspace is rejected
+                self.mock_window.create_file_dialog.return_value = outside_save
+                res_out = self.api.save_file_dialog("outside_saved.txt")
+                self.assertEqual(res_out["status"], "error")
+                self.assertIn("Path outside workspace", res_out["message"])
+
+                # 3. When workspace_root is open: save into sensitive home subdir is rejected
+                self.mock_window.create_file_dialog.return_value = sensitive_save
+                res_sens = self.api.save_file_dialog("stolen_key")
+                self.assertEqual(res_sens["status"], "error")
+
+                # 4. When workspace_root is NOT open: saving to system prefix or sensitive home dir is rejected
+                self.api.workspace_root = None
+                self.mock_window.create_file_dialog.return_value = sensitive_save
+                res_sens_no_ws = self.api.save_file_dialog("stolen_key")
+                self.assertEqual(res_sens_no_ws["status"], "error")
+
+                sys_save = "C:\\Windows\\bad.dll" if os.name == "nt" else "/etc/cron.d/bad"
+                self.mock_window.create_file_dialog.return_value = sys_save
+                res_sys_no_ws = self.api.save_file_dialog("bad")
+                self.assertEqual(res_sys_no_ws["status"], "error")
+
+    def test_windows_dialog_sandbox_mocked(self):
+        """Mocked Windows checks for select_file and save_file_dialog containment."""
+        with patch("deskai.utils.path.os.name", "nt"), patch("sys.platform", "win32"):
+            with patch.dict(os.environ, {"USERPROFILE": "C:\\Users\\bob"}):
+                self.api.workspace_root = "C:\\Users\\bob\\projects\\deskai"
+
+                # Inside file -> ok
+                self.mock_window.create_file_dialog.return_value = ["C:\\Users\\bob\\projects\\deskai\\app.py"]
+                res1 = self.api.select_file()
+                self.assertEqual(res1["status"], "ok")
+
+                # Outside drive or dir -> error
+                self.mock_window.create_file_dialog.return_value = ["C:\\Windows\\System32\\calc.exe"]
+                res2 = self.api.select_file()
+                self.assertEqual(res2["status"], "error")
+
+                # Save file dialog outside -> error
+                self.mock_window.create_file_dialog.return_value = "D:\\hacked.txt"
+                res3 = self.api.save_file_dialog("hacked.txt")
+                self.assertEqual(res3["status"], "error")
+
 
 if __name__ == "__main__":
     unittest.main()

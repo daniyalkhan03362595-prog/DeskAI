@@ -3,9 +3,12 @@ Window Lifecycle & Safe Exit Handler.
 Tracks unsaved buffers, ensures origin containment, and handles clean server shutdown on exit.
 """
 
+import logging
 import sys
 from typing import TYPE_CHECKING
 import webview
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from deskai.bridge.window import WindowManager
@@ -135,9 +138,9 @@ class WindowLifecycleHandler:
 
             if _hook_wv(native_win):
                 self._resize_hooked = True
-                print("[DeskAI] Native GTK frameless resize hook attached.")
+                logger.info("Native GTK frameless resize hook attached.")
         except Exception as e:
-            print(f"[DeskAI] Linux native resize setup warning: {e}")
+            logger.warning("Linux native resize setup warning: %s", e)
 
     def _setup_navigation_policy(self, window: webview.Window):
         """Attaches GTK/WebKit decide-policy listener to drop unauthorized navigation."""
@@ -171,7 +174,7 @@ class WindowLifecycleHandler:
                                 req = decision.get_navigation_action().get_request()
                                 uri = req.get_uri() if req else ""
                                 if uri and not uri.startswith(expected_prefix):
-                                    print(f"[DeskAI] Navigation policy blocked off-origin URI: {uri}")
+                                    logger.warning("Navigation policy blocked off-origin URI: %s", uri)
                                     decision.ignore()
                                     return True
                             return False
@@ -190,11 +193,11 @@ class WindowLifecycleHandler:
             if _search_and_hook(native):
                 self._nav_policy_hooked = True
         except Exception as e:
-            print(f"[DeskAI] Navigation policy setup warning: {e}")
+            logger.warning("Navigation policy setup warning: %s", e)
 
     def on_loaded(self):
         """Validates current URL origin and restores app URL if hijacked."""
-        print("[DeskAI] PyWebView presentation container initialized.")
+        logger.info("PyWebView presentation container initialized.")
         window = getattr(self.manager, "window", None)
         port = getattr(getattr(self.manager, "server", None), "port", None)
         if window:
@@ -209,7 +212,7 @@ class WindowLifecycleHandler:
                     len(current_url) == len(expected_origin) or current_url[len(expected_origin)] in ("/", "?", "#")
                 )
                 if current_url and not is_valid:
-                    print(f"[DeskAI] Unauthorized origin navigation detected: {current_url}. Restoring app URL.")
+                    logger.warning("Unauthorized origin navigation detected: %s. Restoring app URL.", current_url)
                     load_url = getattr(window, "load_url", None)
                     if load_url:
                         load_url(f"{expected_origin}/")
@@ -251,5 +254,5 @@ class WindowLifecycleHandler:
         return False
 
     def on_closed(self):
-        print("[DeskAI] Window closed. Stopping desktop supervisor server...")
+        logger.info("Window closed. Stopping desktop supervisor server...")
         self.manager.server.stop()

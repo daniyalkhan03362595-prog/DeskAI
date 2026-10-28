@@ -100,8 +100,11 @@ def is_disallowed_workspace_root(root_path: str | None) -> bool:
             return False
 
         # POSIX check
+        import posixpath
+
         is_darwin = sys.platform == "darwin"
-        canonical = os.path.realpath(os.path.abspath(root_path))
+        clean_root = root_path.replace("\\", "/")
+        canonical = posixpath.realpath(posixpath.abspath(clean_root))
         if canonical == "/":
             return True
         canonical_check = canonical.lower() if is_darwin else canonical
@@ -111,14 +114,16 @@ def is_disallowed_workspace_root(root_path: str | None) -> bool:
                 return True
 
         # Block user home root itself ($HOME)
-        home_dir = os.path.realpath(os.path.expanduser("~"))
+        home_raw = os.environ.get("HOME", os.path.expanduser("~")).replace("\\", "/")
+        home_dir = posixpath.realpath(posixpath.abspath(home_raw))
         home_check = home_dir.lower() if is_darwin else home_dir
         if canonical_check == home_check:
             return True
 
         # Block sensitive subdirectories within home (~/.ssh, ~/.aws, etc.)
         for sensitive_rel in SENSITIVE_HOME_SUBDIRS:
-            sensitive_path = os.path.realpath(os.path.expanduser(sensitive_rel))
+            rel_posix = sensitive_rel.replace("\\", "/").lstrip("~/")
+            sensitive_path = posixpath.realpath(posixpath.join(home_dir, rel_posix))
             sensitive_check = sensitive_path.lower() if is_darwin else sensitive_path
             if canonical_check == sensitive_check or canonical_check.startswith(sensitive_check + "/"):
                 return True
@@ -225,4 +230,13 @@ def is_safe_workspace_path(target_path: str, workspace_root: str | None) -> bool
 
 def canonicalize_path(target_path: str) -> str:
     """Returns absolute canonicalized path."""
+    if not target_path:
+        return ""
+    is_win = (
+        os.name == "nt"
+        or sys.platform == "win32"
+        or (len(target_path) >= 2 and target_path[1] == ":" and target_path[0].isalpha())
+    )
+    if is_win:
+        return ntpath.realpath(ntpath.abspath(target_path))
     return os.path.realpath(os.path.abspath(target_path))

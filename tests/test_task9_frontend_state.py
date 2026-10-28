@@ -1,7 +1,9 @@
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock
+from playwright.sync_api import sync_playwright
+
 from deskai.bridge.api import DesktopBridgeAPI
+from deskai.server.supervisor import DesktopServer
 
 
 class TestFrontendStateAndTelemetry(unittest.TestCase):
@@ -14,22 +16,6 @@ class TestFrontendStateAndTelemetry(unittest.TestCase):
 
         self.api = DesktopBridgeAPI(self.mock_manager)
 
-    def test_initial_state_has_no_hardcoded_hardware_specs(self):
-        """state.js initialState must not contain hardcoded Apple M3 or NVIDIA specs, but '--' defaults."""
-        state_js_path = Path("src/deskai/static/js/state.js")
-        self.assertTrue(state_js_path.exists())
-        content = state_js_path.read_text(encoding="utf-8")
-
-        # Must not contain hardcoded hardware strings
-        self.assertNotIn("Apple M3", content)
-        self.assertNotIn("NVIDIA RTX", content)
-        self.assertNotIn("vramUsedMB: 4710", content)
-        self.assertNotIn("cpuUsagePct: 14.8", content)
-
-        # Must have default placeholders "--"
-        self.assertIn('gpuName: "--"', content)
-        self.assertIn('cpuUsagePct: "--"', content)
-
     def test_bridge_has_get_system_telemetry(self):
         """Bridge must provide get_system_telemetry() returning real host status."""
         self.assertTrue(hasattr(self.api, "get_system_telemetry"))
@@ -37,17 +23,93 @@ class TestFrontendStateAndTelemetry(unittest.TestCase):
         self.assertEqual(res.get("status"), "ok")
         self.assertIn("telemetry", res)
 
-    def test_bubble_notify_signature_in_state_js(self):
-        """_bubbleNotify in state.js must support (fullPath, newValue, oldValue, parentObject, changeType)."""
-        state_js_path = Path("src/deskai/static/js/state.js")
-        content = state_js_path.read_text(encoding="utf-8")
-        self.assertIn("_bubbleNotify(fullPath, newValue, oldValue, parentObject", content)
+    def test_initial_state_has_no_hardcoded_hardware_specs_runtime(self):
+        """Behavioral: Initial store state in browser runtime contains clean '--' defaults, no hardcoded specs."""
+        server = DesktopServer()
+        server.start()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.goto(f"http://127.0.0.1:{server.port}/auth/redeem?token={server.launch_token}")
+                page.wait_for_selector("#appRoot")
 
-    def test_editor_has_save_active_buffer(self):
-        """editor.js must implement saveActiveBuffer method."""
-        editor_js_path = Path("src/deskai/static/js/editor.js")
-        content = editor_js_path.read_text(encoding="utf-8")
-        self.assertIn("saveActiveBuffer", content)
+                telemetry = page.evaluate("() => window.store.state.telemetry")
+                self.assertEqual(telemetry.get("gpuName"), "--")
+                self.assertEqual(telemetry.get("cpuUsagePct"), "--")
+                self.assertEqual(telemetry.get("vramUsedMB"), "--")
+                self.assertEqual(telemetry.get("vramTotalMB"), "--")
+                self.assertNotIn("Apple M3", str(telemetry))
+                self.assertNotIn("NVIDIA RTX", str(telemetry))
+                browser.close()
+        finally:
+            server.stop()
+
+    def test_store_deep_reactivity_and_notifications_runtime(self):
+        """Behavioral: Mutating nested store paths triggers subscribers with new and old values."""
+        server = DesktopServer()
+        server.start()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.goto(f"http://127.0.0.1:{server.port}/auth/redeem?token={server.launch_token}")
+                page.wait_for_selector("#appRoot")
+
+                res = page.evaluate("""() => {
+                    let notified = false;
+                    let receivedNew = null;
+                    const unsub = window.store.subscribe("workspace.rootPath", (newVal) => {
+                        notified = true;
+                        receivedNew = newVal;
+                    });
+                    window.store.state.workspace.rootPath = "/mock/workspace/active";
+                    unsub();
+                    return { notified, receivedNew };
+                }""")
+                self.assertTrue(res["notified"])
+                self.assertEqual(res["receivedNew"], "/mock/workspace/active")
+                browser.close()
+        finally:
+            server.stop()
+
+    def test_editor_save_active_buffer_behavioral(self):
+        """Behavioral: EditorManager.saveActiveBuffer saves buffer content via bridge writeFile."""
+        server = DesktopServer()
+        server.start()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.goto(f"http://127.0.0.1:{server.port}/auth/redeem?token={server.launch_token}")
+                page.wait_for_selector("#appRoot")
+
+                save_res = page.evaluate("""async () => {
+                    let writtenPath = null;
+                    let writtenContent = null;
+                    window.NativeBridge.writeFile = async (p, c) => {
+                        writtenPath = p;
+                        writtenContent = c;
+                        return { status: "ok", path: p };
+                    };
+
+                    window.EditorManager.createBuffer("sample.py", "print('hello')");
+                    const activeId = window.EditorManager.activeTabId;
+                    const buf = window.EditorManager.buffers.get(activeId);
+                    buf.path = "sample.py";
+                    buf.content = "print('updated')";
+                    buf.isDirty = true;
+
+                    const res = await window.EditorManager.saveActiveBuffer();
+                    return { res, writtenPath, writtenContent, isDirty: buf.isDirty };
+                }""")
+                self.assertTrue(save_res["res"])
+                self.assertEqual(save_res["writtenPath"], "sample.py")
+                self.assertEqual(save_res["writtenContent"], "print('updated')")
+                self.assertFalse(save_res["isDirty"])
+                browser.close()
+        finally:
+            server.stop()
 
 
 if __name__ == "__main__":

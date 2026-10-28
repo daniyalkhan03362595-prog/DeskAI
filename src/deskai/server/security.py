@@ -92,10 +92,13 @@ class SessionSecurityManager:
         """
         Generates strict exact-port Content Security Policy.
         Disallows wildcards (no ws://127.0.0.1:*).
-        Note: 'unsafe-eval' is intentionally retained in script-src to support PyWebView's
-        internal JS-to-Python bridge serialization across WebKitGTK and Edge WebView2 backends.
-        Dropping 'unsafe-eval' should be evaluated and tested per platform backend in future work.
-        Strictly drops 'unsafe-inline'.
+
+        Security Note on 'unsafe-eval':
+        'unsafe-eval' is strictly isolated to script-src because PyWebView's native host-to-DOM bridge
+        (`window.evaluate_js()` and internal `pywebview.api` RPC promises) relies on dynamic JavaScript
+        evaluation across WebKit2GTK and Edge WebView2 backends. Removing 'unsafe-eval' breaks
+        window.evaluate_js() and native JS bridge promise fulfillment.
+        Strictly drops 'unsafe-inline' (uses per-response dynamic nonces for inline styles).
         """
         nonce = style_nonce or getattr(self, "style_nonce", None)
         style_rule = f"'self' 'nonce-{nonce}'" if nonce else "'self'"

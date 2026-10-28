@@ -5,6 +5,7 @@ and hardened WebSocket gateway.
 """
 
 import asyncio
+from collections import OrderedDict
 import json
 import secrets
 import threading
@@ -32,6 +33,7 @@ class DesktopServer:
         self.security = SessionSecurityManager(self.port)
         self.launch_token = self.security.launch_token
         self.terminal_manager = TerminalManager()
+        self.max_processed_requests = 1000
 
         # Load shared UEC transition matrix
         transitions_file = self.static_dir / "transitions.json"
@@ -124,6 +126,10 @@ class DesktopServer:
             return self.security.apply_security_headers(response, is_no_store=is_no_store, style_nonce=csp_nonce)
 
         # 3. Hardened WebSocket Endpoint (Accepted first, then authorized with 4403/4401)
+        # Note: Starlette/ASGI and RFC 6455 require completing the HTTP 101 Switching Protocols
+        # handshake (await ws.accept()) before transmitting WebSocket close frames with custom application
+        # codes (4403, 4401, 4429). Calling ws.close() prior to ws.accept() causes ASGI servers (Uvicorn)
+        # to abort with HTTP 403, preventing WebSocket clients from receiving the application close code.
         @self.app.websocket("/ws")
         async def websocket_endpoint(ws: WebSocket):
             await ws.accept()
@@ -142,7 +148,7 @@ class DesktopServer:
 
             # C. Verify Session Cookie
             cookie = ws.cookies.get("deskai_session")
-            if not self.security.is_valid_session(cookie):
+            if not cookie or not self.security.is_valid_session(cookie):
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
@@ -156,9 +162,19 @@ class DesktopServer:
             # Frame Handling Loop with Monotonically Increasing Connection Sequence & UEC State Machine
             conn_seq = 1
             uec_state = "IDLE"
-            processed_requests = set()
+            # Bounded LRU cache for idempotent request tracking (capped at max_processed_requests per connection)
+            processed_requests: OrderedDict[str, bool] = OrderedDict()
+            max_processed_requests = getattr(self, "max_processed_requests", 1000)
 
-            async def send_frame(frame_type: str, payload: dict = None, **extra):
+            def record_processed_request(req_id: str) -> None:
+                if req_id in processed_requests:
+                    processed_requests.move_to_end(req_id)
+                else:
+                    if len(processed_requests) >= max_processed_requests:
+                        processed_requests.popitem(last=False)
+                    processed_requests[req_id] = True
+
+            async def send_frame(frame_type: str, payload: dict | None = None, **extra):
                 nonlocal conn_seq
                 frame = {"type": frame_type, "seq": conn_seq, "payload": payload if payload is not None else {}}
                 frame.update(extra)
@@ -223,7 +239,7 @@ class DesktopServer:
                             target_state = payload.get("to")
                             allowed = self.transitions_table.get(uec_state, [])
                             if target_state in allowed:
-                                uec_state = target_state
+                                uec_state = str(target_state)
                                 await send_frame("uec.ack", payload={"state": uec_state})
                             else:
                                 await send_frame(
@@ -234,6 +250,7 @@ class DesktopServer:
                         elif msg_type == "uec.approve":
                             req_id = data.get("request_id") or data.get("idempotency_key")
                             if req_id and req_id in processed_requests:
+                                processed_requests.move_to_end(req_id)
                                 await send_frame(
                                     "uec.ack", payload={"state": uec_state, "approved": True, "idempotent": True}
                                 )
@@ -255,7 +272,7 @@ class DesktopServer:
                             if next_state in allowed:
                                 uec_state = next_state
                                 if req_id:
-                                    processed_requests.add(req_id)
+                                    record_processed_request(req_id)
                                 await send_frame("uec.ack", payload={"state": uec_state, "approved": True})
                             else:
                                 await send_frame(
@@ -266,6 +283,7 @@ class DesktopServer:
                         elif msg_type == "uec.reject":
                             req_id = data.get("request_id") or data.get("idempotency_key")
                             if req_id and req_id in processed_requests:
+                                processed_requests.move_to_end(req_id)
                                 await send_frame(
                                     "uec.ack", payload={"state": uec_state, "rejected": True, "idempotent": True}
                                 )
@@ -287,7 +305,7 @@ class DesktopServer:
                             if next_state in allowed:
                                 uec_state = next_state
                                 if req_id:
-                                    processed_requests.add(req_id)
+                                    record_processed_request(req_id)
                                 await send_frame("uec.ack", payload={"state": uec_state, "rejected": True})
                             else:
                                 await send_frame(
@@ -319,6 +337,10 @@ class DesktopServer:
                         pass
             return 0
 
+        # Note: Starlette/ASGI and RFC 6455 require completing the HTTP 101 Switching Protocols
+        # handshake (await ws.accept()) before transmitting WebSocket close frames with custom application
+        # codes (4403, 4401, 4404, 4429). Calling ws.close() prior to ws.accept() causes ASGI servers (Uvicorn)
+        # to abort with HTTP 403, preventing WebSocket clients from receiving the application close code.
         @self.app.websocket("/ws/terminal/{session_id}")
         async def terminal_websocket_endpoint(ws: WebSocket, session_id: str):
             await ws.accept()
@@ -337,7 +359,7 @@ class DesktopServer:
 
             # C. Verify Session Cookie
             cookie = ws.cookies.get("deskai_session")
-            if not self.security.is_valid_session(cookie):
+            if not cookie or not self.security.is_valid_session(cookie):
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
@@ -461,8 +483,10 @@ class DesktopServer:
             except (WebSocketDisconnect, ConnectionResetError, RuntimeError):
                 pass
             finally:
-                self.security.unregister_socket(cookie, ws)
-                session.has_active_websocket = False
+                if cookie:
+                    self.security.unregister_socket(cookie, ws)
+                if session is not None:
+                    session.has_active_websocket = False
 
         # 4. Root Static File Mounting (Directly at / so relative css/..., js/... all resolve)
         if self.static_dir.exists():

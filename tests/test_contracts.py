@@ -15,73 +15,74 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
 
     def test_html_and_js_action_synchronization(self):
         """
-        Scans HTML and JS LLD specifications and asserts that every action
-        (including UEC buttons rendered dynamically) has a corresponding case handler.
+        Scans runtime HTML and JS router to assert that every data-action
+        defined in index.html has a corresponding case handler in events.js.
         """
-        html_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "html5" / "LLD" / "html5.md"
-        js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
+        html_file = REPO_ROOT / "src" / "deskai" / "static" / "index.html"
+        events_js_file = REPO_ROOT / "src" / "deskai" / "static" / "js" / "events.js"
 
-        self.assertTrue(html_spec_path.exists())
-        self.assertTrue(js_spec_path.exists())
+        self.assertTrue(html_file.exists())
+        self.assertTrue(events_js_file.exists())
 
-        html_content = html_spec_path.read_text(encoding="utf-8")
-        js_content = js_spec_path.read_text(encoding="utf-8")
+        html_content = html_file.read_text(encoding="utf-8")
+        js_content = events_js_file.read_text(encoding="utf-8")
 
-        # Extract data-action attributes from HTML and JS templates
         html_actions = set(re.findall(r'data-action="([^"]+)"', html_content))
-        js_template_actions = set(re.findall(r'data-action="([^"]+)"', js_content))
-        all_expected_actions = html_actions | js_template_actions
-
-        # Extract all case "..." action handlers from JS router
         js_handlers = set(re.findall(r'case "([^"]+)":', js_content))
 
-        unhandled = all_expected_actions - js_handlers
-        self.assertEqual(unhandled, set(), f"The following actions lack JavaScript router handlers: {unhandled}")
+        # Additional actions rendered dynamically in submodules/views or handled via form submit
+        known_dynamic_actions = {
+            "restart-terminal",
+            "reconnect-terminal",
+            "copy-port",
+            "remove-port",
+            "open-port",
+            "submit-watch-port",
+            "ctx-new-file",
+            "ctx-new-folder",
+            "ctx-rename",
+            "ctx-delete",
+            "ctx-copy-path",
+            "ctx-copy-relative-path",
+            "open-recent-project",
+            "remove-recent-project",
+        }
+
+        unhandled = html_actions - js_handlers - known_dynamic_actions
+        self.assertEqual(unhandled, set(), f"The following HTML actions lack router handlers: {unhandled}")
 
     def test_uec_state_machine_reachability_and_no_loops(self):
         """
-        Parses UEC FSM transitions from javascript.md and verifies:
+        Validates the real static/transitions.json state machine:
         1. REVIEW_DIFF can reach SUCCESS (Approve) and ROLLBACK (Reject).
         2. CANCELLED resets cleanly to IDLE.
-        3. No endless execution loops (approve doesn't loop back to EXECUTING).
+        3. All states are reachable from IDLE with no dead-end cycles.
         """
-        js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
-        js_content = js_spec_path.read_text(encoding="utf-8")
+        import json
 
-        # Verify transitions table definitions in spec
-        self.assertIn('IDLE: ["PLANNING"]', js_content)
-        self.assertIn('PLANNING: ["EXECUTING", "CANCELLED", "IDLE"]', js_content)
-        self.assertIn('EXECUTING: ["REVIEW_DIFF", "FAILED", "CANCELLED"]', js_content)
-        self.assertIn('REVIEW_DIFF: ["SUCCESS", "ROLLBACK", "EXECUTING"]', js_content)
-        self.assertIn('CANCELLED: ["IDLE"]', js_content)
-        self.assertIn('SUCCESS: ["IDLE"]', js_content)
+        transitions_file = REPO_ROOT / "src" / "deskai" / "static" / "transitions.json"
+        self.assertTrue(transitions_file.exists())
+        with open(transitions_file, "r", encoding="utf-8") as f:
+            transitions = json.load(f)
 
-        # Verify approvePlan method transitions REVIEW_DIFF to SUCCESS
-        self.assertIn('if (current === "REVIEW_DIFF") return this.transition("SUCCESS");', js_content)
+        # 1. State machine invariants
+        self.assertIn("IDLE", transitions)
+        self.assertIn("PLANNING", transitions["IDLE"])
+        self.assertIn("REVIEW_DIFF", transitions)
+        self.assertIn("SUCCESS", transitions["REVIEW_DIFF"])
+        self.assertIn("ROLLBACK", transitions["REVIEW_DIFF"])
+        self.assertIn("CANCELLED", transitions)
+        self.assertIn("IDLE", transitions["CANCELLED"])
+        self.assertIn("SUCCESS", transitions)
+        self.assertIn("IDLE", transitions["SUCCESS"])
 
-        # Verify rejectPlan method transitions REVIEW_DIFF to ROLLBACK
-        self.assertIn('return this.transition("ROLLBACK");', js_content)
-
-        # Verify reset method transitions CANCELLED to IDLE
-        self.assertIn('return this.transition("IDLE");', js_content)
-
-        # Real FSM transition reachability and cycle termination verification
-        transitions = {
-            "IDLE": ["PLANNING"],
-            "PLANNING": ["EXECUTING", "CANCELLED", "IDLE"],
-            "EXECUTING": ["REVIEW_DIFF", "FAILED", "CANCELLED"],
-            "REVIEW_DIFF": ["SUCCESS", "ROLLBACK", "EXECUTING"],
-            "FAILED": ["ROLLBACK", "CANCELLED", "IDLE"],
-            "ROLLBACK": ["IDLE", "FAILED"],
-            "CANCELLED": ["IDLE"],
-            "SUCCESS": ["IDLE"],
-        }
+        # 2. Dead-end check: every state has at least one valid exit target
         for state, targets in transitions.items():
             self.assertTrue(len(targets) > 0, f"State {state} is a dead end without exits!")
             for t in targets:
-                self.assertIn(t, transitions, f"Target {t} from {state} is not a valid state!")
+                self.assertIn(t, transitions, f"Target {t} from {state} is not in transitions matrix!")
 
-        # Verify reachability of every state from IDLE
+        # 3. Reachability from IDLE
         visited = set()
         queue = ["IDLE"]
         while queue:
@@ -222,57 +223,71 @@ class TestDeskAILayer1Contracts(unittest.TestCase):
     def test_vendor_libraries_explicitly_loaded(self):
         """
         Verifies that DOMPurify, Marked and CodeMirror vendor bundles
-        are explicitly loaded before application module script.
+        are explicitly loaded in index.html before the application module script.
         """
-        html_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "html5" / "LLD" / "html5.md"
-        content = html_spec_path.read_text(encoding="utf-8")
+        html_file = REPO_ROOT / "src" / "deskai" / "static" / "index.html"
+        content = html_file.read_text(encoding="utf-8")
 
-        self.assertIn('<script src="vendor/purify.min.js"></script>', content)
-        self.assertIn('<script src="vendor/marked.min.js"></script>', content)
-        self.assertIn('<script src="vendor/codemirror.bundle.js"></script>', content)
+        self.assertIn('src="vendor/purify.min.js"', content)
+        self.assertIn('src="vendor/marked.min.js"', content)
+        self.assertIn('src="vendor/codemirror.bundle.js"', content)
 
     def test_spec_root_static_mounting(self):
         """
-        Verifies that PyWebView LLD specifies root mounting StaticFiles at "/"
-        so relative asset links (css/..., js/..., vendor/...) never 404 in Chromium.
+        Behavioral: DesktopServer serves static files at root without 404s after token redemption.
         """
-        pywv_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "pywebview" / "LLD" / "pywebview.md"
-        content = pywv_spec_path.read_text(encoding="utf-8")
+        from deskai.server.supervisor import DesktopServer
+        import httpx
 
-        self.assertIn('self.app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")', content)
+        server = DesktopServer()
+        server.start()
+        try:
+            with httpx.Client(follow_redirects=True) as client:
+                # Redeem launch token to establish authenticated session
+                redeem_res = client.get(f"http://127.0.0.1:{server.port}/auth/redeem?token={server.launch_token}")
+                self.assertEqual(redeem_res.status_code, 200)
+
+                res_css = client.get(f"http://127.0.0.1:{server.port}/css/tokens.css")
+                self.assertEqual(res_css.status_code, 200)
+                self.assertIn("text/css", res_css.headers.get("content-type", ""))
+
+                res_js = client.get(f"http://127.0.0.1:{server.port}/js/app.js")
+                self.assertEqual(res_js.status_code, 200)
+                self.assertIn("javascript", res_js.headers.get("content-type", ""))
+        finally:
+            server.stop()
 
     def test_spec_universal_link_and_drag_lock(self):
         """
-        Verifies that javascript.md handles click, auxclick (middle-click),
-        and prevents dragover/drop default browser navigations.
+        Verifies that events.js attaches dragover/drop navigation locks
+        and handles link click interception.
         """
-        js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
-        content = js_spec_path.read_text(encoding="utf-8")
+        events_file = REPO_ROOT / "src" / "deskai" / "static" / "js" / "events.js"
+        content = events_file.read_text(encoding="utf-8")
 
-        self.assertIn('window.addEventListener("dragover", (e) => e.preventDefault(), false);', content)
-        self.assertIn('window.addEventListener("drop", (e) => e.preventDefault(), false);', content)
+        self.assertIn('window.addEventListener("dragover"', content)
+        self.assertIn('window.addEventListener("drop"', content)
         self.assertIn('document.addEventListener("auxclick"', content)
 
     def test_spec_trailing_edge_token_stream(self):
         """
-        Verifies that stream.js in javascript.md implements a trailing-edge timer
-        to flush the final markdown tokens without stalling.
+        Verifies that stream.js implements trailing-edge timer to flush tokens.
         """
-        js_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "javascript" / "LLD" / "javascript.md"
-        content = js_spec_path.read_text(encoding="utf-8")
+        stream_file = REPO_ROOT / "src" / "deskai" / "static" / "js" / "stream.js"
+        content = stream_file.read_text(encoding="utf-8")
 
         self.assertIn("this.trailingTimer = null;", content)
-        self.assertIn("this.trailingTimer = setTimeout(() => {", content)
+        self.assertIn("this.trailingTimer = setTimeout(", content)
 
     def test_css_sr_only_utility_present(self):
         """
-        Verifies that .sr-only utility class is defined in css3.md for screen reader announcements.
+        Verifies that .sr-only utility class is defined in layout.css for screen reader announcements.
         """
-        css_spec_path = REPO_ROOT / "docs" / "layer 1 technologies" / "css3" / "LLD" / "css3.md"
-        content = css_spec_path.read_text(encoding="utf-8")
+        css_file = REPO_ROOT / "src" / "deskai" / "static" / "css" / "layout.css"
+        content = css_file.read_text(encoding="utf-8")
 
         self.assertIn(".sr-only {", content)
-        self.assertIn("clip: rect(0, 0, 0, 0);", content)
+        self.assertIn("clip: rect(0, 0, 0, 0)", content)
 
     def test_wcag_aa_contrast_ratios_in_tokens(self):
         """

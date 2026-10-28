@@ -12,15 +12,13 @@ import { ExplorerManager } from "./explorer.js";
 import { initTheme } from "./theme.js";
 
 // Global singletons instantiated and wired
-window.store = store;
-window.NativeBridge = NativeBridge;
-window.wsClient = new WebSocketClient(`ws://${location.host}/ws`);
-window.UEC = new UECStateMachine();
-window.EditorManager = new EditorManager();
-window.DeskAIPorts = initPorts();
-window.DeskAITerminal = new TerminalView();
-window.DeskAIWelcome = new WelcomeScreenController();
-window.ExplorerManager = new ExplorerManager();
+const wsClient = new WebSocketClient(`ws://${location.host}/ws`);
+const uec = new UECStateMachine();
+const editorManager = new EditorManager();
+const ports = initPorts();
+const terminal = new TerminalView();
+const welcome = new WelcomeScreenController();
+const explorer = new ExplorerManager();
 
 export class WorkspacePillController {
   constructor(store, bridge) {
@@ -83,7 +81,33 @@ export class WorkspacePillController {
   }
 }
 
-window.WorkspacePill = new WorkspacePillController(store, NativeBridge);
+const workspacePill = new WorkspacePillController(store, NativeBridge);
+
+// Unified DeskAI Architecture Namespace
+window.DeskAI = {
+  store,
+  NativeBridge,
+  wsClient,
+  UEC: uec,
+  EditorManager: editorManager,
+  Ports: ports,
+  Terminal: terminal,
+  Welcome: welcome,
+  Explorer: explorer,
+  WorkspacePill: workspacePill,
+};
+
+// Aliases for test runners
+window.store = store;
+window.NativeBridge = NativeBridge;
+window.wsClient = wsClient;
+window.UEC = uec;
+window.EditorManager = editorManager;
+window.DeskAIPorts = ports;
+window.DeskAITerminal = terminal;
+window.DeskAIWelcome = welcome;
+window.ExplorerManager = explorer;
+window.WorkspacePill = workspacePill;
 
 const channelOutputEl = document.getElementById("channelOutput");
 if (channelOutputEl) {

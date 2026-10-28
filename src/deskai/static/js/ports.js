@@ -1,41 +1,32 @@
 /**
- * Ports Manager Module
+ * Ports Manager Module.
  * Discovers and manages active listening ports and port forwardings.
  */
 import { NativeBridge } from "./bridge.js";
+import { PortScanner } from "./ports/scanner.js";
+import { PortTableRenderer } from "./ports/table.js";
 
 export class PortsManager {
   constructor() {
-    this.customPorts = this.loadWatchedPorts();
-    this.portsList = [];
     this.filterText = "";
     this.showTransient = false;
     this.sortColumn = "port";
     this.sortAsc = true;
-
-    this._inflight = false;
-    this._again = false;
-    this._lastSignature = null;
-    this._lastCount = null;
-    this._lastHiddenCount = null;
     this._dismissedWarning = null;
-    this._pollingTimer = null;
-    this._isPollingActive = false;
-    this._pollIntervalMs = 3000;
-    this._activeStorageKey = null;
-    this._hasError = false;
+
+    const tableBody = document.getElementById("portsTableBody");
+    const countBadge = document.getElementById("portsCountBadge");
+    const announcer = document.getElementById("screenReaderAnnouncer");
+    this.renderer = new PortTableRenderer(tableBody, countBadge, announcer);
+
+    this.scanner = new PortScanner({
+      onRender: () => this.render(),
+      onWarning: (msg, type) => this.showWarning(msg, type),
+      onClearWarning: () => this.clearWarning(),
+      getStorageKey: () => (typeof this.getStorageKey === "function" ? this.getStorageKey() : null),
+    });
 
     this.setupListeners();
-
-    // Subscribe to workspace changes to reload watched ports for the new workspace
-    if (window.store && typeof window.store.subscribe === "function") {
-      window.store.subscribe("workspace.rootPath", (newPath) => {
-        if (newPath) {
-          this.customPorts = this.loadWatchedPorts();
-          this.refresh();
-        }
-      });
-    }
   }
 
   getStorageKey() {
@@ -46,83 +37,63 @@ export class PortsManager {
   }
 
   loadWatchedPorts() {
-    const key = this.getStorageKey();
-    this._activeStorageKey = key;
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .map((p) => ({
-              port: Number(p.port),
-              host: p.host || "127.0.0.1",
-              protocol: p.protocol || "TCP",
-              address: p.address || `http://${p.host || "127.0.0.1"}:${p.port}`,
-              process: p.process || "Watched",
-              status: p.status || "Probing...",
-              origin: "Watched",
-              isCustom: true,
-              exposure: p.exposure || "loopback",
-              openable: p.openable !== false
-            }))
-            .filter((p) => {
-              const validHost = p.host === "127.0.0.1" || p.host === "[::1]";
-              const validPort = Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535;
-              return validHost && validPort;
-            });
-        }
-      }
-    } catch (e) {
-      console.warn("[PortsManager] Failed to read watched ports from localStorage", e);
-    }
-    return [];
+    return this.scanner.loadWatchedPorts();
   }
 
   saveWatchedPorts() {
-    try {
-      const data = this.customPorts.map((p) => ({
-        port: p.port,
-        host: p.host,
-        protocol: p.protocol,
-        address: p.address,
-        process: p.process,
-        origin: p.origin,
-        exposure: p.exposure,
-        openable: p.openable
-      }));
-      const key = this._activeStorageKey || this.getStorageKey();
-      localStorage.setItem(key, JSON.stringify(data));
-    } catch (e) {
-      console.warn("[PortsManager] Failed to persist watched ports to localStorage", e);
-    }
+    return this.scanner.saveWatchedPorts();
+  }
+
+  handleRefreshResponse(res) {
+    return this.scanner.handleRefreshResponse(res);
+  }
+
+  get customPorts() {
+    return this.scanner.customPorts;
+  }
+
+  set customPorts(val) {
+    this.scanner.customPorts = val;
+  }
+
+  get portsList() {
+    return this.scanner.portsList;
+  }
+
+  set portsList(val) {
+    this.scanner.portsList = val;
+  }
+
+  get _hasError() {
+    return this.scanner._hasError;
+  }
+
+  set _hasError(val) {
+    this.scanner._hasError = val;
+  }
+
+  get _lastSignature() {
+    return this.renderer._lastSignature;
+  }
+
+  set _lastSignature(val) {
+    this.renderer._lastSignature = val;
   }
 
   startPolling(ms = 3000) {
-    this.stopPolling();
-    this._isPollingActive = true;
-    this._pollIntervalMs = ms;
-
-    const scheduleNext = () => {
-      if (!this._isPollingActive) return;
-      this._pollingTimer = setTimeout(async () => {
-        if (!this._isPollingActive) return;
-        if (document.visibilityState === "visible") {
-          await this.refresh();
-        }
-        scheduleNext();
-      }, this._pollIntervalMs);
-    };
-
-    scheduleNext();
+    this.scanner.startPolling(ms);
   }
 
   stopPolling() {
-    this._isPollingActive = false;
-    if (this._pollingTimer) {
-      clearTimeout(this._pollingTimer);
-      this._pollingTimer = null;
-    }
+    this.scanner.stopPolling();
+  }
+
+  loadWatchedPorts() {
+    return this.scanner.loadWatchedPorts();
+  }
+
+  saveWatchedPorts() {
+    this.scanner.saveWatchedPorts();
   }
 
   setupListeners() {
@@ -189,12 +160,6 @@ export class PortsManager {
         this.submitWatchPort();
       });
     }
-
-    document.addEventListener("visibilitychange", () => {
-      if (this._isPollingActive && document.visibilityState === "visible") {
-        this.refresh();
-      }
-    });
   }
 
   showWarning(text, type = "warning") {
@@ -218,7 +183,7 @@ export class PortsManager {
       banner.setAttribute("hidden", "");
     }
     this._dismissedWarning = null;
-    this._hasError = false;
+    this.scanner._hasError = false;
   }
 
   showToast(message, type = "info", duration = 3000) {
@@ -325,7 +290,7 @@ export class PortsManager {
     this.saveWatchedPorts();
     this.showToast(`Watching port ${portNum} on ${host}`, "info");
     this.refresh();
-    this.probeSinglePort(newPort);
+    this.scanner.probeSinglePort(newPort);
   }
 
   removePort(portNum, host = "127.0.0.1") {
@@ -345,7 +310,7 @@ export class PortsManager {
       const announcer = document.getElementById("screenReaderAnnouncer");
       if (announcer) announcer.textContent = `Opened http://${host}:${portNum}`;
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonSuccessState(btnElement, 1200);
+        this.renderer.setButtonSuccessState(btnElement, 1200);
       }
     } else {
       this.showToast(`Failed to open port ${portNum} on ${host}`, "error");
@@ -361,7 +326,7 @@ export class PortsManager {
         success = true;
       }
     } catch (err) {
-      // Modern Clipboard API restricted/denied; fall through to textarea execCommand fallback
+      // Ignored
     }
 
     if (!success) {
@@ -382,7 +347,7 @@ export class PortsManager {
       const announcer = document.getElementById("screenReaderAnnouncer");
       if (announcer) announcer.textContent = `Copied ${url}`;
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonSuccessState(btnElement, 1200);
+        this.renderer.setButtonSuccessState(btnElement, 1200);
       } else {
         this.showToast(`Copied ${url}`, "success");
       }
@@ -392,177 +357,32 @@ export class PortsManager {
   }
 
   setButtonCopiedState(btnElement, duration = 1200) {
-    return this.setButtonSuccessState(btnElement, duration);
+    return this.renderer.setButtonSuccessState(btnElement, duration);
   }
 
   setButtonSuccessState(btnElement, duration = 1200) {
-    if (!btnElement) return;
-
-    if (btnElement._feedbackTimeout) {
-      clearTimeout(btnElement._feedbackTimeout);
-    }
-
-    const prevContent = btnElement._originalContent || btnElement.textContent || "";
-    const prevAriaLabel = btnElement._originalAriaLabel || btnElement.getAttribute("aria-label") || "";
-    const prevTitle = btnElement._originalTitle || btnElement.title || "";
-
-    btnElement._originalContent = prevContent;
-    btnElement._originalAriaLabel = prevAriaLabel;
-    btnElement._originalTitle = prevTitle;
-
-    // Safely clear content without innerHTML
-    while (btnElement.firstChild) {
-      btnElement.removeChild(btnElement.firstChild);
-    }
-
-    // Build crisp vector SVG checkmark (matches top-row style 2 in Image 3)
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 16 16");
-    svg.setAttribute("width", "12");
-    svg.setAttribute("height", "12");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "2.2");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-    svg.setAttribute("aria-hidden", "true");
-    svg.classList.add("port-check-icon");
-
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M3.5 8.5L6.5 11.5L12.5 4.5");
-    svg.appendChild(path);
-
-    btnElement.appendChild(svg);
-    btnElement.classList.add("is-copied");
-
-    const isCopy = btnElement.getAttribute("data-action") === "copy-port";
-    btnElement.title = isCopy ? "Copied to Clipboard" : "Opened in Browser";
-    btnElement.setAttribute("aria-label", isCopy ? "Copied to clipboard" : "Opened in browser");
-
-    btnElement._feedbackTimeout = setTimeout(() => {
-      btnElement.classList.remove("is-copied");
-      while (btnElement.firstChild) {
-        btnElement.removeChild(btnElement.firstChild);
-      }
-      btnElement.textContent = btnElement._originalContent;
-      btnElement.title = btnElement._originalTitle;
-      if (btnElement._originalAriaLabel) {
-        btnElement.setAttribute("aria-label", btnElement._originalAriaLabel);
-      }
-      btnElement._feedbackTimeout = null;
-    }, duration);
+    return this.renderer.setButtonSuccessState(btnElement, duration);
   }
 
-  async probeSinglePort(custom) {
-    try {
-      const isAlive = await NativeBridge.probePort(custom.port, custom.host);
-      const newStatus = isAlive ? "Listening" : "Not responding";
-      if (custom.status !== newStatus) {
-        custom.status = newStatus;
-        const match = this.portsList.find(
-          (p) => p.isCustom && Number(p.port) === Number(custom.port) && p.host === custom.host
-        );
-        if (match) match.status = newStatus;
-        this.render();
-      }
-    } catch (err) {
-      console.warn("[PortsManager] Port probe failed:", err);
-    }
+  probeSinglePort(custom) {
+    return this.scanner.probeSinglePort(custom);
   }
 
   probeWatchedPorts() {
-    for (const custom of this.customPorts) {
-      this.probeSinglePort(custom);
-    }
+    this.scanner.probeWatchedPorts();
   }
 
   async refresh() {
-    if (this._inflight) {
-      this._again = true;
-      return;
-    }
-    this._inflight = true;
-
-    try {
-      const res = await NativeBridge.listPorts();
-      this.handleRefreshResponse(res);
-    } catch (err) {
-      console.error("[PortsManager] Failed to refresh ports:", err);
-      this.showWarning("Failed to query listening ports from supervisor.", "error");
-      this._hasError = true;
-      this.portsList = this.portsList.map((p) => ({
-        ...p,
-        status: p.status && p.status.endsWith(" (Stale)") ? p.status : (p.status || "Listening") + " (Stale)"
-      }));
-      this.render();
-    } finally {
-      this._inflight = false;
-      if (this._again) {
-        this._again = false;
-        this.refresh();
-      }
-    }
-  }
-
-  handleRefreshResponse(res) {
-    if (!res || res.status !== "ok") {
-      const msg = res && res.message ? res.message : "Unable to retrieve active ports.";
-      this.showWarning(msg, "error");
-      this._hasError = true;
-      // DO NOT wipe portsList — mark existing rows as stale
-      this.portsList = this.portsList.map((p) => ({
-        ...p,
-        status: p.status && p.status.endsWith(" (Stale)") ? p.status : (p.status || "Listening") + " (Stale)"
-      }));
-      this.render();
-      return;
-    }
-    this._hasError = false;
-
-    if (res.warnings && res.warnings.length > 0) {
-      const warningTexts = res.warnings.map((w) => {
-        if (w === "psutil_missing") {
-          return "Port scanning unavailable: psutil is not installed.";
-        }
-        if (w === "socket_table_denied") {
-          return "Limited view: the OS denied access to the socket table (macOS needs elevated privileges).";
-        }
-        return `Warning: ${w}`;
-      });
-      this.showWarning(warningTexts.join(" "), "warning");
-    } else {
-      this.clearWarning();
-    }
-
-    const detected = Array.isArray(res.ports) ? res.ports : [];
-
-    const combined = [...detected];
-    for (const custom of this.customPorts) {
-      const detectedIdx = detected.findIndex(
-        (p) => Number(p.port) === Number(custom.port) && (p.host === custom.host || (!p.host && custom.host === "127.0.0.1"))
-      );
-      if (detectedIdx >= 0) {
-        // Merge: mark detected entry as also custom (so Stop Watching button shows)
-        combined[detectedIdx] = { ...combined[detectedIdx], isCustom: true };
-      } else {
-        combined.push(custom);
-      }
-    }
-
-    this.portsList = combined;
-    this.render();
-    this.probeWatchedPorts();
+    await this.scanner.refresh();
   }
 
   getFilteredAndSortedPorts() {
     let list = [...this.portsList];
 
-    // 1. Ephemeral range toggle: hide >= 32768 by default
     if (!this.showTransient) {
       list = list.filter((p) => Number(p.port) < 32768);
     }
 
-    // 2. Text filter (port, process, PID)
     if (this.filterText) {
       const query = this.filterText.toLowerCase().trim();
       list = list.filter((p) => {
@@ -573,7 +393,6 @@ export class PortsManager {
       });
     }
 
-    // 3. Sort
     const col = this.sortColumn;
     const asc = this.sortAsc ? 1 : -1;
     list.sort((a, b) => {
@@ -597,204 +416,16 @@ export class PortsManager {
   }
 
   render() {
-    const tableBody = document.getElementById("portsTableBody");
-    const countBadge = document.getElementById("portsCountBadge");
-    const announcer = document.getElementById("screenReaderAnnouncer");
-
     const filtered = this.getFilteredAndSortedPorts();
-
-    // Badge reflects what is SHOWN, not total
-    const totalCount = this.portsList.length;
-    const shownCount = filtered.length;
-    const hiddenCount = totalCount - shownCount;
-
-    let badgeText;
-    if (hiddenCount > 0) {
-      badgeText = `${shownCount} shown (${hiddenCount} hidden)`;
-    } else {
-      badgeText = `${shownCount} active`;
-    }
-
-    if (countBadge) {
-      countBadge.textContent = badgeText;
-    }
-
-    // Only announce when count changes
-    if (this._lastCount !== shownCount || this._lastHiddenCount !== hiddenCount) {
-      this._lastCount = shownCount;
-      this._lastHiddenCount = hiddenCount;
-      if (announcer) {
-        announcer.textContent = badgeText + " listening ports";
-      }
-    }
-
-    const signature =
-      JSON.stringify(filtered.map((p) => [p.port, p.host, p.process, p.status, p.pid, p.exposure, p.openable])) +
-      `:${this.filterText}:${this.sortColumn}:${this.sortAsc}:${this.showTransient}`;
-
-    if (signature === this._lastSignature) {
-      return;
-    }
-    this._lastSignature = signature;
-
-    if (!tableBody) return;
-
-    let restoreFocus = null;
-    if (tableBody.contains(document.activeElement)) {
-      const activeEl = document.activeElement;
-      const action = activeEl.getAttribute("data-action");
-      const port = activeEl.getAttribute("data-port");
-      const host = activeEl.getAttribute("data-host");
-      if (action && port) {
-        restoreFocus = { action, port, host };
-      }
-    }
-
-    while (tableBody.firstChild) {
-      tableBody.removeChild(tableBody.firstChild);
-    }
-
-    if (filtered.length === 0) {
-      const emptyRow = document.createElement("tr");
-      const emptyCell = document.createElement("td");
-      emptyCell.colSpan = 8;
-      emptyCell.className = "ports-empty";
-      if (this.filterText) {
-        emptyCell.textContent = "No ports match the filter.";
-      } else if (this._hasError) {
-        emptyCell.textContent = "Unable to retrieve active ports. See notice above.";
-      } else {
-        emptyCell.textContent = 'No active listening ports detected. Click "+ Watch Port" to add one.';
-      }
-      emptyRow.appendChild(emptyCell);
-      tableBody.appendChild(emptyRow);
-      return;
-    }
-
-    for (const item of filtered) {
-      const row = document.createElement("tr");
-
-      // 1. Port + Network-exposed badge
-      const tdPort = document.createElement("td");
-      const portBadge = document.createElement("span");
-      portBadge.className = "port-num-badge";
-      portBadge.textContent = String(item.port);
-      tdPort.appendChild(portBadge);
-
-      if (item.exposure === "all-interfaces") {
-        const exposedBadge = document.createElement("span");
-        exposedBadge.className = "port-badge-exposed";
-        exposedBadge.title = "Listening on all network interfaces (0.0.0.0 or [::])";
-        exposedBadge.textContent = "Network-exposed";
-        tdPort.appendChild(exposedBadge);
-      }
-
-      // 2. Protocol
-      const tdProto = document.createElement("td");
-      const protoBadge = document.createElement("span");
-      protoBadge.className = "port-protocol-badge";
-      protoBadge.textContent = item.protocol || "TCP";
-      tdProto.appendChild(protoBadge);
-
-      // 3. Local Address
-      const tdAddr = document.createElement("td");
-      tdAddr.className = "port-addr-cell";
-      tdAddr.textContent = item.address;
-
-      // 4. Process / Service
-      const tdProc = document.createElement("td");
-      tdProc.textContent = item.process || "--";
-
-      // 5. PID
-      const tdPid = document.createElement("td");
-      tdPid.textContent = item.pid != null ? String(item.pid) : "--";
-
-      // 6. Origin
-      const tdOrigin = document.createElement("td");
-      tdOrigin.textContent = item.origin || "Local";
-
-      // 7. Status
-      const tdStatus = document.createElement("td");
-      const statusPill = document.createElement("span");
-      statusPill.className = "port-status-pill";
-      const statusText = item.status || "Listening";
-      statusPill.textContent = statusText;
-      if (statusText === "Not responding") {
-        statusPill.classList.add("status-inactive");
-      } else if (statusText === "Probing...") {
-        statusPill.classList.add("status-probing");
-      }
-      tdStatus.appendChild(statusPill);
-
-      // 8. Actions
-      const tdActions = document.createElement("td");
-
-      // Open button
-      const openBtn = document.createElement("button");
-      openBtn.className = "port-action-btn";
-      openBtn.setAttribute("data-action", "open-port");
-      openBtn.setAttribute("data-port", String(item.port));
-      openBtn.setAttribute("data-host", item.host || "127.0.0.1");
-      openBtn.setAttribute("aria-label", `Open port ${item.port} on ${item.host || "127.0.0.1"}`);
-      openBtn.textContent = "Open";
-
-      if (item.openable === false) {
-        openBtn.disabled = true;
-        openBtn.classList.add("disabled");
-        openBtn.title =
-          item.origin === "System" || item.process === "DeskAI Supervisor"
-            ? "Supervisor port requires session authentication; open via DeskAI UI"
-            : "Not an openable HTTP port";
-      } else {
-        openBtn.title = "Open in Default Browser";
-      }
-      tdActions.appendChild(openBtn);
-
-      // Copy button
-      const copyBtn = document.createElement("button");
-      copyBtn.className = "port-action-btn";
-      copyBtn.setAttribute("data-action", "copy-port");
-      copyBtn.setAttribute("data-url", item.address);
-      copyBtn.setAttribute("data-port", String(item.port));
-      copyBtn.setAttribute("data-host", item.host || "127.0.0.1");
-      copyBtn.setAttribute("aria-label", `Copy address for port ${item.port}`);
-      copyBtn.title = "Copy Address to Clipboard";
-      copyBtn.textContent = "Copy";
-      tdActions.appendChild(copyBtn);
-
-      // Remove button for watched custom ports
-      if (item.isCustom) {
-        const delBtn = document.createElement("button");
-        delBtn.className = "port-action-btn";
-        delBtn.setAttribute("data-action", "remove-port");
-        delBtn.setAttribute("data-port", String(item.port));
-        delBtn.setAttribute("data-host", item.host || "127.0.0.1");
-        delBtn.setAttribute("aria-label", `Stop watching port ${item.port} on ${item.host || "127.0.0.1"}`);
-        delBtn.title = "Stop Watching Port";
-        delBtn.textContent = "✕";
-        tdActions.appendChild(delBtn);
-      }
-
-      row.appendChild(tdPort);
-      row.appendChild(tdProto);
-      row.appendChild(tdAddr);
-      row.appendChild(tdProc);
-      row.appendChild(tdPid);
-      row.appendChild(tdOrigin);
-      row.appendChild(tdStatus);
-      row.appendChild(tdActions);
-
-      tableBody.appendChild(row);
-    }
-
-    if (restoreFocus) {
-      let selector = `button[data-action="${restoreFocus.action}"][data-port="${restoreFocus.port}"]`;
-      if (restoreFocus.host) {
-        selector += `[data-host="${restoreFocus.host}"]`;
-      }
-      const btn = tableBody.querySelector(selector);
-      if (btn) btn.focus();
-    }
+    this.renderer.render(
+      filtered,
+      this.portsList.length,
+      this.filterText,
+      this._hasError,
+      this.sortColumn,
+      this.sortAsc,
+      this.showTransient
+    );
   }
 }
 

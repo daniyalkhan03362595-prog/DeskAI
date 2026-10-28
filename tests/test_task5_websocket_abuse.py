@@ -147,6 +147,78 @@ class TestTask5WebSocketAbuseLimits(unittest.TestCase):
         self.assertIsNone(self.server.listen_socket, "Listen socket was not reset to None")
         self.assertEqual(len(self.server.security.active_sessions), 0, "Sessions were not cleared on stop")
 
+    def test_processed_requests_bounded_lru_and_idempotency(self):
+        """UEC processed_requests must be bounded with LRU eviction and provide idempotency."""
+        self.server.max_processed_requests = 3
+
+        async def run():
+            ws_url = f"ws://127.0.0.1:{self.server.port}/ws"
+            async with websockets.connect(ws_url, additional_headers=self.ws_headers) as ws:
+                # 1. Transition to PLANNING
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "PLANNING"}}))
+                ack1 = json.loads(await ws.recv())
+                self.assertEqual(ack1.get("type"), "uec.ack")
+
+                # 2. Reject in PLANNING with req_1 (PLANNING -> CANCELLED)
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_1"}))
+                ack2 = json.loads(await ws.recv())
+                self.assertEqual(ack2.get("type"), "uec.ack")
+                self.assertEqual(ack2.get("payload", {}).get("state"), "CANCELLED")
+                self.assertFalse(ack2.get("payload", {}).get("idempotent", False))
+
+                # 3. Duplicate reject with req_1 returns idempotent ACK even in CANCELLED state
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_1"}))
+                ack3 = json.loads(await ws.recv())
+                self.assertEqual(ack3.get("type"), "uec.ack")
+                self.assertTrue(ack3.get("payload", {}).get("idempotent"))
+
+                # 4. Cycle through transitions to record more request IDs into LRU (capacity = 3)
+                # Reset to IDLE -> PLANNING
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "IDLE"}}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "PLANNING"}}))
+                await ws.recv()
+
+                # Record req_2
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_2"}))
+                await ws.recv()
+
+                # Reset to IDLE -> PLANNING, Record req_3
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "IDLE"}}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "PLANNING"}}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_3"}))
+                await ws.recv()
+
+                # Current LRU holds: [req_1, req_2, req_3] (length = 3, at capacity)
+                # Duplicate of req_2 should still be cached as idempotent
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_2"}))
+                ack_req2 = json.loads(await ws.recv())
+                self.assertTrue(ack_req2.get("payload", {}).get("idempotent"))
+                # LRU order now: [req_1, req_3, req_2]
+
+                # Reset to IDLE -> PLANNING, Record req_4 (evicts oldest: req_1)
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "IDLE"}}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "uec.transition", "payload": {"to": "PLANNING"}}))
+                await ws.recv()
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_4"}))
+                await ws.recv()
+
+                # req_1 has been evicted: sending req_1 again in CANCELLED state fails with ERR_INVALID_TRANSITION
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_1"}))
+                err_evicted = json.loads(await ws.recv())
+                self.assertEqual(err_evicted.get("type"), "error")
+                self.assertEqual(err_evicted.get("code"), "ERR_INVALID_TRANSITION")
+
+                # req_2, req_3, req_4 are still cached as idempotent
+                await ws.send(json.dumps({"type": "uec.reject", "request_id": "req_4"}))
+                ack_req4 = json.loads(await ws.recv())
+                self.assertTrue(ack_req4.get("payload", {}).get("idempotent"))
+
+        asyncio.run(run())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,110 +1,22 @@
 /**
  * Terminal & Output Log View Components for DeskAI Bottom Drawer.
- * Interfaces with dedicated /ws/terminal/{id} WebSocket transport.
  * Built with vanilla ES modules, vendored xterm.js, and WCAG 2.1 AA accessibility.
  */
 
 import { NativeBridge } from "./bridge.js";
+import { TerminalTransport } from "./terminal/transport.js";
+import {
+  getTerminalTheme,
+  getStoredScreenReaderMode,
+  setStoredScreenReaderMode,
+  announce,
+  updateTabStatus
+} from "./terminal/xterm_view.js";
 
 const MAX_LOG_LINES = 10000;
 const ANSI_REGEX = /\x1B(?:\][^\x07\x1B]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g;
-function getStyleNonce() {
-  if (typeof document === "undefined") return "";
-  const meta = document.querySelector('meta[name="csp-nonce"]');
-  return meta ? meta.getAttribute("content") || "" : "";
-}
 
-// Hook document.createElement to ensure dynamic <style> elements created by xterm.js
-// receive the CSP nonce required by strict style-src 'nonce-...'.
-// Rationale: xterm.js has no constructor option or API to supply a style nonce for its
-// internal character measurement and theme styles.
-if (typeof document !== "undefined" && !document._deskaiStyleNonceHooked) {
-  document._deskaiStyleNonceHooked = true;
-  const origCreate = document.createElement.bind(document);
-  document.createElement = function(tagName, options) {
-    const el = origCreate(tagName, options);
-    if (tagName && typeof tagName === "string" && tagName.toLowerCase() === "style") {
-      const nonce = getStyleNonce();
-      if (nonce) {
-        el.nonce = nonce;
-      }
-    }
-    return el;
-  };
-}
-
-/**
- * Reads token-driven theme colors from CSS variables in tokens.css.
- * Zero hex literals in JavaScript.
- */
-function getTerminalTheme() {
-  const root = document.documentElement;
-  const cs = getComputedStyle(root);
-  return {
-    background: cs.getPropertyValue("--terminal-bg").trim(),
-    foreground: cs.getPropertyValue("--terminal-fg").trim(),
-    cursor: cs.getPropertyValue("--terminal-cursor").trim(),
-    selectionBackground: cs.getPropertyValue("--terminal-selection").trim(),
-    black: cs.getPropertyValue("--ansi-black").trim(),
-    red: cs.getPropertyValue("--ansi-red").trim(),
-    green: cs.getPropertyValue("--ansi-green").trim(),
-    yellow: cs.getPropertyValue("--ansi-yellow").trim(),
-    blue: cs.getPropertyValue("--ansi-blue").trim(),
-    magenta: cs.getPropertyValue("--ansi-magenta").trim(),
-    cyan: cs.getPropertyValue("--ansi-cyan").trim(),
-    white: cs.getPropertyValue("--ansi-white").trim(),
-    brightBlack: cs.getPropertyValue("--ansi-bright-black").trim(),
-    brightRed: cs.getPropertyValue("--ansi-bright-red").trim(),
-    brightGreen: cs.getPropertyValue("--ansi-bright-green").trim(),
-    brightYellow: cs.getPropertyValue("--ansi-bright-yellow").trim(),
-    brightBlue: cs.getPropertyValue("--ansi-bright-blue").trim(),
-    brightMagenta: cs.getPropertyValue("--ansi-bright-magenta").trim(),
-    brightCyan: cs.getPropertyValue("--ansi-bright-cyan").trim(),
-    brightWhite: cs.getPropertyValue("--ansi-bright-white").trim(),
-  };
-}
-
-function getStoredScreenReaderMode() {
-  try {
-    return localStorage.getItem("deskai-terminal-sr-mode") === "true";
-  } catch (e) {
-    return false;
-  }
-}
-
-function setStoredScreenReaderMode(enabled) {
-  try {
-    localStorage.setItem("deskai-terminal-sr-mode", enabled ? "true" : "false");
-  } catch (e) {
-    // Ignore localStorage errors (e.g. storage access blocked)
-  }
-}
-
-function announce(message) {
-  const el = document.getElementById("screenReaderAnnouncer");
-  if (el) {
-    el.textContent = message;
-  }
-}
-
-function updateTabStatus(isRunning) {
-  const tab = document.getElementById("tab-terminal");
-  if (!tab) return;
-  tab.textContent = "";
-  const label = document.createElement("span");
-  label.textContent = "Terminal";
-  tab.appendChild(label);
-
-  if (isRunning) {
-    const space = document.createTextNode(" ");
-    const chip = document.createElement("span");
-    chip.className = "terminal-status-chip running";
-    chip.setAttribute("aria-label", "(running)");
-    chip.textContent = "●";
-    tab.appendChild(space);
-    tab.appendChild(chip);
-  }
-}
+export { getTerminalTheme, announce, updateTabStatus };
 
 /**
  * Batched, memory-capped, text-safe LogView for read-only channel outputs (#channelOutput).
@@ -196,17 +108,48 @@ export class TerminalView {
     this.host = document.getElementById("terminalHost");
     this.term = null;
     this.fitAddon = null;
-    this.ws = null;
+    this.transport = new TerminalTransport({
+      onOpen: () => {
+        updateTabStatus(true);
+        this.removeExitBanner();
+        this.fit();
+      },
+      onData: (bytes) => {
+        if (this.term) this.term.write(bytes);
+      },
+      onExit: (code) => {
+        this.handleProcessExit(code);
+      },
+      onClose: (code) => {
+        updateTabStatus(false);
+        this.showConnectionLostBanner(code);
+      },
+      isExited: () => this.hasExited
+    });
     this._sessionId = null;
     this.isInitialized = false;
     this.isOpening = false;
     this.resizeRafId = 0;
-    this.encoder = new TextEncoder();
     this.hasExited = false;
-    this.reconnectAttempts = 0;
     this.lastCloseCode = 1006;
     this.isActive = false;
     this.isIdle = true;
+  }
+
+  get ws() {
+    return this.transport.ws;
+  }
+
+  set ws(val) {
+    this.transport.ws = val;
+  }
+
+  get reconnectAttempts() {
+    return this.transport.reconnectAttempts;
+  }
+
+  set reconnectAttempts(val) {
+    this.transport.reconnectAttempts = val;
   }
 
   get sessionId() {
@@ -250,7 +193,6 @@ export class TerminalView {
 
     this.term.open(this.host);
 
-    // Idle state: do not capture Tab until activated by user (Enter or Click)
     const helperTa = this.host ? this.host.querySelector("textarea") : null;
     if (helperTa) {
       helperTa.setAttribute("tabindex", "-1");
@@ -268,7 +210,6 @@ export class TerminalView {
       });
     }
 
-    // Setup Screen Reader Toggle
     const srCheckbox = document.getElementById("terminalSrToggle");
     if (srCheckbox) {
       srCheckbox.checked = srMode;
@@ -281,26 +222,22 @@ export class TerminalView {
       });
     }
 
-    // Setup Kill Terminal Button
     const killBtn = document.getElementById("terminalKillBtn");
     if (killBtn) {
       killBtn.addEventListener("click", () => this.kill());
     }
     this._updateKillButtonState();
 
-    // Keyboard & Clipboard Event Interceptor
     this.term.attachCustomKeyEventHandler((e) => {
       const isCmd = isMac ? e.metaKey : e.ctrlKey;
       const key = e.key.toLowerCase();
 
-      // Idle State: Tab moves on normally and is not captured
       if (key === "tab") {
         if (!this.isActive || this.isIdle) {
           return false;
         }
       }
 
-      // WCAG Keyboard Trap Escape: Esc or Ctrl+Shift+M moves focus to Terminal tab
       if (key === "escape" || (isCmd && e.shiftKey && key === "m")) {
         if (e.type === "keydown") {
           e.preventDefault();
@@ -311,7 +248,6 @@ export class TerminalView {
         return false;
       }
 
-      // Copy: Ctrl+Shift+C (or Cmd+C on Mac when selection exists)
       if (isCmd && ((e.shiftKey && key === "c") || (isMac && key === "c"))) {
         if (this.term.hasSelection()) {
           if (e.type === "keydown") {
@@ -322,12 +258,10 @@ export class TerminalView {
         }
       }
 
-      // Allow terminal to consume Ctrl+S, Ctrl+W, Ctrl+Enter without app shortcuts triggering
       if (isCmd && (key === "s" || key === "w" || key === "enter")) {
         return true;
       }
 
-      // Boot UX: Press Enter to start a shell if no session active yet
       if (!this.sessionId && !this.isOpening && !this.hasExited) {
         if (key === "enter") {
           if (e.type === "keydown") {
@@ -340,11 +274,9 @@ export class TerminalView {
       return true;
     });
 
-    // Data input from keystrokes
     this.term.onData((data) => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(this.encoder.encode(data));
-      } else {
+      const sent = this.transport.sendData(data);
+      if (!sent) {
         if (!this.sessionId && !this.isOpening && !this.hasExited) {
           if (data === "\r" || data === "\n") {
             this.startSession();
@@ -352,27 +284,22 @@ export class TerminalView {
           }
         }
         if (!this.hasExited && this.sessionId) {
-          this.showConnectionLostBanner(this.lastCloseCode || 1006);
+          this.showConnectionLostBanner(this.transport.lastCloseCode || 1006);
         }
       }
     });
 
-    // Binary input handler
     this.term.onBinary((data) => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        const bytes = new Uint8Array(data.length);
-        for (let i = 0; i < data.length; i++) {
-          bytes[i] = data.charCodeAt(i) & 255;
-        }
-        this.ws.send(bytes);
-      } else {
-        if (!this.hasExited && this.sessionId) {
-          this.showConnectionLostBanner(this.lastCloseCode || 1006);
-        }
+      const bytes = new Uint8Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        bytes[i] = data.charCodeAt(i) & 255;
+      }
+      const sent = this.transport.sendData(bytes);
+      if (!sent && !this.hasExited && this.sessionId) {
+        this.showConnectionLostBanner(this.transport.lastCloseCode || 1006);
       }
     });
 
-    // Enter on panel focuses terminal textarea
     const panel = document.getElementById("terminalPanel");
     if (panel) {
       panel.addEventListener("keydown", (e) => {
@@ -382,15 +309,6 @@ export class TerminalView {
           if (!this.sessionId && !this.isOpening && !this.hasExited) {
             this.startSession();
           }
-        }
-      });
-    }
-
-    // Host click starts session if not yet started
-    if (this.host) {
-      this.host.addEventListener("click", () => {
-        if (!this.sessionId && !this.isOpening && !this.hasExited) {
-          this.startSession();
         }
       });
     }
@@ -453,7 +371,7 @@ export class TerminalView {
 
     try {
       this.hasExited = false;
-      this.reconnectAttempts = 0;
+      this.transport.reconnectAttempts = 0;
       this.removeExitBanner();
       const dims = this.getDimensions();
       const res = await NativeBridge.terminalOpen(dims.cols, dims.rows);
@@ -479,73 +397,7 @@ export class TerminalView {
   }
 
   connectWebSocket(sessionId) {
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (err) {
-        // Ignored
-      }
-      this.ws = null;
-    }
-
-    const host = window.location.host;
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${host}/ws/terminal/${sessionId}`;
-
-    this.ws = new WebSocket(url);
-    this.ws.binaryType = "arraybuffer";
-
-    this.ws.onopen = () => {
-      this.reconnectAttempts = 0;
-      updateTabStatus(true);
-      this.removeExitBanner();
-      this.fit();
-    };
-
-    this.ws.onmessage = (event) => {
-      if (typeof event.data === "string") {
-        try {
-          const frame = jsonSafeParse(event.data);
-          if (frame && frame.type === "exit") {
-            this.handleProcessExit(frame.code ?? 0);
-          } else if (frame && frame.type === "error") {
-            console.warn("[Terminal] Transport error frame:", frame);
-          }
-        } catch (err) {
-          // Ignored
-        }
-      } else if (event.data instanceof ArrayBuffer) {
-        if (this.term) {
-          this.term.write(new Uint8Array(event.data));
-        }
-      }
-    };
-
-    this.ws.onclose = (event) => {
-      const code = event ? event.code : 1006;
-      this.lastCloseCode = code;
-
-      if (this.hasExited) {
-        return;
-      }
-
-      if (code === 4429 && this.reconnectAttempts < 3) {
-        this.reconnectAttempts++;
-        setTimeout(() => {
-          if (this.sessionId && !this.hasExited) {
-            this.connectWebSocket(this.sessionId);
-          }
-        }, 300);
-        return;
-      }
-
-      updateTabStatus(false);
-      this.showConnectionLostBanner(code);
-    };
-
-    this.ws.onerror = (err) => {
-      console.warn("[Terminal] WebSocket error:", err);
-    };
+    this.transport.connect(sessionId);
   }
 
   handleProcessExit(code) {
@@ -668,10 +520,7 @@ export class TerminalView {
         this.fitAddon.fit();
         const cols = this.term.cols;
         const rows = this.term.rows;
-
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({ type: "resize", cols, rows }));
-        }
+        this.transport.sendResize(cols, rows);
       } catch (err) {
         // Ignored
       }
@@ -685,14 +534,7 @@ export class TerminalView {
     if (this.sessionId) {
       NativeBridge.terminalClose(this.sessionId);
     }
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (e) {
-        // Ignored
-      }
-      this.ws = null;
-    }
+    this.transport.close();
     if (this.term) {
       this.term.dispose();
       this.term = null;
@@ -715,13 +557,5 @@ export class TerminalView {
       killBtn.setAttribute("aria-disabled", "true");
       killBtn.title = "No active terminal session";
     }
-  }
-}
-
-function jsonSafeParse(str) {
-  try {
-    return JSON.parse(str);
-  } catch (e) {
-    return null;
   }
 }

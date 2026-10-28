@@ -177,6 +177,7 @@ class TerminalSession:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._reader_thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        self.has_active_websocket: bool = False
 
         self._spawn()
 
@@ -331,7 +332,7 @@ class TerminalSession:
 
     def write(self, data: bytes):
         """Writes raw bytes or keystrokes to PTY stdin."""
-        if self._closed or not self.alive:
+        if self._closed or not self.alive or self._process is None:
             return
         if sys.platform == "win32":
             text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data

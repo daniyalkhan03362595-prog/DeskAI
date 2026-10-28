@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import MagicMock
 import unittest
 from playwright.sync_api import sync_playwright
@@ -92,10 +91,42 @@ class TestTask2HtmlInjectionPlaywright(unittest.TestCase):
                 server.stop()
 
     def test_events_js_external_link_interceptor(self):
-        """events.js must intercept http and https URLs and dispatch to NativeBridge."""
-        events_js = Path("src/deskai/static/js/events.js").read_text(encoding="utf-8")
-        self.assertIn('url.startsWith("http://")', events_js)
-        self.assertIn('url.startsWith("https://")', events_js)
+        """Behavioral: Universal link interceptor captures external URLs and delegates to open_external_url."""
+        from deskai.server.supervisor import DesktopServer
+
+        server = DesktopServer()
+        server.start()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                redeem_url = f"http://127.0.0.1:{server.port}/auth/redeem?token={server.launch_token}"
+                page.goto(redeem_url)
+                page.wait_for_selector("#appRoot")
+
+                intercepted = page.evaluate("""() => {
+                    const calls = [];
+                    window.pywebview = window.pywebview || {};
+                    window.pywebview.api = window.pywebview.api || {};
+                    window.pywebview.api.open_external_url = (url) => {
+                        calls.push(url);
+                        return true;
+                    };
+
+                    const link = document.createElement("a");
+                    link.href = "https://example.com/external-docs";
+                    link.textContent = "External Docs";
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+
+                    return calls;
+                }""")
+                self.assertEqual(intercepted, ["https://example.com/external-docs"])
+                self.assertTrue(page.url.startswith(f"http://127.0.0.1:{server.port}"))
+                browser.close()
+        finally:
+            server.stop()
 
 
 if __name__ == "__main__":

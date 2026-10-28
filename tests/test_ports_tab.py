@@ -225,12 +225,18 @@ class TestPortsDrawerTab(unittest.TestCase):
         self.assertIn("cursor: row-resize;", layout_css)
 
     def test_events_js_binds_resizer_bottom(self):
-        """events.js must bind resizerBottom mouse and keyboard events."""
+        """events.js and its resizers module must bind resizerBottom mouse and keyboard events."""
         events_js = Path("src/deskai/static/js/events.js").read_text(encoding="utf-8")
-        self.assertIn("resizerBottom", events_js)
-        self.assertIn("--bottom-drawer-h", events_js)
-        self.assertIn("ArrowUp", events_js)
-        self.assertIn("ArrowDown", events_js)
+        resizers_js = (
+            Path("src/deskai/static/js/events/resizers.js").read_text(encoding="utf-8")
+            if Path("src/deskai/static/js/events/resizers.js").exists()
+            else ""
+        )
+        combined = events_js + "\n" + resizers_js
+        self.assertIn("resizerBottom", combined)
+        self.assertIn("--bottom-drawer-h", combined)
+        self.assertIn("ArrowUp", combined)
+        self.assertIn("ArrowDown", combined)
 
     def test_static_html_aria_spec_conformance(self):
         """index.html drawer structure conforms to ARIA tablist/tab/tabpanel spec."""

@@ -75,9 +75,10 @@ DeskAI Layer 1 serves as the foundational desktop interface, native OS integrati
 ## 🚀 Quick Setup & Dependencies
 
 ### Prerequisites
-* Linux (Ubuntu 22.04+ / Arch / Debian) or Windows 10/11
+* **Linux (Primary / Supported GUI):** Ubuntu 22.04+ / Arch / Debian with WebKit2GTK 2.40+ (Wayland and X11 native window move & resize drag supported).
+* **Windows (Primary / Supported GUI):** Windows 10/11 with WebView2 runtime (Win32 ctypes `WM_NCLBUTTONDOWN` frameless window chrome supported).
+* **macOS (Darwin) (Non-GUI / Headless):** Python supervisor, terminal session backend, and HTTP/WebSocket loopback run on macOS; native desktop frameless window chrome (Cocoa drag/resize) is not implemented.
 * Python 3.11+
-* WebKit2GTK 2.40+ (Linux) or WebView2 runtime (Windows)
 
 ### Installation
 ```bash

@@ -4,6 +4,7 @@ Native PyWebView window configuration, flags, and server lifecycle bootstrapping
 """
 
 import sys
+from typing import Any
 import webview
 
 from deskai.bridge.api import DesktopBridgeAPI
@@ -56,6 +57,7 @@ class WindowManager:
         )
 
         # 4. Attach lifecycle listeners
+        assert self.window is not None
         self.lifecycle.attach_hooks(self.window)
         return self.window
 
@@ -64,7 +66,7 @@ class WindowManager:
         self.initialize_window()
 
         # Select native GUI backend based on platform
-        gui_backend = None
+        gui_backend: Any = None
         if sys.platform.startswith("linux"):
             gui_backend = "gtk"
 

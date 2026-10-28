@@ -11,6 +11,7 @@ This guide details manual test procedures for platform-specific window behaviors
 | **Linux (Wayland)** | GNOME Shell / Sway / KDE Wayland | WebKit2GTK + GDK Wayland |
 | **Linux (X11)** | Xorg + Mutter / XFWM4 / Openbox | WebKit2GTK + GDK X11 |
 | **Windows** | DWM (Windows 10 / 11) | WebView2 (Chromium) + Win32 HWND |
+| **macOS (Darwin)** | N/A (Non-GUI / Headless) | Supervisor backend & browser only; custom Cocoa window chrome is not implemented |
 
 ---
 
