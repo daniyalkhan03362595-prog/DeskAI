@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -121,13 +122,15 @@ class TestWorkspaceBranchPillBackend(unittest.TestCase):
 
     def test_wbp_06_backend_git_branch_resolution(self):
         """TC-WBP-06: Verifies get_git_branch on current repository, non-git dir, and detached HEAD."""
-        # 1. DeskAI itself is a git repository
+        # 1. DeskAI itself is a git repository within workspace root
+        self.api.workspace_root = str(Path.cwd())
         res = self.api.get_git_branch(str(Path.cwd()))
         self.assertEqual(res["status"], "ok")
         self.assertIsNotNone(res["branch"])
 
         # 2. Non-git directory
         with tempfile.TemporaryDirectory() as tmpdir:
+            self.api.workspace_root = tmpdir
             res_non_git = self.api.get_git_branch(tmpdir)
             self.assertEqual(res_non_git["status"], "ok")
             self.assertIsNone(res_non_git["branch"])
@@ -148,10 +151,52 @@ class TestWorkspaceBranchPillBackend(unittest.TestCase):
 
     def test_wbp_07_backend_origin_guard(self):
         """TC-WBP-07: Verifies get_git_branch rejects calls from unauthorized origin."""
+        self.api.workspace_root = str(Path.cwd())
         self.mock_window.get_current_url.return_value = "http://evil.com/"
         res = self.api.get_git_branch(str(Path.cwd()))
         self.assertEqual(res["status"], "error")
         self.assertIsNone(res["branch"])
+
+    def test_wbp_08_sandboxed_get_git_branch_and_gitdir(self):
+        """Task 3: get_git_branch sandbox enforcement: outside repo denied, outside gitdir denied, valid worktree ok."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ws_root = os.path.join(temp_dir, "workspace")
+            os.makedirs(ws_root)
+            self.api.workspace_root = ws_root
+
+            outside_repo = os.path.join(temp_dir, "outside_repo")
+            outside_git = os.path.join(outside_repo, ".git")
+            os.makedirs(outside_git)
+            (Path(outside_git) / "HEAD").write_text("ref: refs/heads/outside-branch\n", encoding="utf-8")
+
+            # 1. Outside repo is denied
+            res_outside = self.api.get_git_branch(outside_repo)
+            self.assertEqual(res_outside["status"], "error")
+            self.assertIn("Access denied", res_outside["message"])
+
+            # 2. Inside repo with gitdir pointing outside is denied
+            inside_repo = os.path.join(ws_root, "inside_repo")
+            os.makedirs(inside_repo)
+            inside_git_file = Path(inside_repo) / ".git"
+            inside_git_file.write_text(f"gitdir: {outside_git}\n", encoding="utf-8")
+
+            res_gitdir_out = self.api.get_git_branch(inside_repo)
+            self.assertEqual(res_gitdir_out["status"], "error")
+            self.assertIn("Access denied", res_gitdir_out["message"])
+
+            # 3. Worktree pointing to valid gitdir inside workspace root works
+            main_repo_git = os.path.join(ws_root, "main_repo", ".git")
+            wt_git_dir = os.path.join(main_repo_git, "worktrees", "wt1")
+            os.makedirs(wt_git_dir)
+            (Path(wt_git_dir) / "HEAD").write_text("ref: refs/heads/feature-worktree\n", encoding="utf-8")
+
+            wt_repo = os.path.join(ws_root, "wt_repo")
+            os.makedirs(wt_repo)
+            (Path(wt_repo) / ".git").write_text(f"gitdir: {wt_git_dir}\n", encoding="utf-8")
+
+            res_wt = self.api.get_git_branch(wt_repo)
+            self.assertEqual(res_wt["status"], "ok")
+            self.assertEqual(res_wt["branch"], "feature-worktree")
 
 
 if __name__ == "__main__":
