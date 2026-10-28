@@ -407,7 +407,7 @@ export class ExplorerManager {
 
       const actionBtn = document.createElement("button");
       actionBtn.type = "button";
-      actionBtn.className = "empty-action-btn welcome-btn primary";
+      actionBtn.className = "empty-action-btn welcome-btn secondary";
       actionBtn.setAttribute("data-action", "open-folder-dialog");
       actionBtn.setAttribute("aria-label", "Open Project Folder (Ctrl+O)");
       actionBtn.textContent = "Open Folder";

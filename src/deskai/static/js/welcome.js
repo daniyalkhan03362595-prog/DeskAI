@@ -81,7 +81,7 @@ export class WelcomeScreenController {
     const openFolderBtn = document.createElement("button");
     openFolderBtn.type = "button";
     openFolderBtn.id = "welcomePrimaryBtn";
-    openFolderBtn.className = "welcome-btn primary";
+    openFolderBtn.className = "welcome-btn secondary";
     openFolderBtn.setAttribute("data-action", "open-folder-dialog");
     openFolderBtn.setAttribute("aria-label", "Open Project Folder (Ctrl+O)");
 
@@ -281,7 +281,7 @@ export class WelcomeScreenController {
     const newFileBtn = document.createElement("button");
     newFileBtn.type = "button";
     newFileBtn.id = "welcomePrimaryBtn";
-    newFileBtn.className = "welcome-btn primary";
+    newFileBtn.className = "welcome-btn secondary";
     newFileBtn.setAttribute("data-action", "new-file");
     newFileBtn.setAttribute("aria-label", "Create New File (Ctrl+N)");
 

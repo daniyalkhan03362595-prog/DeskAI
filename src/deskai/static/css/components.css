@@ -791,37 +791,24 @@
   gap: var(--space-2);
 }
 
-.welcome-btn.primary {
-  background-color: var(--color-primary);
-  color: var(--text-btn-primary);
-  border-color: var(--color-primary-hover);
-  font-weight: 600;
-}
-
-.welcome-btn:active {
-  transform: scale(0.98);
-}
-
-.welcome-btn.primary:hover {
-  background-color: var(--color-primary-hover);
-}
-
-.welcome-btn.primary:active {
-  background-color: var(--color-primary-hover);
-  transform: scale(0.98);
-}
-
+.welcome-btn.primary,
 .welcome-btn.secondary {
   background-color: var(--bg-surface-elevated);
   color: var(--text-primary);
   border-color: var(--border-regular);
 }
 
+.welcome-btn:active {
+  transform: scale(0.98);
+}
+
+.welcome-btn.primary:hover,
 .welcome-btn.secondary:hover {
   background-color: var(--bg-hover);
   border-color: var(--color-primary);
 }
 
+.welcome-btn.primary:active,
 .welcome-btn.secondary:active {
   background-color: var(--bg-active);
   transform: scale(0.98);
