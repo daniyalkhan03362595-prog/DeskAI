@@ -27,7 +27,10 @@
     <!-- 2. Top Navigation & Window Control Bar -->
     <header class="app-header pywebview-drag-region" id="appHeader" role="banner">
       <div class="header-left">
-        <span class="app-logo">⚡ DeskAI</span>
+        <div class="app-logo" id="appLogo" aria-label="DeskAI Studio">
+          <span class="app-logo-icon" aria-hidden="true">⚡</span>
+          <span class="app-logo-text">DeskAI</span>
+        </div>
         <span class="workspace-pill" id="headerWorkspacePill">DeskAI / main</span>
       </div>
       <div class="header-right window-controls" role="group" aria-label="Window Controls">

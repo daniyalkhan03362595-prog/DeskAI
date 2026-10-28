@@ -31,9 +31,24 @@
 }
 
 .app-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-weight: 700;
   font-size: var(--text-base);
   color: var(--color-amber);
+  letter-spacing: -0.5px;
+  cursor: default;
+  user-select: none;
+}
+
+.app-logo-icon {
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.app-logo-text {
+  font-weight: 700;
   letter-spacing: -0.5px;
 }
 
