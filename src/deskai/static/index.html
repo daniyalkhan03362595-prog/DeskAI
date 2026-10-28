@@ -34,6 +34,7 @@
         <span class="workspace-pill" id="headerWorkspacePill" role="status" aria-label="Workspace: No folder opened" title="No active workspace folder">DeskAI / (no workspace)</span>
       </div>
       <div class="header-right window-controls" role="group" aria-label="Window Controls">
+        <button class="win-btn theme-toggle-btn" id="btnToggleTheme" data-action="toggle-theme" aria-label="Toggle Theme" title="Toggle Light/Dark Theme">🌓</button>
         <button class="win-btn win-min" data-action="win-minimize" aria-label="Minimize Window">─</button>
         <button class="win-btn win-max" data-action="win-maximize" aria-label="Maximize Window">□</button>
         <button class="win-btn win-close" data-action="win-close" aria-label="Close Window">✕</button>
@@ -133,7 +134,7 @@
                 <div class="terminal-footer-actions">
                   <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="Kill active terminal session">Kill terminal</button>
                   <label class="terminal-sr-toggle-label" for="terminalSrToggle">
-                    <input type="checkbox" id="terminalSrToggle" class="terminal-sr-checkbox" />
+                    <input type="checkbox" id="terminalSrToggle" class="terminal-sr-checkbox" aria-label="Screen reader mode" />
                     <span>Screen reader mode</span>
                   </label>
                 </div>
@@ -161,8 +162,8 @@
                   <div class="ports-filter-wrapper">
                     <input type="text" id="portsFilterInput" class="ports-filter-input" placeholder="Filter ports, process, PID..." aria-label="Filter ports by port number, process name, or PID" />
                   </div>
-                  <label class="ports-toggle-label">
-                    <input type="checkbox" id="portsTransientToggle" />
+                  <label class="ports-toggle-label" for="portsTransientToggle">
+                    <input type="checkbox" id="portsTransientToggle" aria-label="Show transient ports (32768+)" />
                     <span>Show transient ports (32768+)</span>
                   </label>
                 </div>

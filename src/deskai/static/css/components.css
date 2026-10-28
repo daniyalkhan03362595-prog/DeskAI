@@ -137,6 +137,11 @@
   color: var(--text-primary);
 }
 
+.theme-toggle-btn {
+  font-size: 13px;
+  margin-right: 4px;
+}
+
 .win-close:hover {
   background-color: var(--color-danger);
   color: var(--color-text-white);
@@ -1169,6 +1174,7 @@
 .ports-filter-input:focus,
 .ports-filter-input:focus-visible {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--border-focus);
   outline: none;
 }
 
@@ -1529,6 +1535,7 @@
 .modal-input:focus,
 .modal-input:focus-visible {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--border-focus);
   outline: none;
 }
 

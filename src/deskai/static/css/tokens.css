@@ -135,6 +135,147 @@
   --ansi-bright-white: #ffffff;
 }
 
+/* ==========================================================================
+   Light Theme Tokens (WCAG 2.1 AA Compliant)
+   ========================================================================== */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-app: #f8fafc;
+    --bg-header: #f1f5f9;
+    --bg-sidebar: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-hover: rgba(0, 0, 0, 0.05);
+    --bg-active: rgba(0, 0, 0, 0.08);
+
+    --border-subtle: #e2e8f0;
+    --border-regular: #cbd5e1;
+    --border-input: #5e6e82;
+    --border-focus: #b45309;
+
+    --color-primary: #b45309;
+    --color-primary-hover: #92400e;
+    --color-amber: #f59e0b;
+    --color-amber-surface: rgba(180, 83, 9, 0.12);
+    --color-success: #15803d;
+    --color-success-subtle: rgba(21, 128, 61, 0.12);
+    --color-warning: #b45309;
+    --color-danger: #b91c1c;
+    --color-danger-subtle: rgba(185, 28, 28, 0.12);
+    --color-text-white: #ffffff;
+
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #5e6e82;
+    --text-inverse: #ffffff;
+    --text-btn-primary: #ffffff;
+
+    --bg-surface-elevated: #ffffff;
+    --shadow-dialog: 0 16px 32px rgba(0, 0, 0, 0.15);
+    --backdrop-scrim: rgba(0, 0, 0, 0.4);
+    --glow-success: rgba(21, 128, 61, 0.7);
+    --glow-success-transparent: rgba(21, 128, 61, 0);
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-glow-amber: 0 0 12px rgba(180, 83, 9, 0.2);
+
+    --terminal-bg: #f8fafc;
+    --terminal-fg: #0f172a;
+    --terminal-cursor: #b45309;
+    --terminal-selection: rgba(180, 83, 9, 0.2);
+
+    --cm-active-line: rgba(0, 0, 0, 0.04);
+    --cm-selection: rgba(180, 83, 9, 0.2);
+
+    --ansi-black: #1e293b;
+    --ansi-red: #b91c1c;
+    --ansi-green: #15803d;
+    --ansi-yellow: #a16207;
+    --ansi-blue: #1d4ed8;
+    --ansi-magenta: #a21caf;
+    --ansi-cyan: #0e7490;
+    --ansi-white: #475569;
+
+    --ansi-bright-black: #334155;
+    --ansi-bright-red: #dc2626;
+    --ansi-bright-green: #16a34a;
+    --ansi-bright-yellow: #ca8a04;
+    --ansi-bright-blue: #2563eb;
+    --ansi-bright-magenta: #c026d3;
+    --ansi-bright-cyan: #0891b2;
+    --ansi-bright-white: #0f172a;
+  }
+}
+
+:root[data-theme="light"] {
+  --bg-app: #f8fafc;
+  --bg-header: #f1f5f9;
+  --bg-sidebar: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 0, 0, 0.08);
+
+  --border-subtle: #e2e8f0;
+  --border-regular: #cbd5e1;
+  --border-input: #5e6e82;
+  --border-focus: #b45309;
+
+  --color-primary: #b45309;
+  --color-primary-hover: #92400e;
+  --color-amber: #f59e0b;
+  --color-amber-surface: rgba(180, 83, 9, 0.12);
+  --color-success: #15803d;
+  --color-success-subtle: rgba(21, 128, 61, 0.12);
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-danger-subtle: rgba(185, 28, 28, 0.12);
+  --color-text-white: #ffffff;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #5e6e82;
+  --text-inverse: #ffffff;
+  --text-btn-primary: #ffffff;
+
+  --bg-surface-elevated: #ffffff;
+  --shadow-dialog: 0 16px 32px rgba(0, 0, 0, 0.15);
+  --backdrop-scrim: rgba(0, 0, 0, 0.4);
+  --glow-success: rgba(21, 128, 61, 0.7);
+  --glow-success-transparent: rgba(21, 128, 61, 0);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-glow-amber: 0 0 12px rgba(180, 83, 9, 0.2);
+
+  --terminal-bg: #f8fafc;
+  --terminal-fg: #0f172a;
+  --terminal-cursor: #b45309;
+  --terminal-selection: rgba(180, 83, 9, 0.2);
+
+  --cm-active-line: rgba(0, 0, 0, 0.04);
+  --cm-selection: rgba(180, 83, 9, 0.2);
+
+  --ansi-black: #1e293b;
+  --ansi-red: #b91c1c;
+  --ansi-green: #15803d;
+  --ansi-yellow: #a16207;
+  --ansi-blue: #1d4ed8;
+  --ansi-magenta: #a21caf;
+  --ansi-cyan: #0e7490;
+  --ansi-white: #475569;
+
+  --ansi-bright-black: #334155;
+  --ansi-bright-red: #dc2626;
+  --ansi-bright-green: #16a34a;
+  --ansi-bright-yellow: #ca8a04;
+  --ansi-bright-blue: #2563eb;
+  --ansi-bright-magenta: #c026d3;
+  --ansi-bright-cyan: #0891b2;
+  --ansi-bright-white: #0f172a;
+}
+
 /* 6. Accessible Focus Rings */
 :focus-visible {
   outline: 2px solid var(--color-primary);

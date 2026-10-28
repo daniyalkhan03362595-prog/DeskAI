@@ -76,6 +76,7 @@ class DesktopServer:
                 return Response(status_code=404, content="Not Found")
             html = index_path.read_text(encoding="utf-8")
             nonce = secrets.token_urlsafe(16)
+            self.security.style_nonce = nonce
             request.state.csp_nonce = nonce
             if '<meta name="csp-nonce"' in html:
                 import re

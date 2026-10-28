@@ -9,6 +9,7 @@ import { TerminalView, LogView } from "./terminal.js";
 import { NativeBridge } from "./bridge.js";
 import { WelcomeScreenController } from "./welcome.js";
 import { ExplorerManager } from "./explorer.js";
+import { initTheme } from "./theme.js";
 
 // Global singletons instantiated and wired
 window.store = store;
@@ -205,7 +206,8 @@ store.subscribe("telemetry", (data) => {
   }
 });
 
-// Initialize global hotkeys, router & resizers
+// Initialize theme, global hotkeys, router & resizers
+initTheme();
 initGlobalEvents();
 
 const initialDrawerTab = document.querySelector(".drawer-tab.active");

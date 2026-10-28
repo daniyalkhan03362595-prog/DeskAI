@@ -1,5 +1,6 @@
 import { NativeBridge } from "./bridge.js";
 import { store } from "./state.js";
+import { toggleTheme } from "./theme.js";
 
 export function initGlobalEvents() {
   // 1. Drag & Drop Navigation Lock
@@ -41,6 +42,9 @@ export function initGlobalEvents() {
     const param = trigger.dataset.param;
 
     switch (action) {
+      case "toggle-theme":
+        toggleTheme();
+        break;
       case "win-minimize":
         NativeBridge.windowControl("minimize");
         break;

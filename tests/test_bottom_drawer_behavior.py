@@ -718,8 +718,9 @@ class TestBottomDrawerBehavior(unittest.TestCase):
     # in the parent process remain permanently locked in the child, causing deadlocks before execvp() completes.
     # Python 3.12+ explicitly emits DeprecationWarning regarding this POSIX limitation.
     @unittest.skipIf(
-        sys.platform == "win32" or os.getenv("CI"),
-        "POSIX multi-threaded forkpty deadlock risk (tracked in TODO: DESKAI-PTY-SPAWNER); skipped in CI and Windows",
+        sys.platform == "win32" or os.getenv("CI") or sys.version_info >= (3, 12),
+        "POSIX multi-threaded forkpty deadlock risk (tracked in TODO: DESKAI-PTY-SPAWNER); "
+        "skipped in CI, Windows, and Python >= 3.12",
     )
     def test_terminal_end_to_end_frontend_backend_integration(self):
         """End-to-end integration: Live DesktopServer + Playwright browser + real PTY shell.

@@ -29,6 +29,9 @@ jobs:
       - name: Code Quality & Style Check (flake8)
         run: flake8
 
+      - name: WCAG 2.1 Contrast Check
+        run: python tools/check_contrast.py
+
   test:
     needs: lint
     strategy:

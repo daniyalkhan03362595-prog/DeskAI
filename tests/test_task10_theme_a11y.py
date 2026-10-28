@@ -1,4 +1,5 @@
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -117,6 +118,148 @@ class TestThemeAndAccessibility(unittest.TestCase):
                 contrast,
                 4.5,
                 f"ANSI token {token_key} ({color_hex}) contrast {contrast:.2f}:1 is less than 4.5:1 against #141518",
+            )
+
+    def test_light_theme_tokens_defined_and_contrast_passes(self):
+        """tokens.css must define complete light theme tokens and pass all WCAG AA contrast requirements."""
+        tokens_css = Path("src/deskai/static/css/tokens.css").read_text(encoding="utf-8")
+        self.assertIn(':root[data-theme="light"]', tokens_css)
+        self.assertIn("@media (prefers-color-scheme: light)", tokens_css)
+
+        # Run check_contrast script and assert clean exit code 0
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, "tools/check_contrast.py"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"check_contrast.py failed with output:\n{result.stdout}\n{result.stderr}",
+        )
+
+    def test_theme_toggle_button_and_persistence_module(self):
+        """Index HTML must include theme toggle button and theme.js must safely persist choice."""
+        index_html = Path("src/deskai/static/index.html").read_text(encoding="utf-8")
+        self.assertIn('id="btnToggleTheme"', index_html)
+        self.assertIn('data-action="toggle-theme"', index_html)
+
+        theme_js = Path("src/deskai/static/js/theme.js").read_text(encoding="utf-8")
+        self.assertIn("localStorage.getItem", theme_js)
+        self.assertIn("localStorage.setItem", theme_js)
+        self.assertIn("try {", theme_js)
+        self.assertIn("catch", theme_js)
+        self.assertIn("prefers-color-scheme", theme_js)
+
+        # Verify theme initialization in app.js
+        app_js = Path("src/deskai/static/js/app.js").read_text(encoding="utf-8")
+        self.assertIn('import { initTheme } from "./theme.js"', app_js)
+        self.assertIn("initTheme()", app_js)
+
+    def test_prefers_reduced_motion_in_animations_css(self):
+        """animations.css must handle prefers-reduced-motion to disable non-essential motion."""
+        animations_css = Path("src/deskai/static/css/animations.css").read_text(encoding="utf-8")
+        self.assertIn("@media (prefers-reduced-motion: reduce)", animations_css)
+        self.assertIn("animation-duration", animations_css)
+        self.assertIn("transition-duration", animations_css)
+
+    def test_no_raw_colors_outside_tokens_css(self):
+        """No raw hex (#...) or rgb/rgba(...) colors may exist in any css file outside tokens.css."""
+        css_dir = Path("src/deskai/static/css")
+        hex_pattern = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+        rgb_pattern = re.compile(r"rgba?\([^)]+\)")
+
+        violations = []
+        for css_file in css_dir.glob("*.css"):
+            if css_file.name == "tokens.css":
+                continue
+            content = css_file.read_text(encoding="utf-8")
+            if hex_pattern.search(content) or rgb_pattern.search(content):
+                violations.append(css_file.name)
+
+        self.assertEqual(
+            violations,
+            [],
+            f"Raw color declarations found outside tokens.css in: {violations}",
+        )
+
+    def test_every_interactive_element_has_accessible_name(self):
+        """Every interactive element in static/index.html must have an accessible name."""
+        from html.parser import HTMLParser
+
+        class InteractiveScanner(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.interactive = []
+                self.stack = []
+
+            def handle_starttag(self, tag, attrs):
+                attrs_dict = dict(attrs)
+                is_interactive = False
+                if tag in ("button", "input", "select", "textarea", "a"):
+                    is_interactive = True
+                elif attrs_dict.get("role") in ("button", "tab", "treeitem", "menuitem"):
+                    is_interactive = True
+                elif "tabindex" in attrs_dict and attrs_dict["tabindex"] != "-1":
+                    is_interactive = True
+
+                entry = {"tag": tag, "attrs": attrs_dict, "text": "", "interactive": is_interactive}
+                self.stack.append(entry)
+                if is_interactive:
+                    self.interactive.append(entry)
+
+            def handle_data(self, data):
+                if self.stack:
+                    self.stack[-1]["text"] += data.strip()
+
+            def handle_endtag(self, tag):
+                if self.stack:
+                    entry = self.stack.pop()
+                    if self.stack and entry["text"]:
+                        self.stack[-1]["text"] += " " + entry["text"]
+
+        scanner = InteractiveScanner()
+        scanner.feed(Path("src/deskai/static/index.html").read_text(encoding="utf-8"))
+
+        unnamed = []
+        for el in scanner.interactive:
+            tag = el["tag"]
+            attrs = el["attrs"]
+            text = el["text"].strip()
+            name = (
+                attrs.get("aria-label")
+                or attrs.get("title")
+                or attrs.get("aria-labelledby")
+                or attrs.get("placeholder")
+                or text
+            )
+            if not name:
+                unnamed.append((tag, attrs.get("id", ""), attrs.get("class", "")))
+
+        self.assertEqual(
+            unnamed,
+            [],
+            f"Found interactive elements missing an accessible name: {unnamed}",
+        )
+
+    def test_every_interactive_element_has_visible_focus_style(self):
+        """CSS must define accessible focus rings via :focus-visible and not strip outline without focus styling."""
+        tokens_css = Path("src/deskai/static/css/tokens.css").read_text(encoding="utf-8")
+        self.assertIn(":focus-visible", tokens_css)
+        self.assertIn("outline:", tokens_css)
+
+        components_css = Path("src/deskai/static/css/components.css").read_text(encoding="utf-8")
+        # Ensure that whenever outline is set to none on interactive inputs, box-shadow or border-color focus is set
+        for input_cls in [".ports-filter-input", ".modal-input"]:
+            match = re.search(rf"{re.escape(input_cls)}:focus-visible\s*\{{([^}}]+)\}}", components_css)
+            self.assertIsNotNone(match, f"Missing focus-visible style for {input_cls}")
+            rules = match.group(1)
+            has_visible_indicator = "border-color" in rules or "box-shadow" in rules or "outline" in rules
+            self.assertTrue(
+                has_visible_indicator,
+                f"Element {input_cls} has no visible focus indicator",
             )
 
 
