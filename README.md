@@ -1,5 +1,7 @@
 # DeskAI — Layer 1: Desktop Shell & Presentation Layer ⚡
 
+[![DeskAI Layer 1 CI](https://github.com/daniyalkhan03362595-prog/DeskAI/actions/workflows/ci.yml/badge.svg)](https://github.com/daniyalkhan03362595-prog/DeskAI/actions/workflows/ci.yml)
+
 > **An ultra-lightweight, high-performance desktop AI shell and presentation environment.**  
 > Built with Python (PyWebView 5.0+) + Semantic HTML5 + Pure CSS3 Design Tokens + Vanilla ES2022 Modules + CodeMirror 6 Editor.
 
