@@ -217,7 +217,8 @@ class TestEditorBufferController(unittest.TestCase):
                 path: buf.path,
                 name: buf.name,
                 language: buf.language,
-                iconText: iconEl.textContent,
+                iconData: iconEl.getAttribute("data-icon"),
+                iconHasSvg: !!tabEl.querySelector(".tab-icon svg.deskai-svg-icon"),
                 labelText: labelEl.textContent,
                 pathToIdHasNew: window.EditorManager.pathToId.has("/workspace/config.json")
             };
@@ -227,7 +228,8 @@ class TestEditorBufferController(unittest.TestCase):
         self.assertEqual(res["path"], "/workspace/config.json")
         self.assertEqual(res["name"], "config.json")
         self.assertEqual(res["language"], "javascript")
-        self.assertEqual(res["iconText"], "📦")
+        self.assertEqual(res["iconData"], "file-code")
+        self.assertTrue(res["iconHasSvg"])
         self.assertEqual(res["labelText"], "config.json")
         self.assertTrue(res["pathToIdHasNew"])
 

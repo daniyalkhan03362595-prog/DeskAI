@@ -51,7 +51,9 @@ class TestEditorTabStrip(unittest.TestCase):
         self.assertEqual(tabs.count(), 0)
 
     def test_ets_02_dynamic_tab_creation_and_extension_icons(self):
-        """TC-ETS-02: Creating buffers renders tabs with semantic file icons."""
+        """TC-ETS-02: Creating buffers renders tabs with semantic vector SVG icons (Zed/Cursor style).
+        Note: Evolved from legacy emojis (🐍, 🟨, 📝) to unified vector SVG outline icons ('file-code', 'file-text').
+        """
         self.page.evaluate("""() => {
             window.EditorManager.createBuffer('script.py', 'print(1)');
             window.EditorManager.createBuffer('app.js', 'console.log(2)');
@@ -62,18 +64,24 @@ class TestEditorTabStrip(unittest.TestCase):
         self.assertEqual(tabs.count(), 3)
 
         # Inspect icons and labels
-        py_icon = self.page.locator(".editor-tab:nth-child(1) .tab-icon").text_content()
-        self.assertEqual(py_icon, "🐍")
+        py_icon = self.page.locator(".editor-tab:nth-child(1) .tab-icon").get_attribute("data-icon")
+        py_has_svg = self.page.locator(".editor-tab:nth-child(1) .tab-icon svg.deskai-svg-icon").is_visible()
+        self.assertEqual(py_icon, "file-code")
+        self.assertTrue(py_has_svg)
         py_label = self.page.locator(".editor-tab:nth-child(1) .tab-label").text_content()
         self.assertEqual(py_label, "script.py")
 
-        js_icon = self.page.locator(".editor-tab:nth-child(2) .tab-icon").text_content()
-        self.assertEqual(js_icon, "🟨")
+        js_icon = self.page.locator(".editor-tab:nth-child(2) .tab-icon").get_attribute("data-icon")
+        js_has_svg = self.page.locator(".editor-tab:nth-child(2) .tab-icon svg.deskai-svg-icon").is_visible()
+        self.assertEqual(js_icon, "file-code")
+        self.assertTrue(js_has_svg)
         js_label = self.page.locator(".editor-tab:nth-child(2) .tab-label").text_content()
         self.assertEqual(js_label, "app.js")
 
-        md_icon = self.page.locator(".editor-tab:nth-child(3) .tab-icon").text_content()
-        self.assertEqual(md_icon, "📝")
+        md_icon = self.page.locator(".editor-tab:nth-child(3) .tab-icon").get_attribute("data-icon")
+        md_has_svg = self.page.locator(".editor-tab:nth-child(3) .tab-icon svg.deskai-svg-icon").is_visible()
+        self.assertEqual(md_icon, "file-text")
+        self.assertTrue(md_has_svg)
         md_label = self.page.locator(".editor-tab:nth-child(3) .tab-label").text_content()
         self.assertEqual(md_label, "notes.md")
 

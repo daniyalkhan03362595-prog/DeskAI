@@ -597,9 +597,22 @@
 }
 
 .tab-icon {
-  font-size: var(--text-xs);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.tab-icon .deskai-svg-icon {
+  display: block;
+}
+
+.editor-tab:hover .tab-icon,
+.editor-tab[aria-selected="true"] .tab-icon,
+.editor-tab.active .tab-icon {
+  color: var(--color-amber);
 }
 
 .tab-label {

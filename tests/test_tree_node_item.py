@@ -307,11 +307,13 @@ class TestTreeNodeItem(unittest.TestCase):
                 bufferPath: buf.path,
                 bufferName: buf.name,
                 tabLabel: tabEl.querySelector(".tab-label").textContent,
-                tabIcon: tabEl.querySelector(".tab-icon").textContent
+                tabIcon: tabEl.querySelector(".tab-icon").getAttribute("data-icon"),
+                tabHasSvg: !!tabEl.querySelector(".tab-icon svg.deskai-svg-icon")
             };
         }""")
 
         self.assertEqual(res["bufferPath"], "/workspace/worker.ts")
         self.assertEqual(res["bufferName"], "worker.ts")
         self.assertEqual(res["tabLabel"], "worker.ts")
-        self.assertEqual(res["tabIcon"], "🔷")  # TypeScript icon
+        self.assertEqual(res["tabIcon"], "file-code")
+        self.assertTrue(res["tabHasSvg"])

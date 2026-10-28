@@ -1,6 +1,7 @@
 import { store } from "./state.js";
 import { NativeBridge } from "./bridge.js";
 import { createSvgIcon } from "./icons.js";
+import { detectFileIcon as resolveFileIcon } from "./explorer/tree.js";
 
 export class EditorManager {
   constructor() {
@@ -72,18 +73,7 @@ export class EditorManager {
   }
 
   detectFileIcon(filename) {
-    if (!filename) return "📄";
-    const lower = filename.toLowerCase();
-    if (lower.endsWith(".py") || lower.endsWith(".pyw")) return "🐍";
-    if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".cjs")) return "🟨";
-    if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "🔷";
-    if (lower.endsWith(".json")) return "📦";
-    if (lower.endsWith(".html") || lower.endsWith(".htm")) return "🌐";
-    if (lower.endsWith(".css") || lower.endsWith(".scss")) return "🎨";
-    if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "📝";
-    if (lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".zsh")) return "🐚";
-    if (lower.endsWith(".sql")) return "🗄️";
-    return "📄";
+    return resolveFileIcon(filename, false);
   }
 
   detectLanguage(filename) {
@@ -451,7 +441,9 @@ export class EditorManager {
       const iconSpan = document.createElement("span");
       iconSpan.className = "tab-icon";
       iconSpan.setAttribute("aria-hidden", "true");
-      iconSpan.textContent = this.detectFileIcon(buffer.name);
+      const iconName = this.detectFileIcon(buffer.name);
+      iconSpan.setAttribute("data-icon", iconName);
+      iconSpan.appendChild(createSvgIcon(iconName, 14, "deskai-svg-icon tab-svg-icon"));
       tabEl.appendChild(iconSpan);
 
       const labelSpan = document.createElement("span");
