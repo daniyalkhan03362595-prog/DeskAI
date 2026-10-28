@@ -13,9 +13,6 @@ export class EditorManager {
 
     if (this.tabStrip) {
       this.tabStrip.setAttribute("role", "tablist");
-      if (this.buffers.size === 0) {
-        this.tabStrip.setAttribute("hidden", "");
-      }
       this.tabStrip.addEventListener("keydown", (e) => {
         const tabIds = Array.from(this.buffers.keys());
         if (tabIds.length === 0) return;
