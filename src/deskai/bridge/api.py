@@ -434,7 +434,7 @@ class DesktopBridgeAPI:
             return {"status": "error", "message": str(e), "content": None}
 
     def write_file(self, target_path: str, content: str) -> dict:
-        """Atomically writes file within workspace root."""
+        """Atomically writes file within workspace root preserving permissions and cleaning temp files."""
         if not self._is_origin_allowed():
             return {"status": "error", "message": "Unauthorized origin"}
         if not self._is_safe_path(target_path):
@@ -444,18 +444,43 @@ class DesktopBridgeAPI:
         parent_dir = os.path.dirname(canonical)
         os.makedirs(parent_dir, exist_ok=True)
 
+        import shutil
         import tempfile
 
+        temp_name = None
+        target_existed = os.path.exists(canonical)
         try:
             with tempfile.NamedTemporaryFile("w", dir=parent_dir, encoding="utf-8", delete=False) as tf:
+                temp_name = tf.name
                 tf.write(content)
                 tf.flush()
                 os.fsync(tf.fileno())
-                temp_name = tf.name
+
+            if target_existed:
+                try:
+                    shutil.copymode(canonical, temp_name)
+                except OSError:
+                    pass
+            else:
+                try:
+                    current_umask = os.umask(0)
+                    os.umask(current_umask)
+                    new_mode = 0o666 & ~current_umask
+                    os.chmod(temp_name, new_mode)
+                except (OSError, AttributeError):
+                    pass
+
             os.replace(temp_name, canonical)
+            temp_name = None
             return {"status": "ok", "path": canonical}
         except Exception as e:
             return {"status": "error", "message": str(e)}
+        finally:
+            if temp_name and os.path.exists(temp_name):
+                try:
+                    os.remove(temp_name)
+                except OSError:
+                    pass
 
     def create_dir(self, target_path: str) -> dict:
         """Safely creates a directory within workspace root."""

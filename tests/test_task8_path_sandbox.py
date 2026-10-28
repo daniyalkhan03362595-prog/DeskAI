@@ -233,6 +233,42 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
             self.assertTrue(is_disallowed_workspace_root("/private/var"))
             self.assertTrue(is_disallowed_workspace_root("/private/tmp"))
 
+    def test_write_file_preserves_file_mode_on_overwrite(self):
+        """Task 4: write_file must preserve executable mode (e.g. 0o755) when overwriting."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ws_root = os.path.realpath(os.path.join(temp_dir, "ws"))
+            os.makedirs(ws_root)
+            self.api.workspace_root = ws_root
+
+            script_path = os.path.join(ws_root, "build.sh")
+            with open(script_path, "w") as f:
+                f.write("#!/bin/sh\necho original")
+            os.chmod(script_path, 0o755)
+
+            res = self.api.write_file(script_path, "#!/bin/sh\necho updated")
+            self.assertEqual(res["status"], "ok")
+
+            import stat
+
+            mode = stat.S_IMODE(os.stat(script_path).st_mode)
+            if os.name != "nt":
+                self.assertEqual(mode, 0o755)
+
+    def test_write_file_cleans_up_temp_file_on_failure(self):
+        """Task 4: write_file must not leave stray temporary files if an error occurs."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ws_root = os.path.realpath(os.path.join(temp_dir, "ws"))
+            os.makedirs(ws_root)
+            self.api.workspace_root = ws_root
+            file_path = os.path.join(ws_root, "doc.txt")
+
+            with patch("os.replace", side_effect=OSError("Disk full / replace failed")):
+                res = self.api.write_file(file_path, "sample content")
+                self.assertEqual(res["status"], "error")
+
+            remaining = [f for f in os.listdir(ws_root) if not f.startswith(".")]
+            self.assertEqual(remaining, [], f"Stray temporary files found: {remaining}")
+
 
 if __name__ == "__main__":
     unittest.main()
