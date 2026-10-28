@@ -161,6 +161,14 @@ export class ExplorerManager {
           }
           break;
         }
+
+        case "F2": {
+          e.preventDefault();
+          if (currentItem) {
+            this.startInlineRename(currentItem);
+          }
+          break;
+        }
       }
     });
   }
@@ -229,6 +237,100 @@ export class ExplorerManager {
     if (this.selectedNode) {
       const match = this.viewport.querySelector(`[data-path="${this.selectedNode.path}"]`);
       if (match) this.focusNode(match);
+    }
+  }
+
+  startInlineRename(nodeEl) {
+    if (!nodeEl || nodeEl.classList.contains("is-renaming")) return;
+
+    const labelEl = nodeEl.querySelector(".tree-label");
+    if (!labelEl) return;
+
+    const oldName = labelEl.textContent;
+    const oldPath = nodeEl.getAttribute("data-path");
+    const isDir = nodeEl.getAttribute("data-is-dir") === "true";
+
+    nodeEl.classList.add("is-renaming");
+    labelEl.style.display = "none";
+
+    const inputEl = document.createElement("input");
+    inputEl.type = "text";
+    inputEl.className = "tree-rename-input";
+    inputEl.value = oldName;
+    inputEl.setAttribute("aria-label", `Rename ${oldName}`);
+
+    let committed = false;
+    let cancelled = false;
+
+    const commit = async () => {
+      if (committed || cancelled) return;
+      committed = true;
+      const newName = inputEl.value.trim();
+
+      if (!newName || newName === oldName) {
+        cancel();
+        return;
+      }
+
+      const parentDir = oldPath.includes("/") ? oldPath.substring(0, oldPath.lastIndexOf("/")) : "";
+      const newPath = parentDir ? `${parentDir}/${newName}` : newName;
+
+      const res = await NativeBridge.renamePath(oldPath, newPath);
+      if (res && res.status === "ok") {
+        if (!isDir && window.EditorManager && window.EditorManager.buffers) {
+          for (const [id, buf] of window.EditorManager.buffers.entries()) {
+            if (buf.path === oldPath) {
+              buf.path = newPath;
+              buf.name = newName;
+              buf.language = window.EditorManager.detectLanguage(newName);
+              if (window.EditorManager.pathToId) {
+                window.EditorManager.pathToId.delete(oldPath);
+                window.EditorManager.pathToId.set(newPath, id);
+              }
+              window.EditorManager.renderTabs();
+              window.EditorManager.syncStore();
+            }
+          }
+        }
+        await this.refresh();
+      } else {
+        cancel();
+      }
+    };
+
+    const cancel = () => {
+      if (committed || cancelled) return;
+      cancelled = true;
+      if (inputEl.parentElement) {
+        inputEl.parentElement.removeChild(inputEl);
+      }
+      labelEl.style.display = "";
+      nodeEl.classList.remove("is-renaming");
+      nodeEl.focus();
+    };
+
+    inputEl.addEventListener("keydown", async (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        await commit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancel();
+      }
+    });
+
+    inputEl.addEventListener("blur", async () => {
+      await commit();
+    });
+
+    nodeEl.appendChild(inputEl);
+    inputEl.focus();
+    const dotIndex = oldName.lastIndexOf(".");
+    if (dotIndex > 0 && !isDir) {
+      inputEl.setSelectionRange(0, dotIndex);
+    } else {
+      inputEl.select();
     }
   }
 

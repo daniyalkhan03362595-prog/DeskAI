@@ -267,6 +267,19 @@
   white-space: nowrap;
 }
 
+.tree-item .tree-rename-input {
+  flex: 1;
+  height: 20px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  padding: 0 var(--space-1);
+  outline: none;
+}
+
 /* Hardware Status Dock */
 .hardware-dock {
   position: absolute;

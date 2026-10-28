@@ -470,6 +470,25 @@ class DesktopBridgeAPI:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    def rename_path(self, old_path: str, new_path: str) -> dict:
+        """Safely renames a file or directory inside workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin"}
+        if not self._is_safe_path(old_path) or not self._is_safe_path(new_path):
+            return {"status": "error", "message": "Access denied: Path outside workspace"}
+
+        old_canonical = canonicalize_path(old_path)
+        new_canonical = canonicalize_path(new_path)
+
+        if not os.path.exists(old_canonical):
+            return {"status": "error", "message": "Source path does not exist"}
+
+        try:
+            os.replace(old_canonical, new_canonical)
+            return {"status": "ok", "old_path": old_canonical, "new_path": new_canonical}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     def list_dir(self, target_path: str | None = None) -> dict:
         """Lists directory entries safely inside workspace root."""
         if not self._is_origin_allowed():
