@@ -534,6 +534,8 @@ class DesktopBridgeAPI:
                 for entry in it:
                     if entry.name.startswith("."):
                         continue
+                    if not self._is_safe_path(entry.path):
+                        continue
                     entries.append(
                         {
                             "name": entry.name,

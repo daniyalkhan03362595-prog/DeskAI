@@ -25,6 +25,9 @@ DISALLOWED_SYSTEM_PREFIXES = (
     "/opt",
     "/srv",
     "/snap",
+    "/private/etc",
+    "/private/var",
+    "/private/tmp",
 )
 
 SENSITIVE_HOME_SUBDIRS = ("~/.ssh", "~/.gnupg", "~/.aws", "~/.kube", "~/.config/gcloud")
@@ -86,7 +89,9 @@ def is_disallowed_workspace_root(root_path: str | None) -> bool:
                         pass
 
             for sensitive_rel in SENSITIVE_HOME_SUBDIRS:
-                sensitive_path = ntpath.normcase(ntpath.abspath(os.path.expanduser(sensitive_rel)))
+                rel_win = sensitive_rel.replace("/", "\\")
+                sensitive_raw = ntpath.expanduser(rel_win)
+                sensitive_path = ntpath.normcase(ntpath.realpath(ntpath.abspath(sensitive_raw)))
                 try:
                     if ntpath.commonpath([norm, sensitive_path]) == sensitive_path:
                         return True
@@ -95,22 +100,27 @@ def is_disallowed_workspace_root(root_path: str | None) -> bool:
             return False
 
         # POSIX check
+        is_darwin = sys.platform == "darwin"
         canonical = os.path.realpath(os.path.abspath(root_path))
         if canonical == "/":
             return True
+        canonical_check = canonical.lower() if is_darwin else canonical
         for prefix in DISALLOWED_SYSTEM_PREFIXES:
-            if canonical == prefix or canonical.startswith(prefix + "/"):
+            prefix_check = prefix.lower() if is_darwin else prefix
+            if canonical_check == prefix_check or canonical_check.startswith(prefix_check + "/"):
                 return True
 
         # Block user home root itself ($HOME)
         home_dir = os.path.realpath(os.path.expanduser("~"))
-        if canonical == home_dir:
+        home_check = home_dir.lower() if is_darwin else home_dir
+        if canonical_check == home_check:
             return True
 
         # Block sensitive subdirectories within home (~/.ssh, ~/.aws, etc.)
         for sensitive_rel in SENSITIVE_HOME_SUBDIRS:
             sensitive_path = os.path.realpath(os.path.expanduser(sensitive_rel))
-            if canonical == sensitive_path or canonical.startswith(sensitive_path + "/"):
+            sensitive_check = sensitive_path.lower() if is_darwin else sensitive_path
+            if canonical_check == sensitive_check or canonical_check.startswith(sensitive_check + "/"):
                 return True
 
         return False
@@ -122,9 +132,12 @@ def is_safe_workspace_path(target_path: str, workspace_root: str | None) -> bool
     """
     Checks if target_path is safely contained within workspace_root.
     Uses realpath + commonpath to prevent prefix collisions (e.g. /workspace-secrets)
-    and symlink escapes. Normalizes case on Windows.
+    and symlink escapes.
+    Rejects any resolved target inside SENSITIVE_HOME_SUBDIRS, DISALLOWED_SYSTEM_PREFIXES,
+    or platform-specific disallowed system directories, even when inside workspace_root.
+    Normalizes case on Windows and case-insensitive macOS filesystems.
     """
-    if not workspace_root:
+    if not workspace_root or not target_path:
         return False
     try:
         is_win = (
@@ -133,13 +146,79 @@ def is_safe_workspace_path(target_path: str, workspace_root: str | None) -> bool
             or (len(workspace_root) >= 2 and workspace_root[1] == ":" and workspace_root[0].isalpha())
         )
         if is_win:
-            real_target = ntpath.normcase(ntpath.abspath(os.path.realpath(target_path)))
-            real_root = ntpath.normcase(ntpath.abspath(os.path.realpath(workspace_root)))
-            return ntpath.commonpath([real_target, real_root]) == real_root
+            real_target = ntpath.normcase(ntpath.realpath(ntpath.abspath(target_path)))
+            real_root = ntpath.normcase(ntpath.realpath(ntpath.abspath(workspace_root)))
+            if ntpath.commonpath([real_target, real_root]) != real_root:
+                return False
 
+            # Check SENSITIVE_HOME_SUBDIRS on Windows
+            for sensitive_rel in SENSITIVE_HOME_SUBDIRS:
+                rel_win = sensitive_rel.replace("/", "\\")
+                sensitive_raw = ntpath.expanduser(rel_win)
+                sensitive_path = ntpath.normcase(ntpath.realpath(ntpath.abspath(sensitive_raw)))
+                try:
+                    if ntpath.commonpath([real_target, sensitive_path]) == sensitive_path:
+                        return False
+                except (ValueError, OSError):
+                    pass
+
+            # Check Windows system directories
+            disallowed_win = [
+                os.environ.get("WINDIR", "C:\\Windows"),
+                os.environ.get("SYSTEMROOT", "C:\\Windows"),
+                os.environ.get("ProgramFiles", "C:\\Program Files"),
+                os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
+                os.environ.get("ProgramW6432", "C:\\Program Files"),
+                os.environ.get("ProgramData", "C:\\ProgramData"),
+                "C:\\Windows",
+                "C:\\Program Files",
+                "C:\\Program Files (x86)",
+                "C:\\ProgramData",
+            ]
+            for win_target in disallowed_win:
+                if win_target:
+                    norm_win = ntpath.normcase(ntpath.realpath(ntpath.abspath(win_target)))
+                    try:
+                        if ntpath.commonpath([real_target, norm_win]) == norm_win:
+                            return False
+                    except (ValueError, OSError):
+                        pass
+
+            # Check forward-slash system prefixes if passed on Windows
+            clean_target = real_target.replace("\\", "/")
+            for prefix in DISALLOWED_SYSTEM_PREFIXES:
+                if clean_target == prefix or clean_target.startswith(prefix + "/"):
+                    return False
+
+            return True
+
+        is_darwin = sys.platform == "darwin"
         real_target = posixpath.realpath(posixpath.abspath(target_path))
         real_root = posixpath.realpath(posixpath.abspath(workspace_root))
-        return posixpath.commonpath([real_target, real_root]) == real_root
+
+        if is_darwin:
+            if posixpath.commonpath([real_target.lower(), real_root.lower()]) != real_root.lower():
+                return False
+        else:
+            if posixpath.commonpath([real_target, real_root]) != real_root:
+                return False
+
+        target_check = real_target.lower() if is_darwin else real_target
+
+        # Check DISALLOWED_SYSTEM_PREFIXES
+        for prefix in DISALLOWED_SYSTEM_PREFIXES:
+            prefix_check = prefix.lower() if is_darwin else prefix
+            if target_check == prefix_check or target_check.startswith(prefix_check + "/"):
+                return False
+
+        # Check SENSITIVE_HOME_SUBDIRS
+        for sensitive_rel in SENSITIVE_HOME_SUBDIRS:
+            sensitive_path = posixpath.realpath(posixpath.abspath(os.path.expanduser(sensitive_rel)))
+            sensitive_check = sensitive_path.lower() if is_darwin else sensitive_path
+            if target_check == sensitive_check or target_check.startswith(sensitive_check + "/"):
+                return False
+
+        return True
     except (ValueError, OSError):
         return False
 

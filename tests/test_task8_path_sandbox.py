@@ -139,6 +139,100 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
                 self.assertEqual(res_large.get("status"), "error")
                 self.assertIn("10MB", res_large.get("message", ""))
 
+    def test_ancestor_root_sensitive_dirs_and_symlinks_denied(self):
+        """Ancestor root + ~/.ssh read/list/write/delete/create/rename all denied; symlink to ~/.ssh denied."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_home = os.path.realpath(os.path.join(temp_dir, "home", "alice"))
+            ssh_dir = os.path.join(temp_home, ".ssh")
+            os.makedirs(ssh_dir, exist_ok=True)
+            id_rsa = os.path.join(ssh_dir, "id_rsa")
+            with open(id_rsa, "w") as f:
+                f.write("SUPER_SECRET_KEY")
+
+            project_dir = os.path.join(temp_home, "my_project")
+            os.makedirs(project_dir, exist_ok=True)
+            ancestor_root = os.path.realpath(os.path.join(temp_dir, "home"))
+
+            with patch.dict(os.environ, {"HOME": temp_home}):
+                self.api.workspace_root = ancestor_root
+
+                # 1. read_file in ~/.ssh -> denied
+                res_read = self.api.read_file(id_rsa)
+                self.assertEqual(res_read["status"], "error")
+                self.assertIn("Access denied", res_read["message"])
+
+                # 2. write_file in ~/.ssh -> denied
+                res_write = self.api.write_file(os.path.join(ssh_dir, "pwned.txt"), "bad")
+                self.assertEqual(res_write["status"], "error")
+                self.assertIn("Access denied", res_write["message"])
+
+                # 3. list_dir on ~/.ssh -> denied
+                res_list = self.api.list_dir(ssh_dir)
+                self.assertEqual(res_list["status"], "error")
+                self.assertIn("Access denied", res_list["message"])
+
+                # 4. create_dir in ~/.ssh -> denied
+                res_mkdir = self.api.create_dir(os.path.join(ssh_dir, "subfolder"))
+                self.assertEqual(res_mkdir["status"], "error")
+                self.assertIn("Access denied", res_mkdir["message"])
+
+                # 5. rename_path in ~/.ssh -> denied
+                res_rename = self.api.rename_path(id_rsa, os.path.join(ssh_dir, "id_rsa_bak"))
+                self.assertEqual(res_rename["status"], "error")
+                self.assertIn("Access denied", res_rename["message"])
+
+                # 6. delete_path in ~/.ssh -> denied
+                res_del = self.api.delete_path(id_rsa)
+                self.assertEqual(res_del["status"], "error")
+                self.assertIn("Access denied", res_del["message"])
+
+                # 7. Symlink inside normal workspace pointing to ~/.ssh is denied
+                self.api.workspace_root = project_dir
+                symlink_target = os.path.join(project_dir, "ssh_symlink")
+                try:
+                    os.symlink(ssh_dir, symlink_target)
+                    self.assertFalse(is_safe_workspace_path(symlink_target, project_dir))
+                    self.assertFalse(is_safe_workspace_path(os.path.join(symlink_target, "id_rsa"), project_dir))
+
+                    res_sym_read = self.api.read_file(os.path.join(symlink_target, "id_rsa"))
+                    self.assertEqual(res_sym_read["status"], "error")
+                    self.assertIn("Access denied", res_sym_read["message"])
+
+                    # list_dir on project_dir does not expose symlink pointing to sensitive dir
+                    res_proj_list = self.api.list_dir()
+                    self.assertEqual(res_proj_list["status"], "ok")
+                    names = [e["name"] for e in res_proj_list.get("entries", [])]
+                    self.assertNotIn("ssh_symlink", names)
+                except OSError:
+                    pass
+
+    def test_windows_realpath_and_sensitive_checks_mocked(self):
+        """Mocked Windows branch tests realpath and system/sensitive dir rejection."""
+        with patch("deskai.utils.path.os.name", "nt"), patch("sys.platform", "win32"):
+            with patch.dict(os.environ, {"USERPROFILE": "C:\\Users\\alice"}):
+                # Ancestor C:\Users containing C:\Users\alice\.ssh\id_rsa
+                self.assertFalse(is_safe_workspace_path("C:\\Users\\alice\\.ssh\\id_rsa", "C:\\Users"))
+                self.assertFalse(is_safe_workspace_path("C:\\Windows\\System32\\cmd.exe", "C:\\"))
+                self.assertFalse(is_safe_workspace_path("C:\\Program Files\\App\\app.exe", "C:\\"))
+                # Normal file in user project is safe
+                self.assertTrue(
+                    is_safe_workspace_path(
+                        "C:\\Users\\alice\\projects\\deskai\\main.py", "C:\\Users\\alice\\projects\\deskai"
+                    )
+                )
+
+    def test_macos_private_prefixes_and_case_insensitivity_mocked(self):
+        """Mocked macOS branch verifies /private/etc, /private/var, /private/tmp and case insensitivity."""
+        with patch("sys.platform", "darwin"):
+            self.assertFalse(is_safe_workspace_path("/private/etc/hosts", "/private"))
+            self.assertFalse(is_safe_workspace_path("/PRIVATE/ETC/HOSTS", "/private"))
+            self.assertFalse(is_safe_workspace_path("/private/var/log/syslog", "/private"))
+            self.assertFalse(is_safe_workspace_path("/private/tmp/secret.txt", "/private"))
+            self.assertTrue(is_disallowed_workspace_root("/private/etc"))
+            self.assertTrue(is_disallowed_workspace_root("/PRIVATE/ETC"))
+            self.assertTrue(is_disallowed_workspace_root("/private/var"))
+            self.assertTrue(is_disallowed_workspace_root("/private/tmp"))
+
 
 if __name__ == "__main__":
     unittest.main()
