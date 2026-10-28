@@ -283,6 +283,33 @@ export function renderTreeNodes(entries, parentEl, level, state) {
     labelSpan.textContent = entry.name;
     itemEl.appendChild(labelSpan);
 
+    if (isDir) {
+      const actionsSpan = document.createElement("span");
+      actionsSpan.className = "tree-inline-actions";
+
+      const newFileBtn = document.createElement("button");
+      newFileBtn.type = "button";
+      newFileBtn.className = "tree-inline-btn";
+      newFileBtn.setAttribute("data-action", "folder-new-file");
+      newFileBtn.setAttribute("data-path", entry.path);
+      newFileBtn.setAttribute("title", `New File in ${entry.name}...`);
+      newFileBtn.setAttribute("aria-label", `New File in ${entry.name}`);
+      newFileBtn.appendChild(createSvgIcon("file-plus", 13, "deskai-svg-icon"));
+      actionsSpan.appendChild(newFileBtn);
+
+      const newFolderBtn = document.createElement("button");
+      newFolderBtn.type = "button";
+      newFolderBtn.className = "tree-inline-btn";
+      newFolderBtn.setAttribute("data-action", "folder-new-folder");
+      newFolderBtn.setAttribute("data-path", entry.path);
+      newFolderBtn.setAttribute("title", `New Folder in ${entry.name}...`);
+      newFolderBtn.setAttribute("aria-label", `New Folder in ${entry.name}`);
+      newFolderBtn.appendChild(createSvgIcon("folder-plus", 13, "deskai-svg-icon"));
+      actionsSpan.appendChild(newFolderBtn);
+
+      itemEl.appendChild(actionsSpan);
+    }
+
     parentEl.appendChild(itemEl);
 
     if (isDir && isExpanded) {

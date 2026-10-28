@@ -49,26 +49,18 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertEqual(toolbar.get_attribute("aria-controls"), "fileTreeViewport")
 
         buttons = toolbar.locator("button.icon-btn")
-        self.assertEqual(buttons.count(), 4)
-
-        btn_new_file = toolbar.locator("#btnNewFile")
-        self.assertEqual(btn_new_file.get_attribute("aria-label"), "New File")
-        self.assertEqual(btn_new_file.get_attribute("tabindex"), "0")
-
-        btn_new_folder = toolbar.locator("#btnNewFolder")
-        self.assertEqual(btn_new_folder.get_attribute("aria-label"), "New Folder")
-        self.assertEqual(btn_new_folder.get_attribute("tabindex"), "-1")
+        self.assertEqual(buttons.count(), 2)
 
         btn_refresh = toolbar.locator("#btnRefreshTree")
         self.assertEqual(btn_refresh.get_attribute("aria-label"), "Refresh Tree")
-        self.assertEqual(btn_refresh.get_attribute("tabindex"), "-1")
+        self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
 
         btn_collapse = toolbar.locator("#btnCollapseAll")
         self.assertEqual(btn_collapse.get_attribute("aria-label"), "Collapse All Folders")
         self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
 
     def test_tht_02_new_file_action_dispatch(self):
-        """TC-THT-02: Clicking new-file prompts for filename, writes file, and opens tab."""
+        """TC-THT-02: Clicking inline folder new-file prompts for filename, writes file, and opens tab."""
         res = self.page.evaluate("""async () => {
             window.prompt = () => "hello.py";
             let writtenPath = null;
@@ -85,7 +77,12 @@ class TestTreeHeaderToolbar(unittest.TestCase):
                 return "tab-hello";
             };
 
-            const btn = document.getElementById("btnNewFile");
+            window.ExplorerManager.entries = [
+                { name: "src", is_dir: true, path: "/workspace/src" }
+            ];
+            window.ExplorerManager.render();
+
+            const btn = document.querySelector('.tree-item.is-folder button[data-action="folder-new-file"]');
             btn.click();
 
             // Allow async event delegation tick
@@ -103,7 +100,7 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertEqual(res["openedPath"], res["writtenPath"])
 
     def test_tht_03_new_folder_action_dispatch(self):
-        """TC-THT-03: Clicking new-folder prompts for folder name and calls createDir."""
+        """TC-THT-03: Clicking inline folder new-folder prompts for folder name and calls createDir."""
         res = self.page.evaluate("""async () => {
             window.prompt = () => "components";
             let createdPath = null;
@@ -113,7 +110,12 @@ class TestTreeHeaderToolbar(unittest.TestCase):
                 return { status: "ok" };
             };
 
-            const btn = document.getElementById("btnNewFolder");
+            window.ExplorerManager.entries = [
+                { name: "src", is_dir: true, path: "/workspace/src" }
+            ];
+            window.ExplorerManager.render();
+
+            const btn = document.querySelector('.tree-item.is-folder button[data-action="folder-new-folder"]');
             btn.click();
 
             await new Promise(r => setTimeout(r, 50));
@@ -176,26 +178,19 @@ class TestTreeHeaderToolbar(unittest.TestCase):
 
     def test_tht_06_toolbar_roving_keyboard_navigation(self):
         """TC-THT-06: Arrow keys rove focus across toolbar buttons and update tabindex."""
-        btn_new_file = self.page.locator("#btnNewFile")
-        btn_new_folder = self.page.locator("#btnNewFolder")
         btn_refresh = self.page.locator("#btnRefreshTree")
         btn_collapse = self.page.locator("#btnCollapseAll")
 
-        btn_new_file.focus()
-        self.assertEqual(btn_new_file.get_attribute("tabindex"), "0")
-
-        self.page.keyboard.press("ArrowRight")
-        self.assertEqual(btn_new_folder.get_attribute("tabindex"), "0")
-        self.assertEqual(btn_new_file.get_attribute("tabindex"), "-1")
-
-        self.page.keyboard.press("ArrowRight")
+        btn_refresh.focus()
         self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
 
-        self.page.keyboard.press("End")
+        self.page.keyboard.press("ArrowRight")
         self.assertEqual(btn_collapse.get_attribute("tabindex"), "0")
+        self.assertEqual(btn_refresh.get_attribute("tabindex"), "-1")
 
-        self.page.keyboard.press("Home")
-        self.assertEqual(btn_new_file.get_attribute("tabindex"), "0")
+        self.page.keyboard.press("ArrowLeft")
+        self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
+        self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
 
     def test_tht_07_rename_collision_error_shows_toast_and_announces(self):
         """Task 5: When renamePath fails with collision/EEXIST, toast and screenReaderAnnouncer are updated."""

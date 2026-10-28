@@ -69,6 +69,22 @@ export class ExplorerManager {
 
     if (this.viewport) {
       this.viewport.addEventListener("click", async (e) => {
+        const inlineBtn = e.target.closest(".tree-inline-btn");
+        if (inlineBtn) {
+          e.stopPropagation();
+          e.preventDefault();
+          const action = inlineBtn.getAttribute("data-action");
+          const folderPath = inlineBtn.getAttribute("data-path");
+          if (action === "folder-new-file") {
+            await this.toggleFolder(folderPath, true);
+            await this.promptNewFile(folderPath);
+          } else if (action === "folder-new-folder") {
+            await this.toggleFolder(folderPath, true);
+            await this.promptNewFolder(folderPath);
+          }
+          return;
+        }
+
         const itemEl = e.target.closest(".tree-item");
         if (!itemEl) return;
         await this.activateNode(itemEl);
@@ -309,12 +325,14 @@ export class ExplorerManager {
     }
   }
 
-  async promptNewFile() {
-    let targetDir = "";
-    if (this.selectedNode && this.selectedNode.isDir) {
-      targetDir = this.selectedNode.path;
-    } else if (store && store.state && store.state.workspace && store.state.workspace.rootPath) {
-      targetDir = store.state.workspace.rootPath;
+  async promptNewFile(targetDirParam = null) {
+    let targetDir = targetDirParam || "";
+    if (!targetDir) {
+      if (this.selectedNode && this.selectedNode.isDir) {
+        targetDir = this.selectedNode.path;
+      } else if (store && store.state && store.state.workspace && store.state.workspace.rootPath) {
+        targetDir = store.state.workspace.rootPath;
+      }
     }
 
     const filename = prompt("Enter file name:");
@@ -335,12 +353,14 @@ export class ExplorerManager {
     }
   }
 
-  async promptNewFolder() {
-    let targetDir = "";
-    if (this.selectedNode && this.selectedNode.isDir) {
-      targetDir = this.selectedNode.path;
-    } else if (store && store.state && store.state.workspace && store.state.workspace.rootPath) {
-      targetDir = store.state.workspace.rootPath;
+  async promptNewFolder(targetDirParam = null) {
+    let targetDir = targetDirParam || "";
+    if (!targetDir) {
+      if (this.selectedNode && this.selectedNode.isDir) {
+        targetDir = this.selectedNode.path;
+      } else if (store && store.state && store.state.workspace && store.state.workspace.rootPath) {
+        targetDir = store.state.workspace.rootPath;
+      }
     }
 
     const foldername = prompt("Enter folder name:");

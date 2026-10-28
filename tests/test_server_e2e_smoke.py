@@ -77,10 +77,8 @@ class TestServerE2ESmoke(unittest.TestCase):
             # Load app over real HTTP
             page.goto(f"http://127.0.0.1:{srv.port}/")
 
-            # 1. Header buttons exist and are visible
-            page.wait_for_selector("#btnNewFile", timeout=5000)
-            self.assertTrue(page.locator("#btnNewFile").is_visible())
-            self.assertTrue(page.locator("#btnNewFolder").is_visible())
+            # 1. Header buttons exist and are visible (refresh and collapse; new file/folder are inline folder actions)
+            page.wait_for_selector("#btnRefreshTree", timeout=5000)
             self.assertTrue(page.locator("#btnRefreshTree").is_visible())
             self.assertTrue(page.locator("#btnCollapseAll").is_visible())
 

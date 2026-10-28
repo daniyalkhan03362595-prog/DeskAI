@@ -109,7 +109,7 @@ class TestTask2KeyboardFlow(unittest.TestCase):
             # 6. AI chat input
             id_str = " -> ".join(visited_ids)
             self.assertTrue(
-                "btnNewFile" in visited_ids or "explorerToolbar" in id_str,
+                "btnRefreshTree" in visited_ids or "btnNewFile" in visited_ids or "explorerToolbar" in id_str,
                 f"Explorer toolbar not visited: {id_str}",
             )
             self.assertTrue(
@@ -186,18 +186,18 @@ class TestTask2KeyboardFlow(unittest.TestCase):
         """Explorer toolbar is role=toolbar, has one tab stop, and arrow keys move focus."""
         context, page = self._create_page()
         try:
-            btn_new_file = page.locator("#btnNewFile")
-            btn_new_folder = page.locator("#btnNewFolder")
-            btn_new_file.focus()
+            btn_refresh = page.locator("#btnRefreshTree")
+            btn_collapse = page.locator("#btnCollapseAll")
+            btn_refresh.focus()
 
-            self.assertEqual(btn_new_file.get_attribute("tabindex"), "0")
-            self.assertEqual(btn_new_folder.get_attribute("tabindex"), "-1")
+            self.assertEqual(btn_refresh.get_attribute("tabindex"), "0")
+            self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
 
             # Arrow right moves within toolbar
             page.keyboard.press("ArrowRight")
-            self.assertTrue(page.evaluate("() => document.activeElement.id === 'btnNewFolder'"))
-            self.assertEqual(btn_new_folder.get_attribute("tabindex"), "0")
-            self.assertEqual(btn_new_file.get_attribute("tabindex"), "-1")
+            self.assertTrue(page.evaluate("() => document.activeElement.id === 'btnCollapseAll'"))
+            self.assertEqual(btn_collapse.get_attribute("tabindex"), "0")
+            self.assertEqual(btn_refresh.get_attribute("tabindex"), "-1")
 
             # Tab leaves toolbar directly to fileTreeViewport
             page.keyboard.press("Tab")
