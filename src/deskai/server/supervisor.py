@@ -6,6 +6,7 @@ and hardened WebSocket gateway.
 
 import asyncio
 import json
+import secrets
 import threading
 import time
 from pathlib import Path
@@ -67,14 +68,15 @@ class DesktopServer:
             response.set_cookie(key="deskai_session", value=session_id, httponly=True, samesite="strict", path="/")
             return self.security.apply_security_headers(response, is_no_store=True)
 
-        # 2. Root Index Route (Injects dynamic per-launch CSP style nonce)
+        # 2. Root Index Route (Injects dynamic per-response CSP style nonce)
         @self.app.get("/")
         async def serve_index(request: Request):
             index_path = self.static_dir / "index.html"
             if not index_path.exists():
                 return Response(status_code=404, content="Not Found")
             html = index_path.read_text(encoding="utf-8")
-            nonce = self.security.style_nonce
+            nonce = secrets.token_urlsafe(16)
+            request.state.csp_nonce = nonce
             if '<meta name="csp-nonce"' in html:
                 import re
 
@@ -86,7 +88,7 @@ class DesktopServer:
             elif "<head>" in html:
                 html = html.replace("<head>", f'<head>\n  <meta name="csp-nonce" content="{nonce}">', 1)
             resp = Response(content=html, media_type="text/html")
-            return self.security.apply_security_headers(resp, is_no_store=True)
+            return self.security.apply_security_headers(resp, is_no_store=True, style_nonce=nonce)
 
         @self.app.get("/index.html")
         async def serve_index_html(request: Request):
@@ -117,7 +119,8 @@ class DesktopServer:
 
             # Strict Security Headers & Cache-Control: no-store for root
             is_no_store = path in ("/", "/auth/redeem")
-            return self.security.apply_security_headers(response, is_no_store=is_no_store)
+            csp_nonce = getattr(request.state, "csp_nonce", None)
+            return self.security.apply_security_headers(response, is_no_store=is_no_store, style_nonce=csp_nonce)
 
         # 3. Hardened WebSocket Endpoint (Accepted first, then authorized with 4403/4401)
         @self.app.websocket("/ws")
@@ -337,6 +340,13 @@ class DesktopServer:
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
+            # C2. Concurrency Limit: Max 4 Sockets Per Session (consistent with /ws)
+            if len(self.security.get_session_sockets(cookie)) >= 4:
+                await ws.close(code=4429, reason="Too Many Sockets for Session")
+                return
+
+            self.security.register_socket(cookie, ws)
+
             # D. Lookup Terminal Session
             session = self.terminal_manager.get_session(session_id)
             if not session:
@@ -450,6 +460,7 @@ class DesktopServer:
             except (WebSocketDisconnect, ConnectionResetError, RuntimeError):
                 pass
             finally:
+                self.security.unregister_socket(cookie, ws)
                 session.has_active_websocket = False
 
         # 4. Root Static File Mounting (Directly at / so relative css/..., js/... all resolve)

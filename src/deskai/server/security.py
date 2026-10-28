@@ -112,9 +112,9 @@ class SessionSecurityManager:
             f"frame-ancestors 'none';"
         )
 
-    def apply_security_headers(self, response, is_no_store: bool = False):
+    def apply_security_headers(self, response, is_no_store: bool = False, style_nonce: str | None = None):
         """Applies comprehensive suite of hardening headers to HTTP response."""
-        response.headers["Content-Security-Policy"] = self.get_content_security_policy()
+        response.headers["Content-Security-Policy"] = self.get_content_security_policy(style_nonce=style_nonce)
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"

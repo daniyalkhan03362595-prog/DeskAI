@@ -66,6 +66,20 @@ class WindowLifecycleHandler:
             if not native_win:
                 return
 
+            import gi
+
+            try:
+                gi.require_version("Gdk", "3.0")
+            except ValueError:
+                pass
+            try:
+                gi.require_version("WebKit2", "4.1")
+            except ValueError:
+                try:
+                    gi.require_version("WebKit2", "4.0")
+                except ValueError:
+                    pass
+
             from gi.repository import Gdk, WebKit2
 
             def _on_button_press(wv, event):
@@ -139,6 +153,15 @@ class WindowLifecycleHandler:
 
             def _search_and_hook(widget):
                 try:
+                    import gi
+
+                    try:
+                        gi.require_version("WebKit2", "4.1")
+                    except ValueError:
+                        try:
+                            gi.require_version("WebKit2", "4.0")
+                        except ValueError:
+                            pass
                     from gi.repository import WebKit2
 
                     if isinstance(widget, WebKit2.WebView):

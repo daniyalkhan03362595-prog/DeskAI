@@ -172,6 +172,7 @@ class TerminalSession:
         self._ended_dispatched = False
         self._exit_code: int | None = None
         self._subscribers: list[asyncio.Queue[bytes]] = []
+        self._drain_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._reader_thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -248,9 +249,9 @@ class TerminalSession:
 
     def _dispatch_to_subscribers(self, data: bytes, is_eof: bool = False):
         """
-        Dispatches chunks (or EOF sentinel b'') to active subscribers with backpressure.
-        Blocks the reader thread with a short polling loop until all attached subscriber
-        queues accept the chunk, causing the PTY buffer to fill and child process to block.
+        Dispatches chunks (or EOF sentinel b'') to active subscribers with event-driven backpressure.
+        Blocks the reader thread waiting on a threading.Event signalled upon consumer queue drain
+        until all attached subscriber queues accept the chunk.
         When NO subscriber is attached, output goes only to ReplayBuffer and the reader does not block.
         The EOF sentinel is never dropped.
         """
@@ -263,7 +264,8 @@ class TerminalSession:
         if not pending_queues:
             return
 
-        while pending_queues and not self._closed:
+        while pending_queues and (not self._closed or is_eof):
+            self._drain_event.clear()
             done_event = threading.Event()
             still_pending = set()
 
@@ -284,14 +286,10 @@ class TerminalSession:
             except RuntimeError:
                 break
 
-            done_event.wait(timeout=0.005)
-            if not done_event.is_set():
-                time.sleep(0.001)
-                continue
-
+            done_event.wait(timeout=0.05)
             pending_queues = still_pending
             if pending_queues:
-                time.sleep(0.001)
+                self._drain_event.wait(timeout=0.05)
 
     def _on_process_ended(self):
         with self._lock:
@@ -371,6 +369,7 @@ class TerminalSession:
         try:
             while True:
                 chunk = await queue.get()
+                self._drain_event.set()
                 if chunk == b"":
                     break
                 yield chunk
@@ -378,12 +377,14 @@ class TerminalSession:
             with self._lock:
                 if queue in self._subscribers:
                     self._subscribers.remove(queue)
+            self._drain_event.set()
 
     def close(self):
         """Sends SIGHUP, escalates to SIGKILL after 3s, then reaps process."""
         if self._closed:
             return
         self._closed = True
+        self._drain_event.set()
         if self._process:
             if sys.platform == "win32":
                 try:

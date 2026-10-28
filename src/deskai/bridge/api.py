@@ -251,6 +251,12 @@ class DesktopBridgeAPI:
         native = getattr(self._window, "native", None)
         if native and hasattr(native, "begin_move_drag"):
             try:
+                import gi
+
+                try:
+                    gi.require_version("Gdk", "3.0")
+                except ValueError:
+                    pass
                 from gi.repository import GLib, Gdk
 
                 def _do_drag():
@@ -288,6 +294,12 @@ class DesktopBridgeAPI:
         native = getattr(self._window, "native", None)
         if native and hasattr(native, "begin_resize_drag"):
             try:
+                import gi
+
+                try:
+                    gi.require_version("Gdk", "3.0")
+                except ValueError:
+                    pass
                 from gi.repository import GLib, Gdk
 
                 if hasattr(native, "is_maximized") and native.is_maximized():
@@ -335,18 +347,19 @@ class DesktopBridgeAPI:
                 return False
         return False
 
-    def resize_window_absolute(self, width: int, height: int) -> bool:
-        """Directly resizes native window frame to specified dimensions."""
+    def resize_window_absolute(self, width: int, height: int) -> dict:
+        """Directly resizes native window frame to specified dimensions within sane bounds (200..10000)."""
         if not self._is_origin_allowed():
-            return False
-        w = max(900, int(width))
-        h = max(600, int(height))
+            return {"status": "error", "message": "Unauthorized origin"}
+        if type(width) is not int or type(height) is not int or isinstance(width, bool) or isinstance(height, bool):
+            return {"status": "error", "message": "width and height must be integers"}
+        if not (200 <= width <= 10000) or not (200 <= height <= 10000):
+            return {"status": "error", "message": "width and height must be in range 200..10000"}
         try:
-            self._window.resize(w, h)
-            return True
+            self._window.resize(width, height)
+            return {"status": "ok", "width": width, "height": height}
         except Exception as e:
-            print(f"[DeskAI] Window resize error: {e}")
-            return False
+            return {"status": "error", "message": str(e)}
 
     def window_control(self, action: str, direction: str | None = None, timestamp: float | None = None) -> bool:
         """Handles native window frame buttons and frameless drag/resize actions."""
@@ -644,7 +657,7 @@ class DesktopBridgeAPI:
         return {"status": "ok", "branch": None}
 
     def get_system_telemetry(self) -> dict:
-        """Returns real host system telemetry or fallback values."""
+        """Returns real host system telemetry across Linux, macOS, and Windows, or explicit 'unavailable' fallbacks."""
         if not self._is_origin_allowed():
             return {"status": "error", "message": "Unauthorized origin", "telemetry": None}
 
@@ -652,8 +665,9 @@ class DesktopBridgeAPI:
             "gpuName": "--",
             "vramUsedMB": "--",
             "vramTotalMB": "--",
-            "cpuUsagePct": "--",
-            "ramUsedMB": "--",
+            "cpuUsagePct": "unavailable",
+            "ramUsedMB": "unavailable",
+            "ramTotalMB": "unavailable",
             "status": "ready",
         }
 
@@ -662,8 +676,21 @@ class DesktopBridgeAPI:
 
             telemetry["platform"] = platform.system()
 
-            # Attempt real memory telemetry
-            if os.name != "nt" and os.path.exists("/proc/meminfo"):
+            # Attempt psutil telemetry across platforms (Linux, Windows, macOS)
+            telemetry_obtained = False
+            try:
+                import psutil
+
+                vm = psutil.virtual_memory()
+                telemetry["ramTotalMB"] = int(vm.total // (1024 * 1024))
+                telemetry["ramUsedMB"] = int(vm.used // (1024 * 1024))
+                cpu = psutil.cpu_percent(interval=None)
+                telemetry["cpuUsagePct"] = f"{cpu:.1f}%"
+                telemetry_obtained = True
+            except Exception:
+                telemetry_obtained = False
+
+            if not telemetry_obtained and os.name != "nt" and os.path.exists("/proc/meminfo"):
                 mem = {}
                 with open("/proc/meminfo", "r") as f:
                     for line in f:

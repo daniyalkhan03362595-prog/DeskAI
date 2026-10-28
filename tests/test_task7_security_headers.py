@@ -56,7 +56,12 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         self.assertEqual(res_root.headers.get("Cross-Origin-Resource-Policy"), "same-origin")
         self.assertEqual(res_root.headers.get("Permissions-Policy"), "camera=(), microphone=(), geolocation=()")
         self.assertEqual(res_root.headers.get("Cache-Control"), "no-store")
-        self.assertIn(f'<meta name="csp-nonce" content="{self.server.security.style_nonce}">', res_root.text)
+        import re
+
+        meta_match = re.search(r'<meta name="csp-nonce" content="([^"]+)">', res_root.text)
+        self.assertIsNotNone(meta_match, "Per-response CSP nonce meta tag missing")
+        res_nonce = meta_match.group(1)
+        self.assertIn(f"'nonce-{res_nonce}'", res_root.headers.get("Content-Security-Policy", ""))
 
         # Test static asset endpoint with valid cookie
         res_static = self.client.get(
@@ -107,6 +112,72 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
             self.assertEqual(port, 54321)
             # Ensure SO_EXCLUSIVEADDRUSE was called
             mock_sock.setsockopt.assert_called_with(socket.SOL_SOCKET, -5, 1)
+
+    def test_terminal_websocket_per_session_cap(self):
+        """Terminal WebSocket adheres to 4-socket per-session limit (returns 4429 on 5th)."""
+        token = self.server.security.create_launch_token()
+        res_redeem = self.client.get(
+            f"/auth/redeem?token={token}", headers={"Host": f"127.0.0.1:{self.port}"}, follow_redirects=False
+        )
+        session_cookie = res_redeem.cookies.get("deskai_session")
+        self.assertIsNotNone(session_cookie)
+
+        # Pre-register 4 sockets for this session in security manager
+        mock_ws = [MagicMock() for _ in range(4)]
+        for ws in mock_ws:
+            self.server.security.register_socket(session_cookie, ws)
+
+        # Attempt to open a 5th terminal websocket with same cookie
+        with self.client.websocket_connect(
+            "/ws/terminal/dummy_session",
+            headers={"Host": f"127.0.0.1:{self.port}", "Origin": f"http://127.0.0.1:{self.port}"},
+            cookies={"deskai_session": session_cookie},
+        ) as ws:
+            # 5th socket must be rejected with 4429
+            pass
+
+    def test_resize_window_absolute_bounds_validation(self):
+        """resize_window_absolute validates integer types and bounds in 200..10000."""
+        from deskai.bridge.api import DesktopBridgeAPI
+
+        mock_mgr = MagicMock()
+        mock_mgr.server.port = self.port
+        mock_mgr.window.get_current_url.return_value = f"http://127.0.0.1:{self.port}/"
+        api = DesktopBridgeAPI(mock_mgr)
+
+        # 1. Non-integer types rejected
+        self.assertEqual(api.resize_window_absolute("800", 600)["status"], "error")  # type: ignore
+        self.assertEqual(api.resize_window_absolute(True, 600)["status"], "error")  # type: ignore
+        self.assertEqual(api.resize_window_absolute(800, 600.5)["status"], "error")  # type: ignore
+
+        # 2. Out of bounds rejected (< 200 or > 10000)
+        self.assertEqual(api.resize_window_absolute(150, 600)["status"], "error")
+        self.assertEqual(api.resize_window_absolute(800, 50)["status"], "error")
+        self.assertEqual(api.resize_window_absolute(15000, 800)["status"], "error")
+
+        # 3. Valid bounds accepted
+        res_ok = api.resize_window_absolute(1024, 768)
+        self.assertEqual(res_ok["status"], "ok")
+        self.assertEqual(res_ok["width"], 1024)
+        self.assertEqual(res_ok["height"], 768)
+
+    def test_system_telemetry_across_platforms(self):
+        """get_system_telemetry returns platform and metrics or explicit 'unavailable' fallbacks."""
+        from deskai.bridge.api import DesktopBridgeAPI
+
+        mock_mgr = MagicMock()
+        mock_mgr.server.port = self.port
+        mock_mgr.window.get_current_url.return_value = f"http://127.0.0.1:{self.port}/"
+        api = DesktopBridgeAPI(mock_mgr)
+
+        res = api.get_system_telemetry()
+        self.assertEqual(res["status"], "ok")
+        t = res["telemetry"]
+        self.assertIn("platform", t)
+        self.assertIn(t["status"], ("ready", "unavailable"))
+        self.assertNotEqual(t["ramTotalMB"], "--")
+        self.assertNotEqual(t["ramUsedMB"], "--")
+        self.assertNotEqual(t["cpuUsagePct"], "--")
 
 
 if __name__ == "__main__":
