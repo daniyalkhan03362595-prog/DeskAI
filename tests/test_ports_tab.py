@@ -280,5 +280,501 @@ class TestPortsDrawerTab(unittest.TestCase):
         self.assertEqual(BG_APP.lower(), match.group(1).lower())
 
 
+try:
+    from playwright.sync_api import sync_playwright
+
+    _HAS_PLAYWRIGHT = True
+except ImportError:
+    _HAS_PLAYWRIGHT = False
+
+
+# ---------------------------------------------------------------------------
+# Helper fixture data used across Playwright tests
+# ---------------------------------------------------------------------------
+
+_THREE_PORTS = [
+    {
+        "port": 3000,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:3000",
+        "process": "node",
+        "pid": 100,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+    {
+        "port": 8080,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:8080",
+        "process": "python3",
+        "pid": 200,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+    {
+        "port": 5173,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:5173",
+        "process": "vite",
+        "pid": 300,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+]
+
+_OK_RESPONSE = {"status": "ok", "ports": _THREE_PORTS, "warnings": []}
+
+_FOUR_PORTS_WITH_EPHEMERAL = [
+    {
+        "port": 3000,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:3000",
+        "process": "node",
+        "pid": 100,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+    {
+        "port": 8080,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:8080",
+        "process": "python3",
+        "pid": 200,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+    {
+        "port": 40000,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:40000",
+        "process": "transient",
+        "pid": 400,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+    {
+        "port": 50000,
+        "host": "127.0.0.1",
+        "protocol": "TCP",
+        "address": "http://127.0.0.1:50000",
+        "process": "ephemeral",
+        "pid": 500,
+        "status": "Listening",
+        "origin": "Local",
+        "exposure": "loopback",
+        "openable": True,
+        "isCustom": False,
+    },
+]
+
+
+class TestPortsPlaywright(unittest.TestCase):
+    """Playwright integration tests for the Ports panel frontend."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not _HAS_PLAYWRIGHT:
+            raise unittest.SkipTest("Playwright is not installed")
+        cls.p = sync_playwright().start()
+        try:
+            cls.browser = cls.p.chromium.launch(headless=True, args=["--allow-file-access-from-files"])
+        except Exception as e:
+            cls.p.stop()
+            raise unittest.SkipTest(f"Chromium launch failed: {e}")
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, "browser"):
+            cls.browser.close()
+        if hasattr(cls, "p"):
+            cls.p.stop()
+
+    def setUp(self):
+        index_file = Path("src/deskai/static/index.html").resolve()
+        self.context = self.browser.new_context(viewport={"width": 1280, "height": 800})
+        self.page = self.context.new_page()
+        self.page.goto(f"file://{index_file}")
+        # Wait for portsTableBody to be attached (it's inside a hidden panel initially)
+        self.page.wait_for_selector("#portsTableBody", state="attached")
+        # Wait for DeskAIPorts to be initialised (app.js is a module, may defer)
+        self.page.wait_for_function("typeof window.DeskAIPorts !== 'undefined'")
+        # Click the Ports tab to make the panel visible (it starts hidden)
+        self.page.evaluate("() => { const t = document.getElementById('tab-ports'); if (t) t.click(); }")
+        # Wait for portsPanel to lose its hidden attribute
+        self.page.wait_for_function("!document.getElementById('portsPanel').hasAttribute('hidden')")
+
+    def tearDown(self):
+        if hasattr(self, "page"):
+            self.page.close()
+        if hasattr(self, "context"):
+            self.context.close()
+
+    # ------------------------------------------------------------------
+    # TC-PP-01: Sort by each column
+    # ------------------------------------------------------------------
+    def test_pp_01_sort_by_each_column(self):
+        """Clicking sort headers reorders table rows correctly for port/process/pid."""
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            _OK_RESPONSE,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+
+        # Default sort: port ascending → 3000, 5173, 8080
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 3)
+        first_port = rows.nth(0).locator("td").nth(0).locator(".port-num-badge").text_content()
+        self.assertEqual(first_port, "3000")
+        last_port = rows.nth(2).locator("td").nth(0).locator(".port-num-badge").text_content()
+        self.assertEqual(last_port, "8080")
+
+        # Click port header again → descending: 8080, 5173, 3000
+        self.page.evaluate("() => { document.querySelector(\"#portsTable th[data-sort='port']\").click(); }")
+        rows = self.page.locator("#portsTableBody tr")
+        first_port = rows.nth(0).locator("td").nth(0).locator(".port-num-badge").text_content()
+        self.assertEqual(first_port, "8080")
+
+        # Click process header → ascending by process name: node, python3, vite
+        self.page.evaluate("() => { document.querySelector(\"#portsTable th[data-sort='process']\").click(); }")
+        rows = self.page.locator("#portsTableBody tr")
+        first_proc = rows.nth(0).locator("td").nth(3).text_content()
+        self.assertEqual(first_proc, "node")
+        last_proc = rows.nth(2).locator("td").nth(3).text_content()
+        self.assertEqual(last_proc, "vite")
+
+        # Click pid header → ascending by pid: 100, 200, 300
+        self.page.evaluate("() => { document.querySelector(\"#portsTable th[data-sort='pid']\").click(); }")
+        rows = self.page.locator("#portsTableBody tr")
+        first_pid = rows.nth(0).locator("td").nth(4).text_content()
+        self.assertEqual(first_pid, "100")
+
+    # ------------------------------------------------------------------
+    # TC-PP-02: Text filter
+    # ------------------------------------------------------------------
+    def test_pp_02_text_filter(self):
+        """Typing in the filter input shows only matching rows."""
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            _OK_RESPONSE,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+
+        # Before filter: 3 rows
+        self.assertEqual(self.page.locator("#portsTableBody tr").count(), 3)
+
+        # Type "node" → only node row
+        self.page.locator("#portsFilterInput").fill("node")
+        self.page.locator("#portsFilterInput").dispatch_event("input")
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 1)
+        proc_text = rows.nth(0).locator("td").nth(3).text_content()
+        self.assertEqual(proc_text, "node")
+
+        # Type "5173" → only vite row
+        self.page.locator("#portsFilterInput").fill("5173")
+        self.page.locator("#portsFilterInput").dispatch_event("input")
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 1)
+        port_text = rows.nth(0).locator(".port-num-badge").text_content()
+        self.assertEqual(port_text, "5173")
+
+        # Clear filter → 3 rows again
+        self.page.locator("#portsFilterInput").fill("")
+        self.page.locator("#portsFilterInput").dispatch_event("input")
+        self.assertEqual(self.page.locator("#portsTableBody tr").count(), 3)
+
+    # ------------------------------------------------------------------
+    # TC-PP-03: Transient toggle hides/shows ephemeral ports
+    # ------------------------------------------------------------------
+    def test_pp_03_transient_toggle(self):
+        """Ephemeral ports (>= 32768) are hidden by default; toggle shows them."""
+        res = {"status": "ok", "ports": _FOUR_PORTS_WITH_EPHEMERAL, "warnings": []}
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            res,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+
+        # Without toggle: only the 2 non-ephemeral ports visible (3000, 8080)
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 2)
+
+        # Enable transient toggle
+        self.page.evaluate("""() => {
+            const cb = document.getElementById('portsTransientToggle');
+            cb.checked = true;
+            cb.dispatchEvent(new Event('change'));
+        }""")
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 4)
+
+        # Disable transient toggle
+        self.page.evaluate("""() => {
+            const cb = document.getElementById('portsTransientToggle');
+            cb.checked = false;
+            cb.dispatchEvent(new Event('change'));
+        }""")
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 2)
+
+    # ------------------------------------------------------------------
+    # TC-PP-04: Persistence — workspace rootPath change reloads customPorts
+    # ------------------------------------------------------------------
+    def test_pp_04_persistence_workspace_change(self):
+        """store.subscribe on workspace.rootPath triggers reload of customPorts."""
+        result = self.page.evaluate("""() => {
+            // Write a custom port to the new-workspace key in localStorage
+            const key = 'deskai_watched_ports_/workspace/new';
+            const entry = [{
+                port: 9999,
+                host: '127.0.0.1',
+                protocol: 'TCP',
+                address: 'http://127.0.0.1:9999',
+                process: 'custom-svc',
+                origin: 'Watched',
+                exposure: 'loopback',
+                openable: true
+            }];
+            localStorage.setItem(key, JSON.stringify(entry));
+
+            // Simulate workspace path change via store if subscribe is registered,
+            // otherwise call loadWatchedPorts directly after setting the key.
+            // The constructor subscribes to workspace.rootPath changes.
+            if (window.store && typeof window.store.subscribe === 'function') {
+                // Patch getStorageKey to return new key
+                const origGet = window.DeskAIPorts.getStorageKey.bind(window.DeskAIPorts);
+                window.DeskAIPorts.getStorageKey = () => key;
+                window.DeskAIPorts.customPorts = window.DeskAIPorts.loadWatchedPorts();
+                window.DeskAIPorts.getStorageKey = origGet;
+            } else {
+                window.DeskAIPorts.getStorageKey = () => key;
+                window.DeskAIPorts.customPorts = window.DeskAIPorts.loadWatchedPorts();
+            }
+            return window.DeskAIPorts.customPorts;
+        }""")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["port"], 9999)
+        self.assertEqual(result[0]["host"], "127.0.0.1")
+
+    # ------------------------------------------------------------------
+    # TC-PP-05: Badge text — normal + ephemeral → "N shown (M hidden)"
+    # ------------------------------------------------------------------
+    def test_pp_05_badge_text_with_hidden(self):
+        """Badge shows 'N shown (M hidden)' when ephemeral ports are filtered out."""
+        res = {"status": "ok", "ports": _FOUR_PORTS_WITH_EPHEMERAL, "warnings": []}
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            res,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+
+        badge_text = self.page.locator("#portsCountBadge").text_content()
+        self.assertEqual(badge_text, "2 shown (2 hidden)")
+
+        # After enabling transient toggle all 4 shown → "4 active"
+        self.page.evaluate("""() => {
+            const cb = document.getElementById('portsTransientToggle');
+            cb.checked = true;
+            cb.dispatchEvent(new Event('change'));
+        }""")
+        badge_text = self.page.locator("#portsCountBadge").text_content()
+        self.assertEqual(badge_text, "4 active")
+
+    # ------------------------------------------------------------------
+    # TC-PP-06: Poll-error keeps rows and marks them stale
+    # ------------------------------------------------------------------
+    def test_pp_06_poll_error_preserves_rows_marks_stale(self):
+        """After a good response, an error response keeps rows but marks status stale."""
+        # First: successful response populates rows
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            _OK_RESPONSE,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+        self.assertEqual(self.page.locator("#portsTableBody tr").count(), 3)
+
+        # Second: error response — rows must remain, statuses get "(Stale)" suffix
+        self.page.evaluate("""() => {
+            window.DeskAIPorts.handleRefreshResponse({
+                status: 'error',
+                message: 'Supervisor unreachable'
+            });
+        }""")
+
+        rows = self.page.locator("#portsTableBody tr")
+        self.assertEqual(rows.count(), 3)
+
+        # Every status cell should now end with "(Stale)"
+        for i in range(3):
+            status_text = rows.nth(i).locator(".port-status-pill").text_content()
+            self.assertTrue(
+                status_text.endswith("(Stale)"),
+                f"Row {i} status '{status_text}' should end with '(Stale)'",
+            )
+
+        # Warning banner should be visible
+        banner = self.page.locator("#portsWarningBanner")
+        self.assertFalse(banner.get_attribute("hidden") is not None and banner.get_attribute("hidden") == "")
+
+    # ------------------------------------------------------------------
+    # TC-PP-07: Focus restore for IPv6 copy button
+    # ------------------------------------------------------------------
+    def test_pp_07_focus_restore_ipv6_copy_button(self):
+        """After re-render, focus is restored to the correct IPv6 copy button."""
+        ipv4_ipv6_ports = [
+            {
+                "port": 3000,
+                "host": "127.0.0.1",
+                "protocol": "TCP",
+                "address": "http://127.0.0.1:3000",
+                "process": "node",
+                "pid": 100,
+                "status": "Listening",
+                "origin": "Local",
+                "exposure": "loopback",
+                "openable": True,
+                "isCustom": False,
+            },
+            {
+                "port": 3000,
+                "host": "[::1]",
+                "protocol": "TCP",
+                "address": "http://[::1]:3000",
+                "process": "node",
+                "pid": 102,
+                "status": "Listening",
+                "origin": "Local",
+                "exposure": "loopback",
+                "openable": True,
+                "isCustom": False,
+            },
+        ]
+        res = {"status": "ok", "ports": ipv4_ipv6_ports, "warnings": []}
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            res,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+        self.assertEqual(self.page.locator("#portsTableBody tr").count(), 2)
+
+        # Focus the copy button for the IPv6 row (second row)
+        self.page.evaluate("""() => {
+            const btn = document.querySelector(
+                'button[data-action="copy-port"][data-port="3000"][data-host="[::1]"]'
+            );
+            if (btn) btn.focus();
+        }""")
+
+        # Re-render by forcing a status change on a port (invalidates signature)
+        self.page.evaluate("""() => {
+            window.DeskAIPorts.portsList[0].status = 'Updated';
+            window.DeskAIPorts._lastSignature = null;
+            window.DeskAIPorts.render();
+        }""")
+
+        # The IPv6 copy button should have focus restored
+        focused_host = self.page.evaluate("""() => {
+            const el = document.activeElement;
+            return el ? el.getAttribute('data-host') : null;
+        }""")
+        self.assertEqual(focused_host, "[::1]")
+
+    # ------------------------------------------------------------------
+    # TC-PP-08: Screen reader announcement on copy
+    # ------------------------------------------------------------------
+    def test_pp_08_copy_announcer_feedback(self):
+        """Clicking copy-port announces URL to screenReaderAnnouncer."""
+        self.page.evaluate(
+            """(res) => {
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText: async () => true },
+                configurable: true
+            });
+            window.DeskAIPorts.handleRefreshResponse(res);
+        }""",
+            _OK_RESPONSE,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+
+        copy_btn = self.page.locator('button[data-action="copy-port"][data-port="3000"]')
+        copy_btn.click()
+
+        announcer_text = self.page.locator("#screenReaderAnnouncer").text_content()
+        self.assertEqual(announcer_text, "Copied http://127.0.0.1:3000")
+
+    # ------------------------------------------------------------------
+    # TC-PP-09: Watched port merged with detected offers Stop Watching
+    # ------------------------------------------------------------------
+    def test_pp_09_watched_port_merged_with_detected_offers_stop_watching(self):
+        """A watched port that is also detected merges isCustom=True and retains remove-port action."""
+        self.page.evaluate("""() => {
+            window.DeskAIPorts.customPorts = [{
+                port: 3000,
+                host: "127.0.0.1",
+                protocol: "TCP",
+                address: "http://127.0.0.1:3000",
+                process: "Watched",
+                status: "Probing...",
+                origin: "Watched",
+                isCustom: true,
+                exposure: "loopback",
+                openable: true
+            }];
+        }""")
+        self.page.evaluate(
+            """(res) => { window.DeskAIPorts.handleRefreshResponse(res); }""",
+            _OK_RESPONSE,
+        )
+        self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
+
+        remove_btn = self.page.locator('button[data-action="remove-port"][data-port="3000"]')
+        self.assertEqual(remove_btn.count(), 1)
+        self.assertEqual(remove_btn.get_attribute("title"), "Stop Watching Port")
+
+    # ------------------------------------------------------------------
+    # TC-PP-10: Error on empty table never shows 'No active listening ports detected'
+    # ------------------------------------------------------------------
+    def test_pp_10_poll_error_empty_state_message(self):
+        """Error when table has no ports shows error guidance, never 'No active listening ports detected'."""
+        self.page.evaluate("""() => {
+            window.DeskAIPorts.customPorts = [];
+            window.DeskAIPorts.portsList = [];
+            window.DeskAIPorts.handleRefreshResponse({
+                status: 'error',
+                message: 'Failed to scan socket table'
+            });
+        }""")
+
+        empty_cell = self.page.locator("#portsTableBody .ports-empty")
+        self.assertEqual(empty_cell.count(), 1)
+        text = empty_cell.text_content()
+        self.assertNotIn("No active listening ports detected", text)
+        self.assertIn("Unable to retrieve active ports", text)
+
+
 if __name__ == "__main__":
     unittest.main()

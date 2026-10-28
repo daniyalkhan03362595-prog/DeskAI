@@ -17,12 +17,25 @@ export class PortsManager {
     this._again = false;
     this._lastSignature = null;
     this._lastCount = null;
+    this._lastHiddenCount = null;
     this._dismissedWarning = null;
     this._pollingTimer = null;
     this._isPollingActive = false;
     this._pollIntervalMs = 3000;
+    this._activeStorageKey = null;
+    this._hasError = false;
 
     this.setupListeners();
+
+    // Subscribe to workspace changes to reload watched ports for the new workspace
+    if (window.store && typeof window.store.subscribe === "function") {
+      window.store.subscribe("workspace.rootPath", (newPath) => {
+        if (newPath) {
+          this.customPorts = this.loadWatchedPorts();
+          this.refresh();
+        }
+      });
+    }
   }
 
   getStorageKey() {
@@ -33,23 +46,31 @@ export class PortsManager {
   }
 
   loadWatchedPorts() {
+    const key = this.getStorageKey();
+    this._activeStorageKey = key;
     try {
-      const raw = localStorage.getItem(this.getStorageKey());
+      const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          return parsed.map((p) => ({
-            port: Number(p.port),
-            host: p.host || "127.0.0.1",
-            protocol: p.protocol || "TCP",
-            address: p.address || `http://${p.host || "127.0.0.1"}:${p.port}`,
-            process: p.process || "Watched",
-            status: p.status || "Probing...",
-            origin: "Watched",
-            isCustom: true,
-            exposure: p.exposure || "loopback",
-            openable: p.openable !== false
-          }));
+          return parsed
+            .map((p) => ({
+              port: Number(p.port),
+              host: p.host || "127.0.0.1",
+              protocol: p.protocol || "TCP",
+              address: p.address || `http://${p.host || "127.0.0.1"}:${p.port}`,
+              process: p.process || "Watched",
+              status: p.status || "Probing...",
+              origin: "Watched",
+              isCustom: true,
+              exposure: p.exposure || "loopback",
+              openable: p.openable !== false
+            }))
+            .filter((p) => {
+              const validHost = p.host === "127.0.0.1" || p.host === "[::1]";
+              const validPort = Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535;
+              return validHost && validPort;
+            });
         }
       }
     } catch (e) {
@@ -70,7 +91,8 @@ export class PortsManager {
         exposure: p.exposure,
         openable: p.openable
       }));
-      localStorage.setItem(this.getStorageKey(), JSON.stringify(data));
+      const key = this._activeStorageKey || this.getStorageKey();
+      localStorage.setItem(key, JSON.stringify(data));
     } catch (e) {
       console.warn("[PortsManager] Failed to persist watched ports to localStorage", e);
     }
@@ -195,6 +217,8 @@ export class PortsManager {
     if (banner) {
       banner.setAttribute("hidden", "");
     }
+    this._dismissedWarning = null;
+    this._hasError = false;
   }
 
   showToast(message, type = "info", duration = 3000) {
@@ -318,8 +342,10 @@ export class PortsManager {
     const portNum = Number(port);
     const success = await NativeBridge.openPort(portNum, host);
     if (success) {
+      const announcer = document.getElementById("screenReaderAnnouncer");
+      if (announcer) announcer.textContent = `Opened http://${host}:${portNum}`;
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonSuccessState(btnElement, 100);
+        this.setButtonSuccessState(btnElement, 1200);
       }
     } else {
       this.showToast(`Failed to open port ${portNum} on ${host}`, "error");
@@ -353,8 +379,10 @@ export class PortsManager {
       }
     }
     if (success) {
+      const announcer = document.getElementById("screenReaderAnnouncer");
+      if (announcer) announcer.textContent = `Copied ${url}`;
       if (btnElement && btnElement instanceof HTMLElement) {
-        this.setButtonSuccessState(btnElement, 100);
+        this.setButtonSuccessState(btnElement, 1200);
       } else {
         this.showToast(`Copied ${url}`, "success");
       }
@@ -363,11 +391,11 @@ export class PortsManager {
     }
   }
 
-  setButtonCopiedState(btnElement, duration = 100) {
+  setButtonCopiedState(btnElement, duration = 1200) {
     return this.setButtonSuccessState(btnElement, duration);
   }
 
-  setButtonSuccessState(btnElement, duration = 100) {
+  setButtonSuccessState(btnElement, duration = 1200) {
     if (!btnElement) return;
 
     if (btnElement._feedbackTimeout) {
@@ -461,6 +489,12 @@ export class PortsManager {
     } catch (err) {
       console.error("[PortsManager] Failed to refresh ports:", err);
       this.showWarning("Failed to query listening ports from supervisor.", "error");
+      this._hasError = true;
+      this.portsList = this.portsList.map((p) => ({
+        ...p,
+        status: p.status && p.status.endsWith(" (Stale)") ? p.status : (p.status || "Listening") + " (Stale)"
+      }));
+      this.render();
     } finally {
       this._inflight = false;
       if (this._again) {
@@ -474,10 +508,16 @@ export class PortsManager {
     if (!res || res.status !== "ok") {
       const msg = res && res.message ? res.message : "Unable to retrieve active ports.";
       this.showWarning(msg, "error");
-      this.portsList = [];
+      this._hasError = true;
+      // DO NOT wipe portsList — mark existing rows as stale
+      this.portsList = this.portsList.map((p) => ({
+        ...p,
+        status: p.status && p.status.endsWith(" (Stale)") ? p.status : (p.status || "Listening") + " (Stale)"
+      }));
       this.render();
       return;
     }
+    this._hasError = false;
 
     if (res.warnings && res.warnings.length > 0) {
       const warningTexts = res.warnings.map((w) => {
@@ -498,10 +538,13 @@ export class PortsManager {
 
     const combined = [...detected];
     for (const custom of this.customPorts) {
-      const alreadyDetected = detected.some(
+      const detectedIdx = detected.findIndex(
         (p) => Number(p.port) === Number(custom.port) && (p.host === custom.host || (!p.host && custom.host === "127.0.0.1"))
       );
-      if (!alreadyDetected) {
+      if (detectedIdx >= 0) {
+        // Merge: mark detected entry as also custom (so Stop Watching button shows)
+        combined[detectedIdx] = { ...combined[detectedIdx], isCustom: true };
+      } else {
         combined.push(custom);
       }
     }
@@ -558,18 +601,33 @@ export class PortsManager {
     const countBadge = document.getElementById("portsCountBadge");
     const announcer = document.getElementById("screenReaderAnnouncer");
 
-    if (countBadge) {
-      countBadge.textContent = `${this.portsList.length} active`;
+    const filtered = this.getFilteredAndSortedPorts();
+
+    // Badge reflects what is SHOWN, not total
+    const totalCount = this.portsList.length;
+    const shownCount = filtered.length;
+    const hiddenCount = totalCount - shownCount;
+
+    let badgeText;
+    if (hiddenCount > 0) {
+      badgeText = `${shownCount} shown (${hiddenCount} hidden)`;
+    } else {
+      badgeText = `${shownCount} active`;
     }
 
-    if (this._lastCount !== this.portsList.length) {
-      this._lastCount = this.portsList.length;
+    if (countBadge) {
+      countBadge.textContent = badgeText;
+    }
+
+    // Only announce when count changes
+    if (this._lastCount !== shownCount || this._lastHiddenCount !== hiddenCount) {
+      this._lastCount = shownCount;
+      this._lastHiddenCount = hiddenCount;
       if (announcer) {
-        announcer.textContent = `${this.portsList.length} active listening ports`;
+        announcer.textContent = badgeText + " listening ports";
       }
     }
 
-    const filtered = this.getFilteredAndSortedPorts();
     const signature =
       JSON.stringify(filtered.map((p) => [p.port, p.host, p.process, p.status, p.pid, p.exposure, p.openable])) +
       `:${this.filterText}:${this.sortColumn}:${this.sortAsc}:${this.showTransient}`;
@@ -601,9 +659,13 @@ export class PortsManager {
       const emptyCell = document.createElement("td");
       emptyCell.colSpan = 8;
       emptyCell.className = "ports-empty";
-      emptyCell.textContent = this.filterText
-        ? "No ports match the filter."
-        : 'No active listening ports detected. Click "+ Watch Port" to add one.';
+      if (this.filterText) {
+        emptyCell.textContent = "No ports match the filter.";
+      } else if (this._hasError) {
+        emptyCell.textContent = "Unable to retrieve active ports. See notice above.";
+      } else {
+        emptyCell.textContent = 'No active listening ports detected. Click "+ Watch Port" to add one.';
+      }
       emptyRow.appendChild(emptyCell);
       tableBody.appendChild(emptyRow);
       return;
@@ -694,6 +756,7 @@ export class PortsManager {
       copyBtn.setAttribute("data-action", "copy-port");
       copyBtn.setAttribute("data-url", item.address);
       copyBtn.setAttribute("data-port", String(item.port));
+      copyBtn.setAttribute("data-host", item.host || "127.0.0.1");
       copyBtn.setAttribute("aria-label", `Copy address for port ${item.port}`);
       copyBtn.title = "Copy Address to Clipboard";
       copyBtn.textContent = "Copy";
@@ -725,7 +788,10 @@ export class PortsManager {
     }
 
     if (restoreFocus) {
-      const selector = `button[data-action="${restoreFocus.action}"][data-port="${restoreFocus.port}"]`;
+      let selector = `button[data-action="${restoreFocus.action}"][data-port="${restoreFocus.port}"]`;
+      if (restoreFocus.host) {
+        selector += `[data-host="${restoreFocus.host}"]`;
+      }
       const btn = tableBody.querySelector(selector);
       if (btn) btn.focus();
     }

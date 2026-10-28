@@ -192,13 +192,13 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         toast_count = self.page.locator("#toastRack .toast").count()
         self.assertEqual(toast_count, 0)
 
-        # After timeout (100ms), button should revert back
-        self.page.wait_for_timeout(200)
+        # After timeout (~1200ms), button should revert back
+        self.page.wait_for_timeout(1300)
         self.assertNotIn("is-copied", copy_btn.get_attribute("class"))
         self.assertEqual(copy_btn.text_content().strip(), "Copy")
 
     def test_open_port_inline_checkmark_feedback(self):
-        """Clicking open-port displays inline SVG checkmark and reverts within 100ms."""
+        """Clicking open-port displays inline SVG checkmark and reverts after feedback timeout (~1200ms)."""
         self.page.locator("#tab-ports").click()
         self.page.evaluate("""
             window.DeskAIPorts.stopPolling();
@@ -232,8 +232,8 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.page.wait_for_selector('button[data-action="open-port"][data-port="6666"].is-copied', timeout=2000)
         self.assertIn("is-copied", open_btn.get_attribute("class"))
 
-        # After 200ms (> 100ms), it should revert back to "Open"
-        self.page.wait_for_timeout(200)
+        # After timeout (~1200ms), it should revert back to "Open"
+        self.page.wait_for_timeout(1300)
         self.assertNotIn("is-copied", open_btn.get_attribute("class"))
         self.assertEqual(open_btn.text_content().strip(), "Open")
 
