@@ -405,6 +405,83 @@
   outline: none;
 }
 
+/* Inline File & Folder Creation Row */
+.tree-item.tree-inline-create {
+  background-color: var(--color-amber-surface);
+  border-left-color: var(--color-amber);
+  padding-right: var(--space-2);
+  cursor: default;
+}
+
+.tree-create-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-right: var(--space-1);
+}
+
+.tree-create-input {
+  width: 100%;
+  height: 20px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 0 var(--space-1);
+  outline: none;
+}
+
+.tree-create-input:focus {
+  border-color: var(--color-amber);
+  box-shadow: 0 0 0 1px var(--color-amber);
+}
+
+.tree-create-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-05);
+  flex-shrink: 0;
+}
+
+.tree-create-btn {
+  background: transparent;
+  border: none;
+  padding: var(--space-05);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.tree-create-btn.tree-create-confirm {
+  color: var(--color-success);
+  background-color: var(--color-success-subtle);
+}
+
+.tree-create-btn.tree-create-confirm:hover {
+  filter: brightness(1.2);
+}
+
+.tree-create-btn.tree-create-cancel {
+  color: var(--text-muted);
+  background-color: var(--bg-hover);
+}
+
+.tree-create-btn.tree-create-cancel:hover {
+  color: var(--color-danger);
+  background-color: var(--color-danger-subtle);
+}
+
+.tree-create-btn:focus-visible {
+  outline: 1px solid var(--color-amber);
+  outline-offset: 1px;
+}
+
 /* Floating Context Menu */
 .context-menu {
   position: fixed;

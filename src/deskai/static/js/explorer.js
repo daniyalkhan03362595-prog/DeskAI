@@ -113,13 +113,27 @@ export class ExplorerManager {
     target = targetNode;
 
     switch (action) {
-      case "ctx-new-file":
-        await this.promptNewFile();
+      case "ctx-new-file": {
+        const targetDir =
+          target && target.isDir
+            ? target.path
+            : target && target.path && target.path.includes("/")
+            ? target.path.substring(0, target.path.lastIndexOf("/"))
+            : null;
+        await this.promptNewFile(targetDir);
         break;
+      }
 
-      case "ctx-new-folder":
-        await this.promptNewFolder();
+      case "ctx-new-folder": {
+        const targetDir =
+          target && target.isDir
+            ? target.path
+            : target && target.path && target.path.includes("/")
+            ? target.path.substring(0, target.path.lastIndexOf("/"))
+            : null;
+        await this.promptNewFolder(targetDir);
         break;
+      }
 
       case "ctx-rename": {
         const nodeEl = this.viewport.querySelector(`[data-path="${target.path}"]`);
@@ -326,56 +340,219 @@ export class ExplorerManager {
   }
 
   async promptNewFile(targetDirParam = null) {
-    let targetDir = targetDirParam || "";
-    if (!targetDir) {
-      if (this.selectedNode && this.selectedNode.isDir) {
-        targetDir = this.selectedNode.path;
-      } else if (store && store.state && store.state.workspace && store.state.workspace.rootPath) {
-        targetDir = store.state.workspace.rootPath;
-      }
-    }
-
-    const filename = prompt("Enter file name:");
-    if (!filename || !filename.trim()) return;
-
-    const trimmed = filename.trim();
-    const filePath = targetDir ? `${targetDir.replace(/\/+$/, "")}/${trimmed}` : trimmed;
-
-    const res = await NativeBridge.writeFile(filePath, "");
-    if (res && res.status === "ok") {
-      if (targetDir && this.dirChildren.has(targetDir)) {
-        this.dirChildren.delete(targetDir);
-      }
-      await this.refresh();
-      if (window.EditorManager && typeof window.EditorManager.openFile === "function") {
-        await window.EditorManager.openFile(filePath);
-      }
-    }
+    return this.startInlineCreate({ type: "file", targetDirParam });
   }
 
   async promptNewFolder(targetDirParam = null) {
+    return this.startInlineCreate({ type: "folder", targetDirParam });
+  }
+
+  async startInlineCreate({ type = "file", targetDirParam = null } = {}) {
+    if (!this.viewport) return;
+
     let targetDir = targetDirParam || "";
+    const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
+
     if (!targetDir) {
       if (this.selectedNode && this.selectedNode.isDir) {
         targetDir = this.selectedNode.path;
-      } else if (store && store.state && store.state.workspace && store.state.workspace.rootPath) {
-        targetDir = store.state.workspace.rootPath;
+      } else if (this.selectedNode && this.selectedNode.path) {
+        const lastSlash = this.selectedNode.path.lastIndexOf("/");
+        targetDir = lastSlash !== -1 ? this.selectedNode.path.substring(0, lastSlash) : rootPath;
+      } else if (rootPath) {
+        targetDir = rootPath;
       }
     }
 
-    const foldername = prompt("Enter folder name:");
-    if (!foldername || !foldername.trim()) return;
-
-    const trimmed = foldername.trim();
-    const dirPath = targetDir ? `${targetDir.replace(/\/+$/, "")}/${trimmed}` : trimmed;
-
-    const res = await NativeBridge.createDir(dirPath);
-    if (res && res.status === "ok") {
-      if (targetDir && this.dirChildren.has(targetDir)) {
-        this.dirChildren.delete(targetDir);
-      }
-      await this.refresh();
+    // Clean up any existing inline creation row
+    const existing = this.viewport.querySelector(".tree-inline-create");
+    if (existing) {
+      existing.remove();
     }
+
+    let level = 1;
+    let targetContainer = this.viewport;
+    let insertBeforeEl = this.viewport.firstChild;
+
+    if (targetDir && targetDir !== rootPath) {
+      await this.toggleFolder(targetDir, true);
+      const folderEl = this.viewport.querySelector(`.tree-item[data-path="${targetDir}"]`);
+      if (folderEl) {
+        const parentLevel = parseInt(folderEl.getAttribute("aria-level") || "1", 10);
+        level = parentLevel + 1;
+
+        const next = folderEl.nextElementSibling;
+        if (next && next.classList.contains("tree-group")) {
+          targetContainer = next;
+          insertBeforeEl = next.firstChild;
+        } else {
+          targetContainer = folderEl.parentElement || this.viewport;
+          insertBeforeEl = folderEl.nextSibling;
+        }
+      }
+    }
+
+    const emptyMsg = this.viewport.querySelector(".tree-empty-message");
+    if (emptyMsg) {
+      emptyMsg.style.display = "none";
+    }
+
+    const rowEl = document.createElement("div");
+    rowEl.className = "tree-item tree-inline-create is-creating";
+    rowEl.setAttribute("role", "treeitem");
+    rowEl.setAttribute("aria-level", String(level));
+    rowEl.setAttribute("tabindex", "0");
+
+    if (level > 1) {
+      const indentSpan = document.createElement("span");
+      indentSpan.className = "tree-indent";
+      indentSpan.style.width = `${(level - 1) * 14}px`;
+      indentSpan.setAttribute("aria-hidden", "true");
+      rowEl.appendChild(indentSpan);
+    }
+
+    if (type === "folder") {
+      const arrowSpan = document.createElement("span");
+      arrowSpan.className = "tree-arrow";
+      arrowSpan.setAttribute("aria-hidden", "true");
+      arrowSpan.textContent = "▼";
+      rowEl.appendChild(arrowSpan);
+    }
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "tree-icon";
+    iconSpan.setAttribute("aria-hidden", "true");
+    const iconName = type === "folder" ? "folder" : "file";
+    iconSpan.appendChild(createSvgIcon(iconName, 14, "deskai-svg-icon tree-svg-icon"));
+    rowEl.appendChild(iconSpan);
+
+    const inputWrapper = document.createElement("div");
+    inputWrapper.className = "tree-create-input-wrapper";
+
+    const inputEl = document.createElement("input");
+    inputEl.type = "text";
+    inputEl.className = "tree-create-input";
+    inputEl.placeholder = type === "folder" ? "Folder name..." : "File name...";
+    inputEl.setAttribute("aria-label", type === "folder" ? "New folder name" : "New file name");
+    inputEl.setAttribute("spellcheck", "false");
+    inputEl.setAttribute("autocomplete", "off");
+    inputWrapper.appendChild(inputEl);
+    rowEl.appendChild(inputWrapper);
+
+    const actionsSpan = document.createElement("div");
+    actionsSpan.className = "tree-create-actions";
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "tree-create-btn tree-create-confirm";
+    confirmBtn.setAttribute("data-action", "confirm-inline-create");
+    confirmBtn.setAttribute("title", "Confirm (Enter)");
+    confirmBtn.setAttribute("aria-label", "Confirm");
+    confirmBtn.appendChild(createSvgIcon("check", 13, "deskai-svg-icon"));
+    actionsSpan.appendChild(confirmBtn);
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "tree-create-btn tree-create-cancel";
+    cancelBtn.setAttribute("data-action", "cancel-inline-create");
+    cancelBtn.setAttribute("title", "Cancel (Esc)");
+    cancelBtn.setAttribute("aria-label", "Cancel");
+    cancelBtn.appendChild(createSvgIcon("close", 13, "deskai-svg-icon"));
+    actionsSpan.appendChild(cancelBtn);
+
+    rowEl.appendChild(actionsSpan);
+
+    if (insertBeforeEl) {
+      targetContainer.insertBefore(rowEl, insertBeforeEl);
+    } else {
+      targetContainer.appendChild(rowEl);
+    }
+
+    let isCommitted = false;
+    let isCancelled = false;
+
+    const cancel = () => {
+      if (isCommitted || isCancelled) return;
+      isCancelled = true;
+      rowEl.remove();
+      if (emptyMsg && (!this.entries || this.entries.length === 0)) {
+        emptyMsg.style.display = "";
+      }
+    };
+
+    const commit = async () => {
+      if (isCommitted || isCancelled) return;
+      const rawName = inputEl.value.trim();
+      if (!rawName) {
+        cancel();
+        return;
+      }
+      isCommitted = true;
+      rowEl.remove();
+
+      const root = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
+      const parentDir = targetDir || root || "";
+      const cleanParent = parentDir.replace(/\/+$/, "");
+      const fullPath = cleanParent ? `${cleanParent}/${rawName}` : rawName;
+
+      if (type === "folder") {
+        const res = await NativeBridge.createDir(fullPath);
+        if (res && res.status === "ok") {
+          if (cleanParent && this.dirChildren.has(cleanParent)) {
+            this.dirChildren.delete(cleanParent);
+          }
+          await this.refresh();
+        }
+      } else {
+        const res = await NativeBridge.writeFile(fullPath, "");
+        if (res && res.status === "ok") {
+          if (cleanParent && this.dirChildren.has(cleanParent)) {
+            this.dirChildren.delete(cleanParent);
+          }
+          await this.refresh();
+          if (window.EditorManager && typeof window.EditorManager.openFile === "function") {
+            await window.EditorManager.openFile(fullPath);
+          }
+        }
+      }
+    };
+
+    confirmBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
+
+    confirmBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      commit();
+    });
+
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cancel();
+    });
+
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        commit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        cancel();
+      }
+    });
+
+    inputEl.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (!isCommitted && !isCancelled && !inputEl.value.trim()) {
+          cancel();
+        }
+      }, 150);
+    });
+
+    setTimeout(() => {
+      inputEl.focus();
+    }, 10);
   }
 
   async refresh() {

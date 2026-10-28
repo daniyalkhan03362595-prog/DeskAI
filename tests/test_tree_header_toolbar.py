@@ -60,9 +60,8 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertEqual(btn_collapse.get_attribute("tabindex"), "-1")
 
     def test_tht_02_new_file_action_dispatch(self):
-        """TC-THT-02: Clicking inline folder new-file prompts for filename, writes file, and opens tab."""
+        """TC-THT-02: Clicking inline folder new-file shows inline creation, writes file, and opens tab."""
         res = self.page.evaluate("""async () => {
-            window.prompt = () => "hello.py";
             let writtenPath = null;
             let writtenContent = null;
             let openedPath = null;
@@ -88,6 +87,15 @@ class TestTreeHeaderToolbar(unittest.TestCase):
             // Allow async event delegation tick
             await new Promise(r => setTimeout(r, 50));
 
+            const input = document.querySelector('.tree-create-input');
+            const confirmBtn = document.querySelector('.tree-create-confirm');
+            if (input && confirmBtn) {
+                input.value = "hello.py";
+                confirmBtn.click();
+            }
+
+            await new Promise(r => setTimeout(r, 50));
+
             return {
                 writtenPath,
                 writtenContent,
@@ -100,9 +108,8 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertEqual(res["openedPath"], res["writtenPath"])
 
     def test_tht_03_new_folder_action_dispatch(self):
-        """TC-THT-03: Clicking inline folder new-folder prompts for folder name and calls createDir."""
+        """TC-THT-03: Clicking inline folder new-folder shows inline creation and calls createDir."""
         res = self.page.evaluate("""async () => {
-            window.prompt = () => "components";
             let createdPath = null;
 
             window.NativeBridge.createDir = async (path) => {
@@ -117,6 +124,15 @@ class TestTreeHeaderToolbar(unittest.TestCase):
 
             const btn = document.querySelector('.tree-item.is-folder button[data-action="folder-new-folder"]');
             btn.click();
+
+            await new Promise(r => setTimeout(r, 50));
+
+            const input = document.querySelector('.tree-create-input');
+            const confirmBtn = document.querySelector('.tree-create-confirm');
+            if (input && confirmBtn) {
+                input.value = "components";
+                confirmBtn.click();
+            }
 
             await new Promise(r => setTimeout(r, 50));
 
@@ -224,3 +240,58 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertTrue(result["hasToast"])
         self.assertEqual(result["toastText"], "Destination already exists: b.txt")
         self.assertEqual(result["announcerText"], "Destination already exists: b.txt")
+
+    def test_tht_08_inline_create_cancel_button(self):
+        """TC-THT-08: Clicking cancel button removes inline creation row without creating file."""
+        res = self.page.evaluate("""async () => {
+            let writeCalled = false;
+            window.NativeBridge.writeFile = async () => {
+                writeCalled = true;
+                return { status: "ok" };
+            };
+
+            window.ExplorerManager.entries = [
+                { name: "src", is_dir: true, path: "/workspace/src" }
+            ];
+            window.ExplorerManager.render();
+
+            await window.ExplorerManager.promptNewFile();
+            const rowBefore = document.querySelector('.tree-inline-create');
+            const cancelBtn = document.querySelector('.tree-create-cancel');
+            cancelBtn.click();
+
+            await new Promise(r => setTimeout(r, 20));
+            const rowAfter = document.querySelector('.tree-inline-create');
+
+            return {
+                hadRow: !!rowBefore,
+                rowRemoved: rowAfter === null,
+                writeCalled
+            };
+        }""")
+
+        self.assertTrue(res["hadRow"])
+        self.assertTrue(res["rowRemoved"])
+        self.assertFalse(res["writeCalled"])
+
+    def test_tht_09_inline_create_escape_key(self):
+        """TC-THT-09: Pressing Escape in inline create input cancels and removes row."""
+        res = self.page.evaluate("""async () => {
+            window.ExplorerManager.entries = [
+                { name: "src", is_dir: true, path: "/workspace/src" }
+            ];
+            window.ExplorerManager.render();
+
+            await window.ExplorerManager.promptNewFolder();
+            const input = document.querySelector('.tree-create-input');
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+            await new Promise(r => setTimeout(r, 20));
+            const rowAfter = document.querySelector('.tree-inline-create');
+
+            return {
+                rowRemoved: rowAfter === null
+            };
+        }""")
+
+        self.assertTrue(res["rowRemoved"])
