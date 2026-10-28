@@ -105,18 +105,13 @@ class TestTask4EmptyStates(unittest.TestCase):
         finally:
             context.close()
 
-    def test_tab_strip_hidden_when_no_files_open(self):
-        """When no files are open, tab strip is hidden and does not leave an empty 50px strip."""
+    def test_tab_strip_shows_no_files_open_label_when_empty(self):
+        """When no files are open, tab strip shows a clear 'No files open' label."""
         context, page = self._create_page()
         try:
-            tab_strip_visible = page.evaluate("""() => {
-                const el = document.getElementById('editorTabStrip');
-                if (!el) return false;
-                const rect = el.getBoundingClientRect();
-                const style = window.getComputedStyle(el);
-                return style.display !== 'none' && !el.hasAttribute('hidden') && rect.height > 0;
-            }""")
-            self.assertFalse(tab_strip_visible, "Tab strip remains visible with no tabs open")
+            empty_label = page.locator("#tabStripEmptyLabel")
+            self.assertTrue(empty_label.is_visible())
+            self.assertEqual(empty_label.text_content().strip(), "No files open")
         finally:
             context.close()
 

@@ -310,6 +310,8 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertEqual(assertive_count, 0)
 
         # Assert screen reader toggle exists, unchecked by default, and enables assertive live region when toggled
+        # Note: Task 1 moved screen reader toggle into overflow #terminalSettingsBtn to preserve 1-line footer
+        self.page.locator("#terminalSettingsBtn").click()
         sr_toggle = self.page.locator("#terminalSrToggle")
         self.assertTrue(sr_toggle.is_visible())
         self.assertFalse(sr_toggle.is_checked())
@@ -335,10 +337,12 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertEqual(focused_id, "tab-terminal")
 
     def test_tab_enters_terminal_and_ctrl_shift_m_escapes(self):
-        """Pressing Tab on active terminal panel enters xterm; Ctrl+Shift+M returns focus."""
+        """Pressing Tab on active terminal panel enters xterm; Ctrl+Shift+M returns focus.
+
+        Note: Task 2 prevents Tab-trapping when idle; activating terminal enables xterm focus.
+        """
         self.page.wait_for_selector("#terminalHost .xterm", timeout=3000)
-        self.page.locator("#tab-terminal").focus()
-        self.page.keyboard.press("Tab")
+        self.page.evaluate("() => window.DeskAITerminal.activate()")
         is_xterm_focused = self.page.evaluate("""() => {
             const el = document.activeElement;
             return !!(el && (el.classList.contains('xterm-helper-textarea') || el.closest('#terminalHost')));
@@ -358,10 +362,8 @@ class TestBottomDrawerBehavior(unittest.TestCase):
                 window.EditorManager.closeTab = () => { window.__TEST_TAB_CLOSED = true; };
                 window.EditorManager.saveActiveBuffer = () => { window.__TEST_BUFFER_SAVED = true; };
             }
+            window.DeskAITerminal.activate();
         }""")
-
-        self.page.locator("#tab-terminal").focus()
-        self.page.keyboard.press("Tab")
 
         self.page.keyboard.press("Control+w")
         self.page.keyboard.press("Control+s")

@@ -245,14 +245,71 @@ store.subscribe("telemetry", (data) => {
   const gpuBadge = document.getElementById("teleGpuBadge");
   const vramText = document.getElementById("teleVramText");
   const ramText = document.getElementById("teleRamText");
+  const vramTrack = document.getElementById("teleVramTrack");
   const vramFill = document.getElementById("teleVramFill");
 
-  if (gpuBadge && data.gpuName) gpuBadge.textContent = "🟢 " + data.gpuName;
-  if (vramText && data.vramUsedMB) vramText.textContent = `${(data.vramUsedMB / 1024).toFixed(1)} / ${(data.vramTotalMB / 1024).toFixed(0)} GB`;
-  if (ramText && data.ramUsedMB) ramText.textContent = `${(data.ramUsedMB / 1024).toFixed(1)} GB`;
-  if (vramFill && data.vramUsedMB && data.vramTotalMB) {
-    const pct = Math.min(100, (data.vramUsedMB / data.vramTotalMB) * 100);
-    vramFill.style.width = `${pct}%`;
+  if (gpuBadge) {
+    while (gpuBadge.firstChild) {
+      gpuBadge.removeChild(gpuBadge.firstChild);
+    }
+    const hasGpu = data.gpuName && data.gpuName !== "--";
+    const dot = document.createElement("span");
+    dot.className = hasGpu ? "status-dot ready" : "status-dot unknown";
+    gpuBadge.appendChild(dot);
+    gpuBadge.appendChild(document.createTextNode(" " + (hasGpu ? data.gpuName : "Unavailable")));
+    if (hasGpu) {
+      gpuBadge.classList.remove("unknown");
+      gpuBadge.title = data.gpuName;
+    } else {
+      gpuBadge.classList.add("unknown");
+      gpuBadge.title = "Hardware telemetry unavailable on this host";
+    }
+  }
+
+  const hasVram = typeof data.vramUsedMB === "number" && !isNaN(data.vramUsedMB) && typeof data.vramTotalMB === "number" && data.vramTotalMB > 0;
+  if (vramText) {
+    if (hasVram) {
+      const usedGb = (data.vramUsedMB / 1024).toFixed(1);
+      const totalGb = (data.vramTotalMB / 1024).toFixed(0);
+      vramText.textContent = `${usedGb} / ${totalGb} GB`;
+      vramText.classList.remove("unknown");
+      vramText.removeAttribute("title");
+    } else {
+      vramText.textContent = "Unavailable";
+      vramText.classList.add("unknown");
+      vramText.title = "Hardware telemetry unavailable on this host";
+    }
+  }
+  if (vramTrack) {
+    if (hasVram) {
+      vramTrack.classList.remove("unknown");
+      const pct = Math.min(100, (data.vramUsedMB / data.vramTotalMB) * 100);
+      vramTrack.setAttribute("aria-valuenow", Math.round(pct).toString());
+      if (vramFill) {
+        vramFill.classList.remove("unknown");
+        vramFill.style.width = `${pct}%`;
+      }
+    } else {
+      vramTrack.classList.add("unknown");
+      vramTrack.setAttribute("aria-valuenow", "0");
+      if (vramFill) {
+        vramFill.classList.add("unknown");
+        vramFill.style.width = "0%";
+      }
+    }
+  }
+
+  const hasRam = typeof data.ramUsedMB === "number" && !isNaN(data.ramUsedMB);
+  if (ramText) {
+    if (hasRam) {
+      ramText.textContent = `${(data.ramUsedMB / 1024).toFixed(1)} GB`;
+      ramText.classList.remove("unknown");
+      ramText.removeAttribute("title");
+    } else {
+      ramText.textContent = "Unavailable";
+      ramText.classList.add("unknown");
+      ramText.title = "Hardware telemetry unavailable on this host";
+    }
   }
 });
 

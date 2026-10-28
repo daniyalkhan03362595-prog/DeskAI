@@ -428,10 +428,13 @@ export class EditorManager {
     this.tabStrip.replaceChildren();
 
     if (this.buffers.size === 0) {
-      this.tabStrip.setAttribute("hidden", "");
+      const emptyLabel = document.createElement("span");
+      emptyLabel.className = "tab-strip-empty-label";
+      emptyLabel.id = "tabStripEmptyLabel";
+      emptyLabel.textContent = "No files open";
+      this.tabStrip.appendChild(emptyLabel);
       return;
     }
-    this.tabStrip.removeAttribute("hidden");
 
     for (const [id, buffer] of this.buffers.entries()) {
       const isSelected = id === this.activeTabId;
@@ -451,7 +454,7 @@ export class EditorManager {
       const iconSpan = document.createElement("span");
       iconSpan.className = "tab-icon";
       iconSpan.setAttribute("aria-hidden", "true");
-      iconSpan.appendChild(createSvgIcon("file", 14));
+      iconSpan.textContent = this.detectFileIcon(buffer.name);
       tabEl.appendChild(iconSpan);
 
       const labelSpan = document.createElement("span");
@@ -463,6 +466,7 @@ export class EditorManager {
         const dirtySpan = document.createElement("span");
         dirtySpan.className = "tab-dirty-indicator";
         dirtySpan.setAttribute("aria-label", "Unsaved changes");
+        dirtySpan.textContent = "●";
         tabEl.appendChild(dirtySpan);
       }
 

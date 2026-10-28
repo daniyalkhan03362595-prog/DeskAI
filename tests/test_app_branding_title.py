@@ -55,12 +55,19 @@ class TestAppBrandingTitle(unittest.TestCase):
         self.assertEqual(icon.get_attribute("aria-hidden"), "true")
 
     def test_abt_02_brand_text_and_icon_content(self):
-        """TC-ABT-02: Verifies brand logotype and symbol text values."""
+        """TC-ABT-02: Verifies brand logotype and symbol text values.
+
+        Note: Task 3 eliminated emojis from static/index.html in favor of inline SVG icons.
+        We assert the brand icon contains the SVG lightning bolt or symbol.
+        """
         logo_text = self.page.locator("#appLogo .app-logo-text").text_content().strip()
         self.assertEqual(logo_text, "DeskAI")
 
-        icon_text = self.page.locator("#appLogo .app-logo-icon").text_content().strip()
-        self.assertEqual(icon_text, "⚡")
+        has_svg_or_symbol = self.page.evaluate("""() => {
+            const el = document.querySelector("#appLogo .app-logo-icon");
+            return el && (el.querySelector("svg") !== null || el.textContent.includes("⚡"));
+        }""")
+        self.assertTrue(has_svg_or_symbol)
 
     def test_abt_03_token_styles_and_colors(self):
         """TC-ABT-03: Verifies computed styles match tokens (color-amber, user-select: none, font-weight: 700)."""

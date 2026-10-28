@@ -65,18 +65,18 @@
         <footer class="hardware-dock" id="hardwareDock" role="contentinfo" aria-label="Host System Telemetry">
           <div class="telemetry-row">
             <span class="tele-label">GPU Acceleration</span>
-            <span class="tele-badge gpu-badge" id="teleGpuBadge"><span class="status-dot"></span> Ready</span>
+            <span class="tele-badge gpu-badge unknown" id="teleGpuBadge" title="Hardware telemetry unavailable on this host"><span class="status-dot unknown"></span> Unavailable</span>
           </div>
           <div class="telemetry-row">
             <span class="tele-label">VRAM Resident</span>
-            <span class="tele-val" id="teleVramText">-- / -- GB</span>
+            <span class="tele-val unknown" id="teleVramText" title="Hardware telemetry unavailable on this host">Unavailable</span>
           </div>
-          <div class="vram-meter-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-            <div class="vram-meter-fill" id="teleVramFill"></div>
+          <div class="vram-meter-track unknown" id="teleVramTrack" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+            <div class="vram-meter-fill unknown" id="teleVramFill"></div>
           </div>
           <div class="telemetry-row">
             <span class="tele-label">Host RAM</span>
-            <span class="tele-val ram-val" id="teleRamText">-- / -- GB</span>
+            <span class="tele-val ram-val unknown" id="teleRamText" title="Hardware telemetry unavailable on this host">Unavailable</span>
           </div>
         </footer>
       </aside>
@@ -86,8 +86,8 @@
 
       <!-- Center Column: Multi-tab Code Stage with CodeMirror 6 -->
       <section class="editor-stage" id="editorStage" role="region" aria-label="Code Editor Stage">
-        <div class="tab-strip" id="editorTabStrip" role="tablist" aria-label="Open Files" hidden>
-          <!-- Dynamic Tabs Rendered Here with role="tab" & aria-selected -->
+        <div class="tab-strip" id="editorTabStrip" role="tablist" aria-label="Open Files">
+          <span class="tab-strip-empty-label" id="tabStripEmptyLabel">No files open</span>
         </div>
 
         <div class="editor-viewport" id="editorViewport" role="tabpanel" aria-label="Active File Editor">
@@ -132,7 +132,7 @@
               <div class="terminal-footer">
                 <span class="terminal-footer-hint" aria-hidden="true" title="Ctrl+Shift+M: Move focus out">Ctrl+Shift+M: Move focus out</span>
                 <div class="terminal-footer-actions">
-                  <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="Kill active terminal session" tabindex="-1">Kill terminal</button>
+                  <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="No active terminal session" disabled aria-disabled="true" tabindex="-1">Kill terminal</button>
                   <details class="terminal-settings-menu" id="terminalSettingsMenu">
                     <summary class="terminal-settings-btn" id="terminalSettingsBtn" aria-label="Terminal settings" title="Terminal settings" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></summary>
                     <div class="terminal-settings-popover">

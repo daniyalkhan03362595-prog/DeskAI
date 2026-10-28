@@ -197,7 +197,7 @@ export class TerminalView {
     this.term = null;
     this.fitAddon = null;
     this.ws = null;
-    this.sessionId = null;
+    this._sessionId = null;
     this.isInitialized = false;
     this.isOpening = false;
     this.resizeRafId = 0;
@@ -207,6 +207,18 @@ export class TerminalView {
     this.lastCloseCode = 1006;
     this.isActive = false;
     this.isIdle = true;
+  }
+
+  get sessionId() {
+    return this._sessionId;
+  }
+
+  set sessionId(val) {
+    this._sessionId = val;
+    if (val) {
+      this.hasExited = false;
+    }
+    this._updateKillButtonState();
   }
 
   init() {
@@ -274,6 +286,7 @@ export class TerminalView {
     if (killBtn) {
       killBtn.addEventListener("click", () => this.kill());
     }
+    this._updateKillButtonState();
 
     // Keyboard & Clipboard Event Interceptor
     this.term.attachCustomKeyEventHandler((e) => {
@@ -447,6 +460,7 @@ export class TerminalView {
 
       if (res && res.status === "ok" && res.session_id) {
         this.sessionId = res.session_id;
+        this._updateKillButtonState();
         if (this.term) this.term.reset();
         updateTabStatus(true);
         this.connectWebSocket(this.sessionId);
@@ -536,6 +550,7 @@ export class TerminalView {
 
   handleProcessExit(code) {
     this.hasExited = true;
+    this._updateKillButtonState();
     updateTabStatus(false);
     if (!this.host) return;
     this.removeExitBanner();
@@ -571,6 +586,8 @@ export class TerminalView {
     if (this.sessionId) {
       const id = this.sessionId;
       this.sessionId = null;
+      this.hasExited = true;
+      this._updateKillButtonState();
       await NativeBridge.terminalClose(id);
       this.handleProcessExit(137);
     }
@@ -681,7 +698,23 @@ export class TerminalView {
       this.term = null;
     }
     this.sessionId = null;
+    this._updateKillButtonState();
     this.isInitialized = false;
+  }
+
+  _updateKillButtonState() {
+    const killBtn = document.getElementById("terminalKillBtn");
+    if (!killBtn) return;
+    const isAlive = Boolean(this.sessionId && !this.hasExited);
+    if (isAlive) {
+      killBtn.removeAttribute("disabled");
+      killBtn.setAttribute("aria-disabled", "false");
+      killBtn.title = "Kill active terminal session";
+    } else {
+      killBtn.setAttribute("disabled", "disabled");
+      killBtn.setAttribute("aria-disabled", "true");
+      killBtn.title = "No active terminal session";
+    }
   }
 }
 

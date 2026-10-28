@@ -648,16 +648,14 @@ export class ExplorerManager {
       actionBtn.className = "empty-action-btn welcome-btn primary";
       actionBtn.setAttribute("data-action", "open-folder-dialog");
       actionBtn.setAttribute("aria-label", "Open Project Folder (Ctrl+O)");
+      actionBtn.textContent = "Open Folder";
 
-      const btnLabel = document.createElement("span");
-      btnLabel.textContent = "Open Folder";
       const btnKey = document.createElement("span");
       btnKey.className = "welcome-btn-shortcut";
       btnKey.textContent = "Ctrl+O";
 
-      actionBtn.appendChild(btnLabel);
-      actionBtn.appendChild(btnKey);
       emptyContainer.appendChild(actionBtn);
+      emptyContainer.appendChild(btnKey);
 
       this.viewport.appendChild(emptyContainer);
       return;
