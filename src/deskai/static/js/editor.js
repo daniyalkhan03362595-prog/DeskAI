@@ -1,5 +1,6 @@
 import { store } from "./state.js";
 import { NativeBridge } from "./bridge.js";
+import { createSvgIcon } from "./icons.js";
 
 export class EditorManager {
   constructor() {
@@ -12,6 +13,9 @@ export class EditorManager {
 
     if (this.tabStrip) {
       this.tabStrip.setAttribute("role", "tablist");
+      if (this.buffers.size === 0) {
+        this.tabStrip.setAttribute("hidden", "");
+      }
       this.tabStrip.addEventListener("keydown", (e) => {
         const tabIds = Array.from(this.buffers.keys());
         if (tabIds.length === 0) return;
@@ -423,6 +427,12 @@ export class EditorManager {
     if (!this.tabStrip) return;
     this.tabStrip.replaceChildren();
 
+    if (this.buffers.size === 0) {
+      this.tabStrip.setAttribute("hidden", "");
+      return;
+    }
+    this.tabStrip.removeAttribute("hidden");
+
     for (const [id, buffer] of this.buffers.entries()) {
       const isSelected = id === this.activeTabId;
 
@@ -441,7 +451,7 @@ export class EditorManager {
       const iconSpan = document.createElement("span");
       iconSpan.className = "tab-icon";
       iconSpan.setAttribute("aria-hidden", "true");
-      iconSpan.textContent = this.detectFileIcon(buffer.name);
+      iconSpan.appendChild(createSvgIcon("file", 14));
       tabEl.appendChild(iconSpan);
 
       const labelSpan = document.createElement("span");
@@ -453,7 +463,6 @@ export class EditorManager {
         const dirtySpan = document.createElement("span");
         dirtySpan.className = "tab-dirty-indicator";
         dirtySpan.setAttribute("aria-label", "Unsaved changes");
-        dirtySpan.textContent = "●";
         tabEl.appendChild(dirtySpan);
       }
 
@@ -464,7 +473,7 @@ export class EditorManager {
       closeBtn.setAttribute("data-param", id);
       closeBtn.setAttribute("aria-label", `Close ${buffer.name}`);
       closeBtn.setAttribute("tabindex", "-1");
-      closeBtn.textContent = "✕";
+      closeBtn.appendChild(createSvgIcon("close", 12));
       tabEl.appendChild(closeBtn);
 
       this.tabStrip.appendChild(tabEl);

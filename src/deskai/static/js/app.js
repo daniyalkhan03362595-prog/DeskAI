@@ -114,11 +114,61 @@ const promptForm = document.getElementById("promptForm");
 const promptTextarea = document.getElementById("promptTextarea");
 const chatThread = document.getElementById("chatThread");
 
+function renderChatEmptyState() {
+  if (!chatThread) return;
+  chatThread.replaceChildren();
+
+  const emptyState = document.createElement("div");
+  emptyState.className = "chat-empty-state";
+  emptyState.id = "chatEmptyState";
+
+  const note = document.createElement("p");
+  note.className = "chat-empty-note";
+  note.textContent = "DeskAI is ready to analyze code, explain architecture, and suggest fixes.";
+  emptyState.appendChild(note);
+
+  const chipsContainer = document.createElement("div");
+  chipsContainer.className = "chat-prompt-chips";
+
+  const prompts = [
+    "Explain the active file and its architecture",
+    "Find potential bugs and propose optimizations",
+    "Generate comprehensive unit tests for this module",
+  ];
+
+  prompts.forEach((promptText) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chat-prompt-chip";
+    chip.textContent = promptText;
+    chip.setAttribute("aria-label", `Use prompt: ${promptText}`);
+    chip.addEventListener("click", () => {
+      if (promptTextarea) {
+        promptTextarea.value = promptText;
+        promptTextarea.focus();
+      }
+    });
+    chipsContainer.appendChild(chip);
+  });
+
+  emptyState.appendChild(chipsContainer);
+  chatThread.appendChild(emptyState);
+}
+
+if (chatThread) {
+  renderChatEmptyState();
+}
+
 if (promptForm && promptTextarea && chatThread) {
   promptForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const prompt = promptTextarea.value.trim();
     if (!prompt) return;
+
+    const emptyState = document.getElementById("chatEmptyState");
+    if (emptyState) {
+      emptyState.remove();
+    }
 
     // Render User Message Bubble safely via DOM construction & textContent
     const userBubble = document.createElement("article");
@@ -156,7 +206,7 @@ if (promptForm && promptTextarea && chatThread) {
     aiHeader.className = "bubble-header";
     const aiAuthor = document.createElement("span");
     aiAuthor.className = "bubble-author";
-    aiAuthor.textContent = "⚡ DeskAI";
+    aiAuthor.textContent = "DeskAI";
     const aiTime = document.createElement("time");
     aiTime.className = "bubble-time";
     aiTime.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

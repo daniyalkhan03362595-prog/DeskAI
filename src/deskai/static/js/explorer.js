@@ -1,5 +1,6 @@
 import { store } from "./state.js";
 import { NativeBridge } from "./bridge.js";
+import { createSvgIcon } from "./icons.js";
 
 export class ExplorerManager {
   constructor() {
@@ -21,6 +22,8 @@ export class ExplorerManager {
     const initialRoot = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
     if (initialRoot) {
       this.refresh();
+    } else {
+      this.render();
     }
   }
 
@@ -627,19 +630,33 @@ export class ExplorerManager {
       const emptyIcon = document.createElement("span");
       emptyIcon.className = "empty-icon";
       emptyIcon.setAttribute("aria-hidden", "true");
-      emptyIcon.textContent = "📁";
+      emptyIcon.appendChild(createSvgIcon("folder", 32));
       emptyContainer.appendChild(emptyIcon);
 
-      const emptyText = document.createElement("p");
-      emptyText.className = "empty-text";
-      emptyText.textContent = "No folder open";
-      emptyContainer.appendChild(emptyText);
+      const emptyTitle = document.createElement("h3");
+      emptyTitle.className = "empty-title";
+      emptyTitle.textContent = "No folder open";
+      emptyContainer.appendChild(emptyTitle);
+
+      const emptyDesc = document.createElement("p");
+      emptyDesc.className = "empty-desc";
+      emptyDesc.textContent = "Open a local project directory to browse files, run tests, and build with DeskAI.";
+      emptyContainer.appendChild(emptyDesc);
 
       const actionBtn = document.createElement("button");
       actionBtn.type = "button";
-      actionBtn.className = "empty-action-btn";
+      actionBtn.className = "empty-action-btn welcome-btn primary";
       actionBtn.setAttribute("data-action", "open-folder-dialog");
-      actionBtn.textContent = "Open Folder";
+      actionBtn.setAttribute("aria-label", "Open Project Folder (Ctrl+O)");
+
+      const btnLabel = document.createElement("span");
+      btnLabel.textContent = "Open Folder";
+      const btnKey = document.createElement("span");
+      btnKey.className = "welcome-btn-shortcut";
+      btnKey.textContent = "Ctrl+O";
+
+      actionBtn.appendChild(btnLabel);
+      actionBtn.appendChild(btnKey);
       emptyContainer.appendChild(actionBtn);
 
       this.viewport.appendChild(emptyContainer);
