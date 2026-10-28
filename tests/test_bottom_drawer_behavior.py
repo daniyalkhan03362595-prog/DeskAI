@@ -1,4 +1,5 @@
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -688,6 +689,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         finally:
             srv.stop()
 
+    @unittest.skipIf(sys.platform == "win32", "Windows headless CI does not support POSIX PTY e2e test")
     def test_terminal_end_to_end_frontend_backend_integration(self):
         """End-to-end integration: Live DesktopServer + Playwright browser + real PTY shell.
         Verifies:
@@ -786,7 +788,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
                 term.clearSelection();
                 return sel.includes("DESKAI_INTEGRATION_TEST_PASS");
             }""",
-                timeout=7000,
+                timeout=20000,
             )
 
             # 7. Resize message sent

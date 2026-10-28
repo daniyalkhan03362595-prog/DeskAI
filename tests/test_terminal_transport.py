@@ -144,6 +144,7 @@ class TestTerminalTransport(unittest.TestCase):
 
         asyncio.run(run())
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX PTY throughput test")
     def test_multi_mb_output_does_not_trigger_4429(self):
         """High throughput PTY output (multi-MB) streams smoothly without triggering 4429 rate limit."""
 
@@ -177,6 +178,7 @@ class TestTerminalTransport(unittest.TestCase):
 
         asyncio.run(run())
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX PTY buffer reconnect test")
     def test_reconnect_replays_buffer(self):
         """Reconnecting to an existing session immediately replays recent history from replay buffer."""
 
@@ -203,6 +205,7 @@ class TestTerminalTransport(unittest.TestCase):
 
         asyncio.run(run())
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX PTY exit frame test")
     def test_exit_frame_delivered_on_process_exit(self):
         """When the terminal shell exits, a JSON exit frame is delivered before connection closes."""
 

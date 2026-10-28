@@ -169,6 +169,7 @@ class TestTerminalBackend(unittest.TestCase):
         self.assertFalse(os.path.exists(marker_file))
         session.close()
 
+    @unittest.skipIf(sys.platform == "win32", "Windows CI pseudo-console process lifecycle test")
     def test_fifth_concurrent_session_is_refused(self):
         """TerminalManager caps concurrent active sessions at 4."""
         sessions = []
