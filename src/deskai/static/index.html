@@ -82,7 +82,7 @@
       </aside>
 
       <!-- Resizer Handle Left -->
-      <div class="resizer-col" id="resizerLeft" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize Explorer"></div>
+      <div class="resizer-col" id="resizerLeft" role="separator" aria-orientation="vertical" tabindex="-1" aria-label="Resize Explorer"></div>
 
       <!-- Center Column: Multi-tab Code Stage with CodeMirror 6 -->
       <section class="editor-stage" id="editorStage" role="region" aria-label="Code Editor Stage">
@@ -112,29 +112,29 @@
         </div>
 
         <!-- Resizer Handle Bottom Drawer -->
-        <div class="resizer-row" id="resizerBottom" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize Bottom Drawer" aria-valuenow="220" aria-valuemin="48" aria-valuemax="800"></div>
+        <div class="resizer-row" id="resizerBottom" role="separator" aria-orientation="horizontal" tabindex="-1" aria-label="Resize Bottom Drawer" aria-valuenow="220" aria-valuemin="48" aria-valuemax="800"></div>
 
         <!-- Collapsible Bottom Drawer -->
         <section class="bottom-drawer" id="bottomDrawer" role="region" aria-label="Output Drawer">
           <div class="drawer-header">
             <div class="drawer-tabs" role="tablist" aria-label="Drawer Panels">
-              <button class="drawer-tab active" id="tab-terminal" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true" aria-controls="terminalPanel">Terminal</button>
-              <button class="drawer-tab" id="tab-output" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false" aria-controls="outputPanel">Output</button>
-              <button class="drawer-tab" id="tab-problems" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false" aria-controls="problemsPanel">Problems</button>
-              <button class="drawer-tab" id="tab-ports" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false" aria-controls="portsPanel">Ports</button>
+              <button class="drawer-tab active" id="tab-terminal" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true" aria-controls="terminalPanel" tabindex="0">Terminal</button>
+              <button class="drawer-tab" id="tab-output" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false" aria-controls="outputPanel" tabindex="-1">Output</button>
+              <button class="drawer-tab" id="tab-problems" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false" aria-controls="problemsPanel" tabindex="-1">Problems</button>
+              <button class="drawer-tab" id="tab-ports" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false" aria-controls="portsPanel" tabindex="-1">Ports</button>
             </div>
-            <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer">─</button>
+            <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer" tabindex="-1">─</button>
           </div>
           <div class="drawer-content" id="drawerContent">
             <!-- Terminal Panel -->
-            <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="0">
+            <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="-1">
               <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
               <div class="terminal-footer">
                 <span class="terminal-footer-hint" aria-hidden="true" title="Ctrl+Shift+M: Move focus out">Ctrl+Shift+M: Move focus out</span>
                 <div class="terminal-footer-actions">
-                  <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="Kill active terminal session">Kill terminal</button>
+                  <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="Kill active terminal session" tabindex="-1">Kill terminal</button>
                   <details class="terminal-settings-menu" id="terminalSettingsMenu">
-                    <summary class="terminal-settings-btn" id="terminalSettingsBtn" aria-label="Terminal settings" title="Terminal settings">⚙</summary>
+                    <summary class="terminal-settings-btn" id="terminalSettingsBtn" aria-label="Terminal settings" title="Terminal settings" tabindex="-1">⚙</summary>
                     <div class="terminal-settings-popover">
                       <label class="terminal-sr-toggle-label" for="terminalSrToggle">
                         <input type="checkbox" id="terminalSrToggle" class="terminal-sr-checkbox" aria-label="Screen reader mode" />
@@ -212,7 +212,7 @@
       </section>
 
       <!-- Resizer Handle Right -->
-      <div class="resizer-col" id="resizerRight" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize Chat Sidebar"></div>
+      <div class="resizer-col" id="resizerRight" role="separator" aria-orientation="vertical" tabindex="-1" aria-label="Resize Chat Sidebar"></div>
 
       <!-- Right Column: Agentic Chat & Morphing UEC Dock -->
       <aside class="sidebar-right" id="sidebarRight" role="region" aria-label="AI Interaction Panel">

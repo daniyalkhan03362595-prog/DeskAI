@@ -243,9 +243,11 @@ export function initGlobalEvents() {
         document.querySelectorAll(".drawer-tab").forEach(t => {
           t.classList.remove("active");
           t.setAttribute("aria-selected", "false");
+          t.setAttribute("tabindex", "-1");
         });
         trigger.classList.add("active");
         trigger.setAttribute("aria-selected", "true");
+        trigger.setAttribute("tabindex", "0");
 
         document.querySelectorAll(".drawer-panel").forEach(panel => {
           if (panel.id === `${target}Panel`) {
@@ -371,30 +373,32 @@ export function initGlobalEvents() {
     }
   });
 
-  // Drawer Tabs ArrowLeft / ArrowRight roving focus
+  // Drawer Tabs Arrow/Home/End roving tabindex navigation
   const drawerTabsContainer = document.querySelector(".drawer-tabs");
   if (drawerTabsContainer) {
     drawerTabsContainer.addEventListener("keydown", (e) => {
-      if (e.key === "Tab" && !e.shiftKey) {
-        const activeTab = drawerTabsContainer.querySelector(".drawer-tab.active");
-        if (activeTab && activeTab.getAttribute("data-target") === "terminal") {
-          e.preventDefault();
-          if (window.DeskAITerminal && window.DeskAITerminal.term) {
-            window.DeskAITerminal.term.focus();
-          }
-        }
-      } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        const tabs = Array.from(drawerTabsContainer.querySelectorAll('.drawer-tab[role="tab"]'));
-        const currentIndex = tabs.indexOf(document.activeElement);
-        if (currentIndex !== -1) {
-          e.preventDefault();
-          const nextIndex =
-            e.key === "ArrowRight"
-              ? (currentIndex + 1) % tabs.length
-              : (currentIndex - 1 + tabs.length) % tabs.length;
-          tabs[nextIndex].focus();
-          tabs[nextIndex].click();
-        }
+      const tabs = Array.from(drawerTabsContainer.querySelectorAll('.drawer-tab[role="tab"]'));
+      const currentIndex = tabs.indexOf(document.activeElement);
+      if (currentIndex === -1) return;
+
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIndex = (currentIndex + 1) % tabs.length;
+        tabs[nextIndex].focus();
+        tabs[nextIndex].click();
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        tabs[prevIndex].focus();
+        tabs[prevIndex].click();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        tabs[0].focus();
+        tabs[0].click();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        tabs[tabs.length - 1].focus();
+        tabs[tabs.length - 1].click();
       }
     });
   }

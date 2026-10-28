@@ -1079,6 +1079,11 @@
   margin-right: var(--space-2);
 }
 
+.terminal-footer-hint.focus-trapped {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
 .terminal-footer-actions {
   display: inline-flex;
   align-items: center;

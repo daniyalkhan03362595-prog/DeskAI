@@ -205,6 +205,8 @@ export class TerminalView {
     this.hasExited = false;
     this.reconnectAttempts = 0;
     this.lastCloseCode = 1006;
+    this.isActive = false;
+    this.isIdle = true;
   }
 
   init() {
@@ -236,6 +238,24 @@ export class TerminalView {
 
     this.term.open(this.host);
 
+    // Idle state: do not capture Tab until activated by user (Enter or Click)
+    const helperTa = this.host ? this.host.querySelector("textarea") : null;
+    if (helperTa) {
+      helperTa.setAttribute("tabindex", "-1");
+    }
+
+    if (this.host) {
+      this.host.addEventListener("click", () => {
+        this.activate();
+      });
+      this.host.addEventListener("keydown", (e) => {
+        if (!this.isActive && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          this.activate();
+        }
+      });
+    }
+
     // Setup Screen Reader Toggle
     const srCheckbox = document.getElementById("terminalSrToggle");
     if (srCheckbox) {
@@ -260,10 +280,18 @@ export class TerminalView {
       const isCmd = isMac ? e.metaKey : e.ctrlKey;
       const key = e.key.toLowerCase();
 
-      // WCAG 2.1.2 Keyboard Trap Escape: Ctrl+Shift+M / Cmd+Shift+M moves focus to Terminal tab
-      if (isCmd && e.shiftKey && key === "m") {
+      // Idle State: Tab moves on normally and is not captured
+      if (key === "tab") {
+        if (!this.isActive || this.isIdle) {
+          return false;
+        }
+      }
+
+      // WCAG Keyboard Trap Escape: Esc or Ctrl+Shift+M moves focus to Terminal tab
+      if (key === "escape" || (isCmd && e.shiftKey && key === "m")) {
         if (e.type === "keydown") {
           e.preventDefault();
+          this.deactivate();
           const tab = document.getElementById("tab-terminal");
           if (tab) tab.focus();
         }
@@ -290,7 +318,7 @@ export class TerminalView {
       if (!this.sessionId && !this.isOpening && !this.hasExited) {
         if (key === "enter") {
           if (e.type === "keydown") {
-            this.startSession();
+            this.activate();
           }
           return false;
         }
@@ -361,11 +389,45 @@ export class TerminalView {
     this.isInitialized = true;
   }
 
+  activate() {
+    this.isActive = true;
+    this.isIdle = false;
+    const helperTa = this.host ? this.host.querySelector("textarea") : null;
+    if (helperTa) {
+      helperTa.setAttribute("tabindex", "0");
+      helperTa.focus();
+    }
+    const hint = document.querySelector(".terminal-footer-hint");
+    if (hint) {
+      hint.textContent = "Focus trapped in shell. Press Esc or Ctrl+Shift+M to exit";
+      hint.classList.add("focus-trapped");
+    }
+    announce("Terminal active. Press Escape or Ctrl+Shift+M to move focus out.");
+    if (!this.sessionId && !this.isOpening && !this.hasExited) {
+      this.startSession();
+    }
+  }
+
+  deactivate() {
+    this.isActive = false;
+    this.isIdle = true;
+    const helperTa = this.host ? this.host.querySelector("textarea") : null;
+    if (helperTa) {
+      helperTa.setAttribute("tabindex", "-1");
+    }
+    const hint = document.querySelector(".terminal-footer-hint");
+    if (hint) {
+      hint.textContent = "Ctrl+Shift+M: Move focus out";
+      hint.classList.remove("focus-trapped");
+    }
+    announce("Terminal focus released. Press Tab to navigate.");
+  }
+
   async onTabShown() {
     if (!this.isInitialized) {
       this.init();
     }
-    if (!this.sessionId && !this.isOpening) {
+    if (!this.sessionId && !this.isOpening && this.isActive) {
       await this.startSession();
     } else {
       this.fit();
