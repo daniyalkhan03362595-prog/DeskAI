@@ -392,9 +392,9 @@ export function initGlobalEvents() {
   if (appHeader) {
     let lastHeaderMouseDown = 0;
     appHeader.addEventListener("mousedown", (e) => {
-      if (e.button === 0 && !e.target.closest("button, input, textarea, .workspace-pill")) {
+      if (e.button === 0 && !e.target.closest("button, input, textarea, .workspace-pill, [data-action]")) {
         const now = e.timeStamp || Date.now();
-        if (now - lastHeaderMouseDown < 350 || e.detail > 1) {
+        if ((lastHeaderMouseDown > 0 && now - lastHeaderMouseDown < 350) || e.detail > 1) {
           lastHeaderMouseDown = now;
           return;
         }
@@ -404,7 +404,7 @@ export function initGlobalEvents() {
     });
 
     appHeader.addEventListener("dblclick", (e) => {
-      if (!e.target.closest("button, input, textarea")) {
+      if (!e.target.closest("button, input, textarea, .workspace-pill, [data-action]")) {
         NativeBridge.windowControl("maximize");
       }
     });
