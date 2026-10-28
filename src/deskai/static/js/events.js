@@ -484,7 +484,10 @@ function initResizers() {
       e.preventDefault();
       resizerLeft.classList.add("resizing");
       const onMouseMove = (ev) => {
-        const newW = Math.max(180, Math.min(500, ev.clientX - 48));
+        const rootW = window.innerWidth;
+        const rightW = parseInt(getComputedStyle(root).getPropertyValue("--sidebar-right-w") || "210", 10);
+        const maxW = Math.min(450, Math.max(180, rootW - rightW - 480 - 2));
+        const newW = Math.max(180, Math.min(maxW, ev.clientX));
         root.style.setProperty("--sidebar-left-w", `${newW}px`);
       };
       const onMouseUp = () => {
@@ -502,7 +505,10 @@ function initResizers() {
       e.preventDefault();
       resizerRight.classList.add("resizing");
       const onMouseMove = (ev) => {
-        const newW = Math.max(260, Math.min(600, window.innerWidth - ev.clientX));
+        const rootW = window.innerWidth;
+        const leftW = parseInt(getComputedStyle(root).getPropertyValue("--sidebar-left-w") || "200", 10);
+        const maxW = Math.min(500, Math.max(200, rootW - leftW - 480 - 2));
+        const newW = Math.max(200, Math.min(maxW, rootW - ev.clientX));
         root.style.setProperty("--sidebar-right-w", `${newW}px`);
       };
       const onMouseUp = () => {

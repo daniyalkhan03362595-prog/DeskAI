@@ -130,13 +130,18 @@
             <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="0">
               <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
               <div class="terminal-footer">
-                <span class="terminal-footer-hint" aria-hidden="true">Ctrl+Shift+M: Move focus out</span>
+                <span class="terminal-footer-hint" aria-hidden="true" title="Ctrl+Shift+M: Move focus out">Ctrl+Shift+M: Move focus out</span>
                 <div class="terminal-footer-actions">
                   <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="Kill active terminal session">Kill terminal</button>
-                  <label class="terminal-sr-toggle-label" for="terminalSrToggle">
-                    <input type="checkbox" id="terminalSrToggle" class="terminal-sr-checkbox" aria-label="Screen reader mode" />
-                    <span>Screen reader mode</span>
-                  </label>
+                  <details class="terminal-settings-menu" id="terminalSettingsMenu">
+                    <summary class="terminal-settings-btn" id="terminalSettingsBtn" aria-label="Terminal settings" title="Terminal settings">⚙</summary>
+                    <div class="terminal-settings-popover">
+                      <label class="terminal-sr-toggle-label" for="terminalSrToggle">
+                        <input type="checkbox" id="terminalSrToggle" class="terminal-sr-checkbox" aria-label="Screen reader mode" />
+                        <span>Screen reader mode</span>
+                      </label>
+                    </div>
+                  </details>
                 </div>
               </div>
             </div>

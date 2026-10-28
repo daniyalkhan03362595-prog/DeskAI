@@ -99,6 +99,7 @@ export class WelcomeScreenController {
     // Secondary CTA: Open File
     const openFileBtn = document.createElement("button");
     openFileBtn.type = "button";
+    openFileBtn.id = "welcomeOpenFileBtn";
     openFileBtn.className = "welcome-btn secondary";
     openFileBtn.setAttribute("data-action", "open-file-dialog");
     openFileBtn.setAttribute("aria-label", "Open File");
@@ -113,6 +114,7 @@ export class WelcomeScreenController {
     // New Untitled Buffer
     const newFileBtn = document.createElement("button");
     newFileBtn.type = "button";
+    newFileBtn.id = "welcomeNewFileBtn";
     newFileBtn.className = "welcome-btn secondary";
     newFileBtn.setAttribute("data-action", "new-file");
     newFileBtn.setAttribute("aria-label", "New File (Ctrl+N)");

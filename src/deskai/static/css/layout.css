@@ -29,6 +29,38 @@ html, body {
   position: relative;
 }
 
+/* Responsive Side Panel Default Constraints at Compact Screen Sizes */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-left-w: 200px;
+    --sidebar-right-w: 210px;
+  }
+}
+
+@media (max-height: 700px) {
+  :root {
+    --bottom-drawer-h: 160px;
+  }
+}
+
+.sidebar-left {
+  min-width: 180px;
+  max-width: 450px;
+  overflow: hidden;
+}
+
+.sidebar-right {
+  min-width: 200px;
+  max-width: 500px;
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .editor-stage {
+    min-width: 480px;
+  }
+}
+
 /* Split-Pane Resizer Handles */
 .resizer-col {
   width: 1px;
