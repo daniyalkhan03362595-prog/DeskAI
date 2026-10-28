@@ -3,6 +3,7 @@
  * Manages the reactive state machine and accessible DOM generation for #welcomeScreen.
  */
 import { store } from "./state.js";
+import { createSvgIcon } from "./icons.js";
 
 export class WelcomeScreenController {
   constructor(rootEl = document.getElementById("welcomeScreen")) {
@@ -86,7 +87,8 @@ export class WelcomeScreenController {
 
     const openFolderLabel = document.createElement("span");
     openFolderLabel.className = "welcome-btn-label";
-    openFolderLabel.textContent = "📁 Open Project Folder";
+    openFolderLabel.appendChild(createSvgIcon("folder", 16));
+    openFolderLabel.appendChild(document.createTextNode(" Open Project Folder"));
 
     const openFolderKey = document.createElement("span");
     openFolderKey.className = "welcome-btn-shortcut";
@@ -106,7 +108,8 @@ export class WelcomeScreenController {
 
     const openFileLabel = document.createElement("span");
     openFileLabel.className = "welcome-btn-label";
-    openFileLabel.textContent = "📄 Open File";
+    openFileLabel.appendChild(createSvgIcon("file", 16));
+    openFileLabel.appendChild(document.createTextNode(" Open File"));
 
     openFileBtn.appendChild(openFileLabel);
     actionStack.appendChild(openFileBtn);
@@ -121,7 +124,8 @@ export class WelcomeScreenController {
 
     const newFileLabel = document.createElement("span");
     newFileLabel.className = "welcome-btn-label";
-    newFileLabel.textContent = "✨ New File";
+    newFileLabel.appendChild(createSvgIcon("sparkle", 16));
+    newFileLabel.appendChild(document.createTextNode(" New File"));
 
     const newFileKey = document.createElement("span");
     newFileKey.className = "welcome-btn-shortcut";
@@ -175,7 +179,7 @@ export class WelcomeScreenController {
         removeBtn.setAttribute("data-action", "remove-recent-project");
         removeBtn.setAttribute("data-param", item.path);
         removeBtn.setAttribute("aria-label", `Remove ${item.name} from recent list`);
-        removeBtn.textContent = "✕";
+        removeBtn.appendChild(createSvgIcon("close", 12));
         li.appendChild(removeBtn);
 
         recentList.appendChild(li);
@@ -242,7 +246,7 @@ export class WelcomeScreenController {
 
     const icon = document.createElement("span");
     icon.className = "welcome-workspace-icon";
-    icon.textContent = "📁";
+    icon.appendChild(createSvgIcon("folder", 20));
 
     const details = document.createElement("div");
     details.className = "welcome-workspace-details";
@@ -283,7 +287,8 @@ export class WelcomeScreenController {
 
     const newFileLabel = document.createElement("span");
     newFileLabel.className = "welcome-btn-label";
-    newFileLabel.textContent = "✨ Create New File";
+    newFileLabel.appendChild(createSvgIcon("sparkle", 16));
+    newFileLabel.appendChild(document.createTextNode(" Create New File"));
 
     const newFileKey = document.createElement("span");
     newFileKey.className = "welcome-btn-shortcut";
@@ -302,7 +307,8 @@ export class WelcomeScreenController {
 
     const openFileLabel = document.createElement("span");
     openFileLabel.className = "welcome-btn-label";
-    openFileLabel.textContent = "📄 Open Existing File";
+    openFileLabel.appendChild(createSvgIcon("file", 16));
+    openFileLabel.appendChild(document.createTextNode(" Open Existing File"));
 
     openFileBtn.appendChild(openFileLabel);
     actionStack.appendChild(openFileBtn);
@@ -317,7 +323,8 @@ export class WelcomeScreenController {
 
     const openTermLabel = document.createElement("span");
     openTermLabel.className = "welcome-btn-label";
-    openTermLabel.textContent = "💻 Open Terminal Here";
+    openTermLabel.appendChild(createSvgIcon("terminal", 16));
+    openTermLabel.appendChild(document.createTextNode(" Open Terminal Here"));
 
     const openTermKey = document.createElement("span");
     openTermKey.className = "welcome-btn-shortcut";
@@ -336,7 +343,8 @@ export class WelcomeScreenController {
 
     const switchLabel = document.createElement("span");
     switchLabel.className = "welcome-btn-label";
-    switchLabel.textContent = "🔄 Switch Project Folder";
+    switchLabel.appendChild(createSvgIcon("refresh", 16));
+    switchLabel.appendChild(document.createTextNode(" Switch Project Folder"));
 
     switchFolderBtn.appendChild(switchLabel);
     actionStack.appendChild(switchFolderBtn);

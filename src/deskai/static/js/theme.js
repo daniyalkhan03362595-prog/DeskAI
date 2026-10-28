@@ -3,6 +3,8 @@
  * WCAG 2.1 AA Compliant Palette Switching
  */
 
+import { createSvgIcon } from "./icons.js";
+
 export const THEME_STORAGE_KEY = "deskai_theme";
 
 /**
@@ -50,7 +52,7 @@ export function setTheme(theme, persist = true) {
   const toggleBtn = document.getElementById("btnToggleTheme");
   if (toggleBtn) {
     toggleBtn.setAttribute("aria-label", `Current theme: ${effectiveTheme}. Toggle Theme`);
-    toggleBtn.textContent = effectiveTheme === "light" ? "☀️" : "🌙";
+    toggleBtn.replaceChildren(createSvgIcon("theme", 14));
   }
 
   const announcer = document.getElementById("screenReaderAnnouncer");

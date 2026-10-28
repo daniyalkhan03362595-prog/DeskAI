@@ -28,16 +28,16 @@
     <header class="app-header pywebview-drag-region" id="appHeader" role="banner">
       <div class="header-left">
         <div class="app-logo" id="appLogo" aria-label="DeskAI Studio">
-          <span class="app-logo-icon" aria-hidden="true">⚡</span>
+          <span class="app-logo-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
           <span class="app-logo-text">DeskAI</span>
         </div>
         <span class="workspace-pill" id="headerWorkspacePill" role="status" aria-label="Workspace: No folder opened" title="No active workspace folder">DeskAI / (no workspace)</span>
       </div>
       <div class="header-right window-controls" role="group" aria-label="Window Controls">
-        <button class="win-btn theme-toggle-btn" id="btnToggleTheme" data-action="toggle-theme" aria-label="Toggle Theme" title="Toggle Light/Dark Theme">🌓</button>
+        <button class="win-btn theme-toggle-btn" id="btnToggleTheme" data-action="toggle-theme" aria-label="Toggle Theme" title="Toggle Light/Dark Theme"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></button>
         <button class="win-btn win-min" data-action="win-minimize" aria-label="Minimize Window">─</button>
         <button class="win-btn win-max" data-action="win-maximize" aria-label="Maximize Window">□</button>
-        <button class="win-btn win-close" data-action="win-close" aria-label="Close Window">✕</button>
+        <button class="win-btn win-close" data-action="win-close" aria-label="Close Window"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
       </div>
     </header>
 
@@ -50,10 +50,10 @@
           <div class="panel-header" id="explorerHeader">
             <span class="panel-title" id="explorerPanelTitle">EXPLORER</span>
             <div class="panel-actions" id="explorerToolbar" role="toolbar" aria-label="Explorer Actions" aria-controls="fileTreeViewport">
-              <button class="icon-btn" id="btnNewFile" data-action="new-file" title="New File" aria-label="New File" tabindex="0">📄+</button>
-              <button class="icon-btn" id="btnNewFolder" data-action="new-folder" title="New Folder" aria-label="New Folder" tabindex="-1">📁+</button>
-              <button class="icon-btn" id="btnRefreshTree" data-action="refresh-tree" title="Refresh Tree" aria-label="Refresh Tree" tabindex="-1">🔄</button>
-              <button class="icon-btn" id="btnCollapseAll" data-action="collapse-all-folders" title="Collapse Folders" aria-label="Collapse All Folders" tabindex="-1">⊟</button>
+              <button class="icon-btn" id="btnNewFile" data-action="new-file" title="New File" aria-label="New File" tabindex="0"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg></button>
+              <button class="icon-btn" id="btnNewFolder" data-action="new-folder" title="New Folder" aria-label="New Folder" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg></button>
+              <button class="icon-btn" id="btnRefreshTree" data-action="refresh-tree" title="Refresh Tree" aria-label="Refresh Tree" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
+              <button class="icon-btn" id="btnCollapseAll" data-action="collapse-all-folders" title="Collapse Folders" aria-label="Collapse All Folders" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
             </div>
           </div>
           <div class="tree-viewport" id="fileTreeViewport" role="tree" tabindex="0" aria-label="Project Files">
@@ -65,7 +65,7 @@
         <footer class="hardware-dock" id="hardwareDock" role="contentinfo" aria-label="Host System Telemetry">
           <div class="telemetry-row">
             <span class="tele-label">GPU Acceleration</span>
-            <span class="tele-badge gpu-badge" id="teleGpuBadge">🟢 Ready</span>
+            <span class="tele-badge gpu-badge" id="teleGpuBadge"><span class="status-dot"></span> Ready</span>
           </div>
           <div class="telemetry-row">
             <span class="tele-label">VRAM Resident</span>
@@ -95,7 +95,7 @@
             <div class="welcome-container" id="welcomeContainer">
               <header class="welcome-header">
                 <div class="welcome-badge">
-                  <span class="welcome-badge-icon" aria-hidden="true">⚡</span>
+                  <span class="welcome-badge-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></span>
                   <span class="welcome-badge-text">DeskAI Studio</span>
                 </div>
                 <h1 class="welcome-title" id="welcomeTitle">Welcome to DeskAI</h1>
@@ -134,7 +134,7 @@
                 <div class="terminal-footer-actions">
                   <button type="button" class="terminal-kill-btn" id="terminalKillBtn" data-action="kill-terminal" aria-label="Kill terminal" title="Kill active terminal session" tabindex="-1">Kill terminal</button>
                   <details class="terminal-settings-menu" id="terminalSettingsMenu">
-                    <summary class="terminal-settings-btn" id="terminalSettingsBtn" aria-label="Terminal settings" title="Terminal settings" tabindex="-1">⚙</summary>
+                    <summary class="terminal-settings-btn" id="terminalSettingsBtn" aria-label="Terminal settings" title="Terminal settings" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></summary>
                     <div class="terminal-settings-popover">
                       <label class="terminal-sr-toggle-label" for="terminalSrToggle">
                         <input type="checkbox" id="terminalSrToggle" class="terminal-sr-checkbox" aria-label="Screen reader mode" />
@@ -184,7 +184,7 @@
 
               <div id="portsWarningBanner" class="ports-warning-banner" hidden role="region" aria-label="Port Scanner Notice">
                 <span id="portsWarningMessage" class="ports-warning-text"></span>
-                <button type="button" id="portsWarningDismissBtn" class="ports-warning-dismiss" aria-label="Dismiss notice">✕</button>
+                <button type="button" id="portsWarningDismissBtn" class="ports-warning-dismiss" aria-label="Dismiss notice"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
               </div>
 
               <div class="ports-table-container">
@@ -235,7 +235,7 @@
         <form class="prompt-dock" id="promptForm" role="form" aria-label="Prompt Input">
           <div class="prompt-input-wrapper">
             <textarea id="promptTextarea" class="prompt-textarea" rows="1" placeholder="Instruct AI to code, refactor or debug... (Ctrl+Enter to send)" aria-label="AI Prompt"></textarea>
-            <button type="submit" class="prompt-send-btn" id="promptSendBtn" title="Send Prompt" aria-label="Send">➔</button>
+            <button type="submit" class="prompt-send-btn" id="promptSendBtn" title="Send Prompt" aria-label="Send"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
           </div>
         </form>
       </aside>
@@ -287,8 +287,8 @@
       <!-- Template: Tree Item -->
       <template id="tplTreeNode">
         <li class="tree-item" role="treeitem" data-path="" data-kind="" aria-expanded="false" tabindex="-1">
-          <span class="tree-chevron">▶</span>
-          <span class="tree-icon">📄</span>
+          <span class="tree-chevron"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+          <span class="tree-icon"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span>
           <span class="tree-label">filename.py</span>
           <span class="tree-dirty-dot"></span>
         </li>
@@ -297,10 +297,10 @@
       <!-- Template: Editor Tab -->
       <template id="tplEditorTab">
         <div class="editor-tab" role="tab" data-tab-id="" data-path="" tabindex="0" aria-selected="false" data-action="select-tab">
-          <span class="tab-icon">📄</span>
+          <span class="tab-icon"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span>
           <span class="tab-label">file.py</span>
-          <span class="tab-dirty-indicator">●</span>
-          <button class="tab-close-btn" data-action="tab-close" aria-label="Close Tab">✕</button>
+          <span class="tab-dirty-indicator"></span>
+          <button class="tab-close-btn" data-action="tab-close" aria-label="Close Tab"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
         </div>
       </template>
 
@@ -339,31 +339,31 @@
       aria-label="File Actions" 
       hidden>
       <div class="menu-item" role="menuitem" data-action="ctx-new-file" tabindex="-1">
-        <span class="menu-icon" aria-hidden="true">📄</span>
+        <span class="menu-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span>
         <span class="menu-label">New File...</span>
       </div>
       <div class="menu-item" role="menuitem" data-action="ctx-new-folder" tabindex="-1">
-        <span class="menu-icon" aria-hidden="true">📁</span>
+        <span class="menu-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
         <span class="menu-label">New Folder...</span>
       </div>
       <div class="menu-separator" role="separator" aria-hidden="true"></div>
       <div class="menu-item" role="menuitem" data-action="ctx-rename" tabindex="-1">
-        <span class="menu-icon" aria-hidden="true">✏️</span>
+        <span class="menu-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></span>
         <span class="menu-label">Rename</span>
         <span class="menu-shortcut">F2</span>
       </div>
       <div class="menu-item destructive" role="menuitem" data-action="ctx-delete" tabindex="-1">
-        <span class="menu-icon" aria-hidden="true">🗑️</span>
+        <span class="menu-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>
         <span class="menu-label">Delete</span>
         <span class="menu-shortcut">Del</span>
       </div>
       <div class="menu-separator" role="separator" aria-hidden="true"></div>
       <div class="menu-item" role="menuitem" data-action="ctx-copy-path" tabindex="-1">
-        <span class="menu-icon" aria-hidden="true">📋</span>
+        <span class="menu-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>
         <span class="menu-label">Copy Path</span>
       </div>
       <div class="menu-item" role="menuitem" data-action="ctx-copy-relative-path" tabindex="-1">
-        <span class="menu-icon" aria-hidden="true">🔗</span>
+        <span class="menu-icon" aria-hidden="true"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>
         <span class="menu-label">Copy Relative Path</span>
       </div>
     </div>

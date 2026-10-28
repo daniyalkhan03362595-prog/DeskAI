@@ -11,6 +11,12 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+button, input, select, textarea {
+  font: inherit;
+  font-family: inherit;
+  color: inherit;
+}
+
 .app-root {
   display: grid;
   grid-template-rows: var(--header-height) 1fr;
