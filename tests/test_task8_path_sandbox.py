@@ -156,7 +156,7 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
             os.makedirs(project_dir, exist_ok=True)
             ancestor_root = os.path.realpath(os.path.join(temp_dir, "home"))
 
-            with patch.dict(os.environ, {"HOME": temp_home}):
+            with patch.dict(os.environ, {"HOME": temp_home, "USERPROFILE": temp_home}):
                 self.api.workspace_root = ancestor_root
 
                 # 1. read_file in ~/.ssh -> denied
@@ -226,7 +226,7 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
 
     def test_macos_private_prefixes_and_case_insensitivity_mocked(self):
         """Mocked macOS branch verifies /private/etc, /private/var, /private/tmp and case insensitivity."""
-        with patch("sys.platform", "darwin"):
+        with patch("sys.platform", "darwin"), patch("os.name", "posix"):
             self.assertFalse(is_safe_workspace_path("/private/etc/hosts", "/private"))
             self.assertFalse(is_safe_workspace_path("/PRIVATE/ETC/HOSTS", "/private"))
             self.assertFalse(is_safe_workspace_path("/private/var/log/syslog", "/private"))

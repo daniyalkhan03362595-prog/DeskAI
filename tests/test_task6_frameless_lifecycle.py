@@ -123,9 +123,10 @@ class TestFramelessWindowAndLifecycle(unittest.TestCase):
         mock_webkit.WebView = type(mock_wv)
         mock_gi.WebKit2 = mock_webkit
         mock_gi.Gdk = MagicMock()
+        mock_gi_pkg = MagicMock()
 
         with patch("sys.platform", "linux"):
-            with patch.dict("sys.modules", {"gi.repository": mock_gi}):
+            with patch.dict("sys.modules", {"gi": mock_gi_pkg, "gi.repository": mock_gi}):
                 self.lifecycle._setup_linux_frameless_resize(self.mock_window)
                 self.assertTrue(self.lifecycle._resize_hooked)
 

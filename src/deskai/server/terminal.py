@@ -30,18 +30,19 @@ except ImportError:
 def resolve_shell() -> str:
     """Resolves shell path from an immutable system allowlist."""
     if sys.platform == "win32":
+        comspec = os.environ.get("ComSpec")
+        try:
+            cmd = shutil.which("cmd.exe") or comspec
+        except Exception:
+            cmd = comspec
+        if cmd:
+            return cmd
         try:
             pwsh = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
         except Exception:
             pwsh = None
         if pwsh:
             return pwsh
-        try:
-            cmd = shutil.which("cmd.exe") or os.environ.get("ComSpec")
-        except Exception:
-            cmd = os.environ.get("ComSpec")
-        if cmd:
-            return cmd
         return "cmd.exe"
 
     shell_env = os.environ.get("SHELL")
