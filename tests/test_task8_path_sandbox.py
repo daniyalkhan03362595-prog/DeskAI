@@ -18,32 +18,35 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
 
     def test_disallowed_system_prefixes_and_home_root(self):
         """Disallowed roots must reject system bins, opt, srv, sensitive dirs, and home root itself."""
-        # Linux system prefixes
-        if os.name != "nt":
-            self.assertTrue(is_disallowed_workspace_root("/bin"))
-            self.assertTrue(is_disallowed_workspace_root("/sbin"))
-            self.assertTrue(is_disallowed_workspace_root("/opt"))
-            self.assertTrue(is_disallowed_workspace_root("/srv"))
-            self.assertTrue(is_disallowed_workspace_root("/snap"))
-            self.assertTrue(is_disallowed_workspace_root("/lib"))
-            self.assertTrue(is_disallowed_workspace_root("/lib64"))
-        else:
-            self.assertTrue(is_disallowed_workspace_root("C:\\Windows"))
-            self.assertTrue(is_disallowed_workspace_root("C:\\Program Files"))
-            self.assertTrue(is_disallowed_workspace_root("C:\\ProgramData"))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fake_home = os.path.realpath(os.path.join(temp_dir, "fake_user_home"))
+            os.makedirs(fake_home, exist_ok=True)
+            with patch.dict(os.environ, {"HOME": fake_home, "USERPROFILE": fake_home}):
+                # Linux system prefixes
+                if os.name != "nt":
+                    self.assertTrue(is_disallowed_workspace_root("/bin"))
+                    self.assertTrue(is_disallowed_workspace_root("/sbin"))
+                    self.assertTrue(is_disallowed_workspace_root("/opt"))
+                    self.assertTrue(is_disallowed_workspace_root("/srv"))
+                    self.assertTrue(is_disallowed_workspace_root("/snap"))
+                    self.assertTrue(is_disallowed_workspace_root("/lib"))
+                    self.assertTrue(is_disallowed_workspace_root("/lib64"))
+                else:
+                    self.assertTrue(is_disallowed_workspace_root("C:\\Windows"))
+                    self.assertTrue(is_disallowed_workspace_root("C:\\Program Files"))
+                    self.assertTrue(is_disallowed_workspace_root("C:\\ProgramData"))
 
-        # User home root must be disallowed
-        home = os.path.realpath(os.path.expanduser("~"))
-        self.assertTrue(is_disallowed_workspace_root(home))
+                # User home root must be disallowed
+                self.assertTrue(is_disallowed_workspace_root(fake_home))
 
-        # Sensitive user directories inside home
-        self.assertTrue(is_disallowed_workspace_root(os.path.expanduser("~/.ssh")))
-        self.assertTrue(is_disallowed_workspace_root(os.path.expanduser("~/.aws")))
-        self.assertTrue(is_disallowed_workspace_root(os.path.expanduser("~/.gnupg")))
+                # Sensitive user directories inside home
+                self.assertTrue(is_disallowed_workspace_root(os.path.join(fake_home, ".ssh")))
+                self.assertTrue(is_disallowed_workspace_root(os.path.join(fake_home, ".aws")))
+                self.assertTrue(is_disallowed_workspace_root(os.path.join(fake_home, ".gnupg")))
 
-        # But a subfolder inside home should be allowed
-        sub_project = os.path.join(home, "my_safe_project_dir")
-        self.assertFalse(is_disallowed_workspace_root(sub_project))
+                # But a subfolder inside home should be allowed
+                sub_project = os.path.join(fake_home, "my_safe_project_dir")
+                self.assertFalse(is_disallowed_workspace_root(sub_project))
 
     def test_select_folder_rejects_disallowed_system_root(self):
         """select_folder must reject picking disallowed system directories like /etc or /bin."""

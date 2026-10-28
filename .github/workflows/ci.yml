@@ -62,3 +62,31 @@ jobs:
 
       - name: Run Test Suite
         run: python -m unittest discover -s tests
+
+  e2e-smoke:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install System Dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgirepository1.0-dev libcairo2-dev gir1.2-webkit2-4.1 || sudo apt-get install -y libgirepository1.0-dev libcairo2-dev gir1.2-webkit2-4.0
+
+      - name: Install Package & Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Install Playwright Browsers
+        run: playwright install --with-deps chromium
+
+      - name: Run Playwright DesktopServer E2E Smoke Test
+        run: python -m unittest tests/test_server_e2e_smoke.py

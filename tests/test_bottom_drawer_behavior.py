@@ -711,9 +711,15 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         finally:
             srv.stop()
 
+    # TODO(DESKAI-PTY-SPAWNER): Replace in-process ptyprocess.forkpty with an external/isolated spawner subprocess
+    # or dedicated pre-fork daemon (e.g. posix_spawn / multiprocessing with 'spawn' context).
+    # Multi-threaded forkpty() is inherently unsafe on POSIX because fork() duplicates only the calling thread;
+    # any locks held by background server threads (Uvicorn event loops, Playwright pipe readers, allocator mutexes)
+    # in the parent process remain permanently locked in the child, causing deadlocks before execvp() completes.
+    # Python 3.12+ explicitly emits DeprecationWarning regarding this POSIX limitation.
     @unittest.skipIf(
         sys.platform == "win32" or os.getenv("CI"),
-        "POSIX PTY e2e test disabled on win32 and multi-threaded CI runners due to forkpty deadlock",
+        "POSIX multi-threaded forkpty deadlock risk (tracked in TODO: DESKAI-PTY-SPAWNER); skipped in CI and Windows",
     )
     def test_terminal_end_to_end_frontend_backend_integration(self):
         """End-to-end integration: Live DesktopServer + Playwright browser + real PTY shell.

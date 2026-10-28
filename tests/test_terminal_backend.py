@@ -294,9 +294,16 @@ class TestTerminalBackend(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "Real ConPTY test requires Windows platform (not run on Linux)")
     def test_real_conpty_spawn_windows_only(self):
-        """Validates real ConPTY execution on Windows. Marked Windows-only and not executed on POSIX/Linux."""
-        # This test requires real Windows ConPTY host and is skipped in this Linux environment.
-        pass
+        """Validates real ConPTY execution on Windows. Marked Windows-only and skipped on Linux/macOS."""
+        session = self.manager.create_session(workspace_root=self.temp_workspace)
+        try:
+            self.assertTrue(session.alive)
+            session.write(b"echo CONPTY_SMOKE_TEST_OK\r\n")
+            time.sleep(0.5)
+            snapshot = session.replay_buffer.get_snapshot()
+            self.assertIn(b"CONPTY_SMOKE_TEST_OK", snapshot)
+        finally:
+            session.close()
 
     @unittest.skipIf(sys.platform == "win32", "POSIX ptyprocess test")
     def test_reader_does_not_block_when_no_subscribers(self):
