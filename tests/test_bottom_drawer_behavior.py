@@ -610,9 +610,30 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertEqual(opened, ["https://trusted.example/docs"])
 
     def test_static_hygiene_no_inner_html_in_terminal_modules(self):
-        """terminal.js must not contain innerHTML assignments."""
-        term_js = (Path("src/deskai/static/js/terminal.js")).read_text(encoding="utf-8")
-        self.assertNotIn("innerHTML", term_js)
+        """Walks every .js file under static/js (excluding vendor/) and fails on forbidden DOM methods."""
+        import re
+
+        js_dir = Path("src/deskai/static/js")
+        violations = []
+        forbidden_patterns = [
+            re.compile(r"\binnerHTML\b"),
+            re.compile(r"\bouterHTML\b"),
+            re.compile(r"\binsertAdjacentHTML\b"),
+            re.compile(r"\bdocument\.write\b"),
+        ]
+
+        for js_file in js_dir.rglob("*.js"):
+            if "vendor" in js_file.parts:
+                continue
+            content = js_file.read_text(encoding="utf-8")
+            code_only = re.sub(r"/\*[\s\S]*?\*/", "", content)
+            code_only = re.sub(r"//.*", "", code_only)
+
+            for pattern in forbidden_patterns:
+                for match in pattern.finditer(code_only):
+                    violations.append(f"{js_file.name}: matches '{match.group(0)}'")
+
+        self.assertEqual(violations, [], f"Forbidden DOM manipulation methods found in static/js: {violations}")
 
     def test_terminal_status_chip_text_and_indicator(self):
         """Status chip in tab displays '●' and text equivalent (running) when running, plain when exited."""

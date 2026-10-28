@@ -130,29 +130,33 @@ export class UECStateMachine {
     const actionsContainer = document.querySelector("#uecContainer .uec-actions");
     if (!actionsContainer) return;
 
-    let buttonsHtml = "";
+    actionsContainer.replaceChildren();
+
+    const createButton = (className, action, text) => {
+      const btn = document.createElement("button");
+      btn.className = className;
+      btn.dataset.action = action;
+      btn.textContent = text;
+      return btn;
+    };
+
+    const buttons = [];
     if (state === "PLANNING") {
-      buttonsHtml = `
-        <button class="uec-btn btn-cancel" data-action="uec-cancel">Cancel</button>
-        <button class="uec-btn btn-approve" data-action="uec-approve">Approve & Execute</button>
-      `;
+      buttons.push(createButton("uec-btn btn-cancel", "uec-cancel", "Cancel"));
+      buttons.push(createButton("uec-btn btn-approve", "uec-approve", "Approve & Execute"));
     } else if (state === "EXECUTING") {
-      buttonsHtml = `<button class="uec-btn btn-cancel" data-action="uec-cancel">Cancel Execution</button>`;
+      buttons.push(createButton("uec-btn btn-cancel", "uec-cancel", "Cancel Execution"));
     } else if (state === "REVIEW_DIFF") {
-      buttonsHtml = `
-        <button class="uec-btn btn-rollback" data-action="uec-rollback">Rollback Changes</button>
-        <button class="uec-btn btn-reject" data-action="uec-reject">Reject Diff</button>
-        <button class="uec-btn btn-approve" data-action="uec-approve">Accept Changes</button>
-      `;
+      buttons.push(createButton("uec-btn btn-rollback", "uec-rollback", "Rollback Changes"));
+      buttons.push(createButton("uec-btn btn-reject", "uec-reject", "Reject Diff"));
+      buttons.push(createButton("uec-btn btn-approve", "uec-approve", "Accept Changes"));
     } else if (state === "CANCELLED") {
-      buttonsHtml = `<button class="uec-btn btn-reset" data-action="uec-reset">Reset</button>`;
+      buttons.push(createButton("uec-btn btn-reset", "uec-reset", "Reset"));
     } else if (state === "FAILED") {
-      buttonsHtml = `
-        <button class="uec-btn btn-rollback" data-action="uec-rollback">Rollback to Safe State</button>
-        <button class="uec-btn btn-cancel" data-action="uec-cancel">Dismiss</button>
-      `;
+      buttons.push(createButton("uec-btn btn-rollback", "uec-rollback", "Rollback to Safe State"));
+      buttons.push(createButton("uec-btn btn-cancel", "uec-cancel", "Dismiss"));
     }
 
-    actionsContainer.innerHTML = buttonsHtml;
+    actionsContainer.append(...buttons);
   }
 }

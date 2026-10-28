@@ -64,15 +64,16 @@ export class TokenStreamBuffer {
         window.__deskai_purify_hooked = true;
       }
 
-      const cleanHtml = window.DOMPurify.sanitize(window.marked.parse(this.accumulatedText), {
+      const fragment = window.DOMPurify.sanitize(window.marked.parse(this.accumulatedText), {
         ALLOWED_TAGS: [
           'p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li', 'span',
           'h1', 'h2', 'h3', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'blockquote', 'a'
         ],
         ALLOWED_ATTR: ['href'],
-        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):)/i
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):)/i,
+        RETURN_DOM_FRAGMENT: true
       });
-      this.target.innerHTML = cleanHtml;
+      this.target.replaceChildren(fragment);
     } else {
       // Safe fallback if vendor not loaded
       this.target.textContent = this.accumulatedText;
