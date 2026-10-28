@@ -283,10 +283,10 @@ export function renderTreeNodes(entries, parentEl, level, state) {
     labelSpan.textContent = entry.name;
     itemEl.appendChild(labelSpan);
 
-    if (isDir) {
-      const actionsSpan = document.createElement("span");
-      actionsSpan.className = "tree-inline-actions";
+    const actionsSpan = document.createElement("span");
+    actionsSpan.className = "tree-inline-actions";
 
+    if (isDir) {
       const newFileBtn = document.createElement("button");
       newFileBtn.type = "button";
       newFileBtn.className = "tree-inline-btn";
@@ -306,9 +306,29 @@ export function renderTreeNodes(entries, parentEl, level, state) {
       newFolderBtn.setAttribute("aria-label", `New Folder in ${entry.name}`);
       newFolderBtn.appendChild(createSvgIcon("folder-plus", 13, "deskai-svg-icon"));
       actionsSpan.appendChild(newFolderBtn);
-
-      itemEl.appendChild(actionsSpan);
     }
+
+    const renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.className = "tree-inline-btn";
+    renameBtn.setAttribute("data-action", "item-rename");
+    renameBtn.setAttribute("data-path", entry.path);
+    renameBtn.setAttribute("title", `Rename ${entry.name}...`);
+    renameBtn.setAttribute("aria-label", `Rename ${entry.name}`);
+    renameBtn.appendChild(createSvgIcon("edit", 13, "deskai-svg-icon"));
+    actionsSpan.appendChild(renameBtn);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "tree-inline-btn btn-delete";
+    deleteBtn.setAttribute("data-action", "item-delete");
+    deleteBtn.setAttribute("data-path", entry.path);
+    deleteBtn.setAttribute("title", `Delete ${entry.name}...`);
+    deleteBtn.setAttribute("aria-label", `Delete ${entry.name}`);
+    deleteBtn.appendChild(createSvgIcon("trash", 13, "deskai-svg-icon"));
+    actionsSpan.appendChild(deleteBtn);
+
+    itemEl.appendChild(actionsSpan);
 
     parentEl.appendChild(itemEl);
 

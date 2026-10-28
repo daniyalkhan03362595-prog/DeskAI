@@ -162,9 +162,8 @@ class TestContextMenuActions(unittest.TestCase):
         self.assertEqual(rename_input.input_value(), "file.js")
 
     def test_cma_06_guarded_delete_action(self):
-        """TC-CMA-06: Clicking Delete prompts confirmation, calls deletePath, and closes tab."""
+        """TC-CMA-06: Clicking Delete triggers inline confirmation, confirm deletes path and closes tab."""
         res = self.page.evaluate("""async () => {
-            window.confirm = () => true;
             let deletedPath = null;
             window.NativeBridge.deletePath = async (p) => {
                 deletedPath = p;
@@ -189,6 +188,11 @@ class TestContextMenuActions(unittest.TestCase):
 
             await window.ExplorerManager.handleContextAction("ctx-delete");
 
+            const confirmBtn = document.querySelector(".tree-delete-confirm");
+            if (confirmBtn) confirmBtn.click();
+
+            await new Promise(r => setTimeout(r, 50));
+
             return {
                 deletedPath,
                 bufferClosed: !window.EditorManager.buffers.has(tabId),
@@ -209,7 +213,6 @@ class TestContextMenuActions(unittest.TestCase):
         menu = self.page.locator("#treeContextMenu")
         self.assertTrue(menu.is_visible())
 
-        # Press Escape
         self.page.keyboard.press("Escape")
         self.assertFalse(menu.is_visible())
 
@@ -221,3 +224,89 @@ class TestContextMenuActions(unittest.TestCase):
 
         self.page.mouse.click(500, 500)
         self.assertFalse(menu.is_visible())
+
+    def test_cma_08_inline_delete_cancel_action(self):
+        """TC-CMA-08: Clicking cancel on inline delete restores item without calling deletePath."""
+        res = self.page.evaluate("""async () => {
+            let deleteCalled = false;
+            window.NativeBridge.deletePath = async () => {
+                deleteCalled = true;
+                return { status: "ok" };
+            };
+
+            window.ExplorerManager.entries = [
+                { name: "keep.txt", is_dir: false, path: "/workspace/keep.txt" }
+            ];
+            window.ExplorerManager.render();
+
+            const item = document.querySelector("#fileTreeViewport .tree-item");
+            window.ExplorerManager.selectNode(item);
+            await window.ExplorerManager.handleContextAction("ctx-delete");
+
+            const isDeletingBefore = item.classList.contains("is-deleting");
+            const cancelBtn = item.querySelector(".tree-delete-cancel");
+            const cancelBtnFound = !!cancelBtn;
+            if (cancelBtn) cancelBtn.click();
+
+            await new Promise(r => setTimeout(r, 20));
+
+            return {
+                isDeletingBefore,
+                isDeletingAfter: item.classList.contains("is-deleting"),
+                deleteCalled
+            };
+        }""")
+
+        self.assertTrue(res["isDeletingBefore"])
+        self.assertFalse(res["isDeletingAfter"])
+        self.assertFalse(res["deleteCalled"])
+
+    def test_cma_09_inline_trash_hover_button_click(self):
+        """TC-CMA-09: Clicking trash button on file row triggers inline delete confirmation."""
+        res = self.page.evaluate("""async () => {
+            window.ExplorerManager.entries = [
+                { name: "app.py", is_dir: false, path: "/workspace/app.py" }
+            ];
+            window.ExplorerManager.render();
+
+            const trashBtn = document.querySelector('.tree-inline-btn[data-action="item-delete"]');
+            trashBtn.click();
+
+            await new Promise(r => setTimeout(r, 20));
+            const item = document.querySelector("#fileTreeViewport .tree-item");
+
+            return {
+                isDeleting: item ? item.classList.contains("is-deleting") : false,
+                confirmBtnExists: !!document.querySelector(".tree-delete-confirm")
+            };
+        }""")
+
+        self.assertTrue(res["isDeleting"])
+        self.assertTrue(res["confirmBtnExists"])
+
+    def test_cma_10_inline_rename_hover_button_click(self):
+        """TC-CMA-10: Clicking rename button on file row triggers inline rename with confirm/cancel buttons."""
+        res = self.page.evaluate("""async () => {
+            window.ExplorerManager.entries = [
+                { name: "old.py", is_dir: false, path: "/workspace/old.py" }
+            ];
+            window.ExplorerManager.render();
+
+            const renameBtn = document.querySelector('.tree-inline-btn[data-action="item-rename"]');
+            renameBtn.click();
+
+            await new Promise(r => setTimeout(r, 20));
+            const item = document.querySelector("#fileTreeViewport .tree-item");
+
+            return {
+                isRenaming: item ? item.classList.contains("is-renaming") : false,
+                inputVal: document.querySelector(".tree-rename-input")?.value,
+                confirmBtnExists: !!document.querySelector(".tree-rename-actions .tree-create-confirm"),
+                cancelBtnExists: !!document.querySelector(".tree-rename-actions .tree-create-cancel")
+            };
+        }""")
+
+        self.assertTrue(res["isRenaming"])
+        self.assertEqual(res["inputVal"], "old.py")
+        self.assertTrue(res["confirmBtnExists"])
+        self.assertTrue(res["cancelBtnExists"])

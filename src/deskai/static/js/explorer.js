@@ -74,13 +74,24 @@ export class ExplorerManager {
           e.stopPropagation();
           e.preventDefault();
           const action = inlineBtn.getAttribute("data-action");
-          const folderPath = inlineBtn.getAttribute("data-path");
+          const targetPath = inlineBtn.getAttribute("data-path");
+          const itemEl = inlineBtn.closest(".tree-item");
+
           if (action === "folder-new-file") {
-            await this.toggleFolder(folderPath, true);
-            await this.promptNewFile(folderPath);
+            await this.toggleFolder(targetPath, true);
+            await this.promptNewFile(targetPath);
           } else if (action === "folder-new-folder") {
-            await this.toggleFolder(folderPath, true);
-            await this.promptNewFolder(folderPath);
+            await this.toggleFolder(targetPath, true);
+            await this.promptNewFolder(targetPath);
+          } else if (action === "item-rename") {
+            if (itemEl) this.startInlineRename(itemEl);
+          } else if (action === "item-delete") {
+            if (itemEl) {
+              const isDir = itemEl.getAttribute("data-is-dir") === "true";
+              const label = itemEl.querySelector(".tree-label");
+              const name = label ? label.textContent : "";
+              this.startInlineDelete(itemEl, { path: targetPath, isDir, name });
+            }
           }
           return;
         }
@@ -108,7 +119,10 @@ export class ExplorerManager {
 
   async handleContextAction(action, target) {
     const targetNode =
-      target || this.contextTarget || (this.contextMenuManager ? this.contextMenuManager.contextTarget : null);
+      target ||
+      this.contextTarget ||
+      (this.contextMenuManager ? this.contextMenuManager.contextTarget : null) ||
+      this.selectedNode;
     if (!targetNode) return;
     target = targetNode;
 
@@ -166,10 +180,14 @@ export class ExplorerManager {
   }
 
   async deleteNode(target) {
-    const isDir = target.isDir;
-    const confirmed = confirm(`Are you sure you want to delete ${target.name || "this item"}?`);
-    if (!confirmed) return;
+    if (!target || !target.path) return;
+    const nodeEl = this.viewport ? this.viewport.querySelector(`[data-path="${target.path}"]`) : null;
+    if (nodeEl) {
+      this.startInlineDelete(nodeEl, target);
+      return;
+    }
 
+    const isDir = target.isDir;
     const res = await NativeBridge.deletePath(target.path);
     if (res && res.status === "ok") {
       if (!isDir && window.EditorManager && window.EditorManager.buffers) {
@@ -181,8 +199,142 @@ export class ExplorerManager {
       }
       await this.refresh();
     } else {
-      alert(`Delete failed: ${res ? res.message : "Unknown error"}`);
+      const errMsg = `Delete failed: ${res ? res.message : "Unknown error"}`;
+      this.showToast(errMsg, "error");
+      this.announce(errMsg);
     }
+  }
+
+  startInlineDelete(nodeEl, target) {
+    if (!nodeEl || nodeEl.classList.contains("is-deleting") || nodeEl.classList.contains("is-renaming")) return;
+
+    // Clean up any other active inline deletions in the tree
+    const existingDeleting = this.viewport.querySelectorAll(".tree-item.is-deleting");
+    existingDeleting.forEach((el) => {
+      if (typeof el._cancelDelete === "function") el._cancelDelete();
+    });
+
+    const labelEl = nodeEl.querySelector(".tree-label");
+    if (!labelEl) return;
+
+    const normalActions = nodeEl.querySelector(".tree-inline-actions");
+    if (normalActions) normalActions.style.display = "none";
+    labelEl.style.display = "none";
+    nodeEl.classList.add("is-deleting");
+
+    const isDir = target ? target.isDir : nodeEl.getAttribute("data-is-dir") === "true";
+    const targetPath = target ? target.path : nodeEl.getAttribute("data-path");
+    const itemName = target ? target.name : (labelEl.textContent || "this item");
+
+    const confirmContainer = document.createElement("div");
+    confirmContainer.className = "tree-delete-confirm-wrapper";
+    confirmContainer.style.display = "flex";
+    confirmContainer.style.alignItems = "center";
+    confirmContainer.style.flex = "1";
+    confirmContainer.style.minWidth = "0";
+
+    const confirmText = document.createElement("span");
+    confirmText.className = "tree-delete-confirm-text";
+    confirmText.textContent = `Delete '${itemName}'?`;
+    confirmContainer.appendChild(confirmText);
+
+    const deleteActions = document.createElement("div");
+    deleteActions.className = "tree-create-actions tree-delete-actions";
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "tree-create-btn tree-delete-confirm tree-create-confirm";
+    confirmBtn.setAttribute("data-action", "confirm-delete");
+    confirmBtn.setAttribute("title", "Delete (Enter)");
+    confirmBtn.setAttribute("aria-label", `Confirm delete ${itemName}`);
+    confirmBtn.appendChild(createSvgIcon("check", 13, "deskai-svg-icon"));
+    deleteActions.appendChild(confirmBtn);
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "tree-create-btn tree-delete-cancel tree-create-cancel";
+    cancelBtn.setAttribute("data-action", "cancel-delete");
+    cancelBtn.setAttribute("title", "Cancel (Esc)");
+    cancelBtn.setAttribute("aria-label", "Cancel delete");
+    cancelBtn.appendChild(createSvgIcon("close", 13, "deskai-svg-icon"));
+    deleteActions.appendChild(cancelBtn);
+
+    confirmContainer.appendChild(deleteActions);
+    nodeEl.appendChild(confirmContainer);
+
+    let committed = false;
+    let cancelled = false;
+
+    const cancel = () => {
+      if (committed || cancelled) return;
+      cancelled = true;
+      if (confirmContainer.parentElement) {
+        confirmContainer.parentElement.removeChild(confirmContainer);
+      }
+      labelEl.style.display = "";
+      if (normalActions) normalActions.style.display = "";
+      nodeEl.classList.remove("is-deleting");
+      delete nodeEl._cancelDelete;
+      delete nodeEl._commitDelete;
+      nodeEl.focus();
+    };
+
+    const commit = async () => {
+      if (committed || cancelled) return;
+      committed = true;
+      delete nodeEl._cancelDelete;
+      delete nodeEl._commitDelete;
+
+      const res = await NativeBridge.deletePath(targetPath);
+      if (res && res.status === "ok") {
+        if (!isDir && window.EditorManager && window.EditorManager.buffers) {
+          for (const [id, buf] of window.EditorManager.buffers.entries()) {
+            if (buf.path === targetPath) {
+              await window.EditorManager.closeTab(id, true);
+            }
+          }
+        }
+        await this.refresh();
+      } else {
+        const errorMsg = res && res.message ? res.message : `Failed to delete ${itemName}`;
+        this.showToast(errorMsg, "error");
+        this.announce(errorMsg);
+        cancel();
+      }
+    };
+
+    nodeEl._cancelDelete = cancel;
+    nodeEl._commitDelete = commit;
+
+    confirmBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
+
+    confirmBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await commit();
+    });
+
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cancel();
+    });
+
+    const keyHandler = async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        nodeEl.removeEventListener("keydown", keyHandler);
+        await commit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        nodeEl.removeEventListener("keydown", keyHandler);
+        cancel();
+      }
+    };
+    nodeEl.addEventListener("keydown", keyHandler);
+
+    confirmBtn.focus();
   }
 
   focusNode(nodeEl) {
@@ -243,10 +395,13 @@ export class ExplorerManager {
   }
 
   startInlineRename(nodeEl) {
-    if (!nodeEl || nodeEl.classList.contains("is-renaming")) return;
+    if (!nodeEl || nodeEl.classList.contains("is-renaming") || nodeEl.classList.contains("is-deleting")) return;
 
     const labelEl = nodeEl.querySelector(".tree-label");
     if (!labelEl) return;
+
+    const normalActions = nodeEl.querySelector(".tree-inline-actions");
+    if (normalActions) normalActions.style.display = "none";
 
     const oldName = labelEl.textContent;
     const oldPath = nodeEl.getAttribute("data-path");
@@ -255,14 +410,58 @@ export class ExplorerManager {
     nodeEl.classList.add("is-renaming");
     labelEl.style.display = "none";
 
+    const renameContainer = document.createElement("div");
+    renameContainer.className = "tree-rename-wrapper";
+    renameContainer.style.display = "flex";
+    renameContainer.style.alignItems = "center";
+    renameContainer.style.flex = "1";
+    renameContainer.style.minWidth = "0";
+
     const inputEl = document.createElement("input");
     inputEl.type = "text";
     inputEl.className = "tree-rename-input";
     inputEl.value = oldName;
     inputEl.setAttribute("aria-label", `Rename ${oldName}`);
+    renameContainer.appendChild(inputEl);
+
+    const renameActions = document.createElement("div");
+    renameActions.className = "tree-create-actions tree-rename-actions";
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "tree-create-btn tree-create-confirm";
+    confirmBtn.setAttribute("data-action", "confirm-rename");
+    confirmBtn.setAttribute("title", "Confirm (Enter)");
+    confirmBtn.setAttribute("aria-label", "Confirm Rename");
+    confirmBtn.appendChild(createSvgIcon("check", 13, "deskai-svg-icon"));
+    renameActions.appendChild(confirmBtn);
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "tree-create-btn tree-create-cancel";
+    cancelBtn.setAttribute("data-action", "cancel-rename");
+    cancelBtn.setAttribute("title", "Cancel (Esc)");
+    cancelBtn.setAttribute("aria-label", "Cancel Rename");
+    cancelBtn.appendChild(createSvgIcon("close", 13, "deskai-svg-icon"));
+    renameActions.appendChild(cancelBtn);
+
+    renameContainer.appendChild(renameActions);
+    nodeEl.appendChild(renameContainer);
 
     let committed = false;
     let cancelled = false;
+
+    const cancel = () => {
+      if (committed || cancelled) return;
+      cancelled = true;
+      if (renameContainer.parentElement) {
+        renameContainer.parentElement.removeChild(renameContainer);
+      }
+      labelEl.style.display = "";
+      if (normalActions) normalActions.style.display = "";
+      nodeEl.classList.remove("is-renaming");
+      nodeEl.focus();
+    };
 
     const commit = async () => {
       if (committed || cancelled) return;
@@ -303,16 +502,18 @@ export class ExplorerManager {
       }
     };
 
-    const cancel = () => {
-      if (committed || cancelled) return;
-      cancelled = true;
-      if (inputEl.parentElement) {
-        inputEl.parentElement.removeChild(inputEl);
-      }
-      labelEl.style.display = "";
-      nodeEl.classList.remove("is-renaming");
-      nodeEl.focus();
-    };
+    confirmBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
+
+    confirmBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await commit();
+    });
+
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cancel();
+    });
 
     inputEl.addEventListener("keydown", async (e) => {
       e.stopPropagation();
@@ -326,10 +527,13 @@ export class ExplorerManager {
     });
 
     inputEl.addEventListener("blur", async () => {
-      await commit();
+      setTimeout(async () => {
+        if (!committed && !cancelled) {
+          await commit();
+        }
+      }, 150);
     });
 
-    nodeEl.appendChild(inputEl);
     inputEl.focus();
     const dotIndex = oldName.lastIndexOf(".");
     if (dotIndex > 0 && !isDir) {
