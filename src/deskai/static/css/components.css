@@ -56,7 +56,7 @@
   background-color: var(--bg-surface);
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  padding: 2px 10px;
+  padding: var(--space-05) var(--space-2-5);
   border-radius: 12px;
   border: 1px solid var(--border-subtle);
   max-width: 240px;
@@ -182,7 +182,7 @@
 
 .panel-actions {
   display: flex;
-  gap: 2px;
+  gap: var(--space-05);
 }
 
 .icon-btn {
@@ -192,7 +192,7 @@
   cursor: pointer;
   min-width: 28px;
   min-height: 28px;
-  padding: 4px;
+  padding: var(--space-1);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   display: inline-flex;
@@ -692,13 +692,13 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 4px 10px;
-  background-color: var(--color-amber-surface);
-  border: 1px solid var(--border-focus);
+  padding: var(--space-1) var(--space-2-5);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-regular);
   border-radius: var(--radius-pill);
   font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--color-amber);
+  color: var(--text-secondary);
 }
 
 .welcome-title {
@@ -779,7 +779,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: var(--space-2-5) var(--space-3-5);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 500;
@@ -950,8 +950,8 @@
 
 /* Workspace Active Hub Banner */
 .welcome-workspace-banner {
-  background-color: var(--color-amber-surface);
-  border: 1px solid var(--border-focus);
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-regular);
   border-radius: var(--radius-md);
   padding: var(--space-3);
   display: flex;
@@ -973,7 +973,7 @@
 .welcome-workspace-title {
   font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--color-amber);
+  color: var(--text-primary);
 }
 
 .welcome-workspace-path {
@@ -1763,7 +1763,7 @@ button[aria-busy="true"],
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .toast-item.toast-success {
@@ -1958,10 +1958,10 @@ button[aria-busy="true"],
 .uec-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-regular);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: var(--space-3);
   margin-bottom: var(--space-2);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--transition-fast);
   box-shadow: var(--shadow-md);
   transform: translateZ(0);
 }
