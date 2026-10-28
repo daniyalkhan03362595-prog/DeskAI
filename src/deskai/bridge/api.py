@@ -496,7 +496,7 @@ class DesktopBridgeAPI:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def rename_path(self, old_path: str, new_path: str) -> dict:
+    def rename_path(self, old_path: str, new_path: str, overwrite: bool = False) -> dict:
         """Safely renames a file or directory inside workspace root."""
         if not self._is_origin_allowed():
             return {"status": "error", "message": "Unauthorized origin"}
@@ -507,7 +507,14 @@ class DesktopBridgeAPI:
         new_canonical = canonicalize_path(new_path)
 
         if not os.path.exists(old_canonical):
-            return {"status": "error", "message": "Source path does not exist"}
+            return {"status": "error", "message": "Source path does not exist", "code": "ENOENT"}
+
+        if os.path.exists(new_canonical) and not overwrite:
+            return {
+                "status": "error",
+                "code": "EEXIST",
+                "message": f"Destination already exists: {os.path.basename(new_canonical)}",
+            }
 
         try:
             os.replace(old_canonical, new_canonical)

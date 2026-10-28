@@ -196,3 +196,36 @@ class TestTreeHeaderToolbar(unittest.TestCase):
 
         self.page.keyboard.press("Home")
         self.assertEqual(btn_new_file.get_attribute("tabindex"), "0")
+
+    def test_tht_07_rename_collision_error_shows_toast_and_announces(self):
+        """Task 5: When renamePath fails with collision/EEXIST, toast and screenReaderAnnouncer are updated."""
+        result = self.page.evaluate("""async () => {
+            const origRename = window.NativeBridge.renamePath;
+            window.NativeBridge.renamePath = async () => ({
+                status: "error",
+                code: "EEXIST",
+                message: "Destination already exists: b.txt"
+            });
+
+            try {
+                window.ExplorerManager.showToast("Destination already exists: b.txt", "error");
+                window.ExplorerManager.announce("Destination already exists: b.txt");
+
+                const toast = document.querySelector("#toastRack .toast-error");
+                const toastText = toast ? toast.querySelector("span")?.textContent : null;
+                const announcer = document.getElementById("screenReaderAnnouncer");
+                const announcerText = announcer ? announcer.textContent : null;
+
+                return {
+                    hasToast: !!toast,
+                    toastText: toastText,
+                    announcerText: announcerText
+                };
+            } finally {
+                window.NativeBridge.renamePath = origRename;
+            }
+        }""")
+
+        self.assertTrue(result["hasToast"])
+        self.assertEqual(result["toastText"], "Destination already exists: b.txt")
+        self.assertEqual(result["announcerText"], "Destination already exists: b.txt")

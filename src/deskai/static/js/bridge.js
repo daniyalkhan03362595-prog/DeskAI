@@ -112,9 +112,9 @@ export const NativeBridge = {
     return { status: "error", message: "API unavailable" };
   },
 
-  async renamePath(oldPath, newPath) {
+  async renamePath(oldPath, newPath, overwrite = false) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.rename_path) {
-      return await window.pywebview.api.rename_path(oldPath, newPath);
+      return await window.pywebview.api.rename_path(oldPath, newPath, overwrite);
     }
     return { status: "error", message: "API unavailable" };
   },

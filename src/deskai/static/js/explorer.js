@@ -481,6 +481,9 @@ export class ExplorerManager {
         }
         await this.refresh();
       } else {
+        const errorMsg = res && res.message ? res.message : `Failed to rename ${oldName}`;
+        this.showToast(errorMsg, "error");
+        this.announce(errorMsg);
         cancel();
       }
     };
@@ -702,6 +705,46 @@ export class ExplorerManager {
         this.renderNodeList(children, groupEl, level + 1);
         parentEl.appendChild(groupEl);
       }
+    }
+  }
+
+  showToast(message, type = "info", duration = 3000) {
+    const rack = document.getElementById("toastRack");
+    if (!rack) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast-item toast-${type}`;
+
+    const textSpan = document.createElement("span");
+    textSpan.textContent = message;
+    toast.appendChild(textSpan);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "toast-dismiss-btn";
+    closeBtn.setAttribute("aria-label", "Dismiss notification");
+    closeBtn.textContent = "✕";
+    closeBtn.addEventListener("click", () => {
+      if (toast.parentNode === rack) rack.removeChild(toast);
+    });
+    toast.appendChild(closeBtn);
+
+    rack.appendChild(toast);
+
+    setTimeout(() => {
+      if (toast.parentNode === rack) {
+        toast.style.opacity = "0";
+        setTimeout(() => {
+          if (toast.parentNode === rack) rack.removeChild(toast);
+        }, 300);
+      }
+    }, duration);
+  }
+
+  announce(message) {
+    const announcer = document.getElementById("screenReaderAnnouncer");
+    if (announcer) {
+      announcer.textContent = message;
     }
   }
 }

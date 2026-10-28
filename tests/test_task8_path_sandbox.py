@@ -269,6 +269,40 @@ class TestPathSandboxAndFileOperations(unittest.TestCase):
             remaining = [f for f in os.listdir(ws_root) if not f.startswith(".")]
             self.assertEqual(remaining, [], f"Stray temporary files found: {remaining}")
 
+    def test_rename_path_collision_protection_and_overwrite(self):
+        """Task 5: rename_path refuses to overwrite existing file by default, accepts overwrite=True."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ws_root = os.path.realpath(os.path.join(temp_dir, "ws"))
+            os.makedirs(ws_root)
+            self.api.workspace_root = ws_root
+
+            file_a = os.path.join(ws_root, "a.txt")
+            file_b = os.path.join(ws_root, "b.txt")
+            file_c = os.path.join(ws_root, "c.txt")
+
+            with open(file_a, "w") as f:
+                f.write("content_a")
+            with open(file_b, "w") as f:
+                f.write("content_b")
+
+            # 1. Overwrite attempt without overwrite=True -> error EEXIST
+            res_collision = self.api.rename_path(file_a, file_b)
+            self.assertEqual(res_collision["status"], "error")
+            self.assertEqual(res_collision.get("code"), "EEXIST")
+            self.assertIn("Destination already exists", res_collision.get("message", ""))
+
+            # 2. Rename to non-existent target -> ok
+            res_ok = self.api.rename_path(file_a, file_c)
+            self.assertEqual(res_ok["status"], "ok")
+            self.assertFalse(os.path.exists(file_a))
+            self.assertTrue(os.path.exists(file_c))
+
+            # 3. Rename with explicit overwrite=True -> ok
+            res_overwrite = self.api.rename_path(file_c, file_b, overwrite=True)
+            self.assertEqual(res_overwrite["status"], "ok")
+            with open(file_b, "r") as f:
+                self.assertEqual(f.read(), "content_a")
+
 
 if __name__ == "__main__":
     unittest.main()
