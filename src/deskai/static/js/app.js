@@ -218,6 +218,16 @@ if (initialDrawerTab && initialDrawerTab.getAttribute("data-target") === "termin
 // Initialize Welcome Screen Overlay
 window.DeskAIWelcome.sync();
 
+// Sync initial workspace from backend if set
+NativeBridge.getWorkspaceRoot().then(async (res) => {
+  if (res && res.path && !store.state.workspace.rootPath) {
+    store.state.workspace.rootPath = res.path;
+  }
+  if (store.state.workspace.rootPath && window.ExplorerManager) {
+    await window.ExplorerManager.refresh();
+  }
+});
+
 // Connect WebSocket
 window.wsClient.connect();
 console.log("[DeskAI] Application bootstrapped successfully.");

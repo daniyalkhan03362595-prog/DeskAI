@@ -12,6 +12,22 @@ export const NativeBridge = {
     return { status: "cancelled", path: null };
   },
 
+  async setWorkspaceRoot(dirPath) {
+    await this.whenReady();
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_workspace_root === "function") {
+      return await window.pywebview.api.set_workspace_root(dirPath);
+    }
+    return { status: "ok", path: dirPath };
+  },
+
+  async getWorkspaceRoot() {
+    await this.whenReady();
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_workspace_root === "function") {
+      return await window.pywebview.api.get_workspace_root();
+    }
+    return { status: "ok", path: null };
+  },
+
   async selectFile() {
     await this.whenReady();
     if (window.pywebview && window.pywebview.api) {

@@ -123,6 +123,9 @@ export function initGlobalEvents() {
             window.DeskAIWelcome.saveRecentProject(dir.path, dir.name);
             window.DeskAIWelcome.sync();
           }
+          if (window.ExplorerManager) {
+            await window.ExplorerManager.refresh();
+          }
         }
         break;
       }
@@ -131,10 +134,14 @@ export function initGlobalEvents() {
         const fileRes = await NativeBridge.selectFile();
         if (fileRes && fileRes.path) {
           if (fileRes.workspace_root) {
+            await NativeBridge.setWorkspaceRoot(fileRes.workspace_root);
             store.state.workspace.rootPath = fileRes.workspace_root;
             const dirName = fileRes.workspace_root.split("/").pop().split("\\").pop();
             const pill = document.getElementById("headerWorkspacePill");
             if (pill) pill.textContent = `DeskAI / ${dirName}`;
+            if (window.ExplorerManager) {
+              await window.ExplorerManager.refresh();
+            }
           }
           if (window.EditorManager) {
             await window.EditorManager.openFile(fileRes.path);
@@ -145,6 +152,7 @@ export function initGlobalEvents() {
 
       case "open-recent-project": {
         if (param) {
+          await NativeBridge.setWorkspaceRoot(param);
           store.state.workspace.rootPath = param;
           const name = param.split("/").pop().split("\\").pop() || param;
           const pill = document.getElementById("headerWorkspacePill");
@@ -152,6 +160,9 @@ export function initGlobalEvents() {
           if (window.DeskAIWelcome) {
             window.DeskAIWelcome.saveRecentProject(param, name);
             window.DeskAIWelcome.sync();
+          }
+          if (window.ExplorerManager) {
+            await window.ExplorerManager.refresh();
           }
         }
         break;

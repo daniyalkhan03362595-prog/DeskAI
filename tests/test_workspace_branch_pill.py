@@ -109,6 +109,32 @@ class TestWorkspaceBranchPillPlaywright(unittest.TestCase):
         self.assertEqual(truncation["whiteSpace"], "nowrap")
         self.assertEqual(truncation["overflow"], "hidden")
 
+    def test_wbp_10_explorer_auto_refreshes_on_workspace_change(self):
+        """Setting store.state.workspace.rootPath automatically refreshes ExplorerManager."""
+        self.page.evaluate("""async () => {
+            window.NativeBridge.setWorkspaceRoot = async (p) => ({ status: "ok", path: p });
+            window.NativeBridge.listDir = async (p) => ({
+                status: "ok",
+                entries: [
+                    { name: "main.py", is_dir: false, path: p + "/main.py" },
+                    { name: "src", is_dir: true, path: p + "/src" }
+                ]
+            });
+
+            window.store.state.workspace.rootPath = "/test/project";
+        }""")
+
+        # Wait for file tree to populate with entries
+        self.page.wait_for_selector('.tree-item[data-path="/test/project/main.py"]')
+        main_py = self.page.locator('.tree-item[data-path="/test/project/main.py"]')
+        self.assertTrue(main_py.is_visible())
+        src_folder = self.page.locator('.tree-item[data-path="/test/project/src"]')
+        self.assertTrue(src_folder.is_visible())
+
+        # Empty state message must be removed
+        empty_msg = self.page.locator("#treeEmptyMessage")
+        self.assertEqual(empty_msg.count(), 0)
+
 
 class TestWorkspaceBranchPillBackend(unittest.TestCase):
     def setUp(self):
@@ -197,6 +223,27 @@ class TestWorkspaceBranchPillBackend(unittest.TestCase):
             res_wt = self.api.get_git_branch(wt_repo)
             self.assertEqual(res_wt["status"], "ok")
             self.assertEqual(res_wt["branch"], "feature-worktree")
+
+    def test_wbp_09_set_and_get_workspace_root(self):
+        """set_workspace_root validates path and updates workspace_root on DesktopBridgeAPI."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 1. Valid directory succeeds
+            res = self.api.set_workspace_root(temp_dir)
+            self.assertEqual(res["status"], "ok")
+            self.assertEqual(self.api.workspace_root, os.path.realpath(temp_dir))
+
+            # 2. get_workspace_root returns set path
+            res_get = self.api.get_workspace_root()
+            self.assertEqual(res_get["status"], "ok")
+            self.assertEqual(res_get["path"], os.path.realpath(temp_dir))
+
+            # 3. Nonexistent directory is rejected
+            res_bad = self.api.set_workspace_root(os.path.join(temp_dir, "nonexistent"))
+            self.assertEqual(res_bad["status"], "error")
+
+            # 4. Disallowed root (e.g. /etc) is rejected
+            res_disallowed = self.api.set_workspace_root("/etc")
+            self.assertEqual(res_disallowed["status"], "error")
 
 
 if __name__ == "__main__":

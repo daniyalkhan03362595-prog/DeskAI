@@ -164,6 +164,32 @@ class DesktopBridgeAPI:
             return {"status": "ok", "path": folder_path, "name": os.path.basename(folder_path)}
         return {"status": "cancelled", "path": None}
 
+    def set_workspace_root(self, root_path: str) -> dict:
+        """Sets and validates the active workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "path": None}
+        if not root_path:
+            return {"status": "error", "message": "Invalid root path", "path": None}
+        canonical = canonicalize_path(root_path)
+        if not os.path.isdir(canonical):
+            return {"status": "error", "message": "Directory not found", "path": None}
+        if is_disallowed_workspace_root(canonical):
+            return {"status": "error", "message": "Disallowed workspace root", "path": None}
+        if not is_safe_workspace_path(canonical, canonical):
+            return {"status": "error", "message": "Unsafe workspace root", "path": None}
+        self.workspace_root = canonical
+        return {"status": "ok", "path": canonical, "name": os.path.basename(canonical)}
+
+    def get_workspace_root(self) -> dict:
+        """Returns the current active workspace root."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "path": None}
+        return {
+            "status": "ok",
+            "path": self.workspace_root,
+            "name": os.path.basename(self.workspace_root) if self.workspace_root else None,
+        }
+
     def select_file(self) -> dict:
         """Opens native OS file selection dialog."""
         if not self._is_origin_allowed():

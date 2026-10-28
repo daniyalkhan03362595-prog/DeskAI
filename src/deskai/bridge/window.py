@@ -15,13 +15,21 @@ BG_APP = "#121315"
 
 
 class WindowManager:
-    def __init__(self, title: str = "DeskAI Studio", width: int = 1280, height: int = 800):
+    def __init__(
+        self,
+        title: str = "DeskAI Studio",
+        width: int = 1280,
+        height: int = 800,
+        initial_workspace: str | None = None,
+    ):
         self.title = title
         self.width = width
         self.height = height
 
         self.server = DesktopServer()
         self.api = DesktopBridgeAPI(self)
+        if initial_workspace:
+            self.api.set_workspace_root(initial_workspace)
         self.lifecycle = WindowLifecycleHandler(self)
         self.window: webview.Window | None = None
 

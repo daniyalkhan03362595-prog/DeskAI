@@ -16,6 +16,26 @@ export class ExplorerManager {
     this.initTreeKeyboard();
     this.initClickDelegation();
     this.initContextMenuEvents();
+    this.setupWorkspaceSubscription();
+
+    const initialRoot = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
+    if (initialRoot) {
+      this.refresh();
+    }
+  }
+
+  setupWorkspaceSubscription() {
+    if (store && typeof store.subscribe === "function") {
+      store.subscribe("workspace.rootPath", async (newPath) => {
+        if (newPath) {
+          await NativeBridge.setWorkspaceRoot(newPath);
+          await this.refresh();
+        } else {
+          this.entries = [];
+          this.render();
+        }
+      });
+    }
   }
 
   detectFileIcon(filename, isDir) {
