@@ -4,6 +4,7 @@
  */
 
 import { NativeBridge } from "./bridge.js";
+import { createSvgIcon } from "./icons.js";
 import { TerminalTransport } from "./terminal/transport.js";
 import {
   getTerminalTheme,
@@ -134,6 +135,7 @@ export class TerminalView {
     this.lastCloseCode = 1006;
     this.isActive = false;
     this.isIdle = true;
+    this.isAuthPending = false;
   }
 
   get ws() {
@@ -229,6 +231,10 @@ export class TerminalView {
     this._updateKillButtonState();
 
     this.term.attachCustomKeyEventHandler((e) => {
+      if (this.isAuthPending) {
+        return false;
+      }
+
       const isCmd = isMac ? e.metaKey : e.ctrlKey;
       const key = e.key.toLowerCase();
 
@@ -275,6 +281,7 @@ export class TerminalView {
     });
 
     this.term.onData((data) => {
+      if (this.isAuthPending) return;
       const sent = this.transport.sendData(data);
       if (!sent) {
         if (!this.sessionId && !this.isOpening && !this.hasExited) {
@@ -290,6 +297,7 @@ export class TerminalView {
     });
 
     this.term.onBinary((data) => {
+      if (this.isAuthPending) return;
       const bytes = new Uint8Array(data.length);
       for (let i = 0; i < data.length; i++) {
         bytes[i] = data.charCodeAt(i) & 255;
@@ -326,7 +334,9 @@ export class TerminalView {
     const helperTa = this.host ? this.host.querySelector("textarea") : null;
     if (helperTa) {
       helperTa.setAttribute("tabindex", "0");
-      helperTa.focus();
+      if (!this.isAuthPending) {
+        helperTa.focus();
+      }
     }
     const hint = document.querySelector(".terminal-footer-hint");
     if (hint) {
@@ -334,7 +344,7 @@ export class TerminalView {
       hint.classList.add("focus-trapped");
     }
     announce("Terminal active. Press Escape or Ctrl+Shift+M to move focus out.");
-    if (!this.sessionId && !this.isOpening && !this.hasExited) {
+    if (!this.sessionId && !this.isOpening && !this.hasExited && !this.isAuthPending) {
       this.startSession();
     }
   }
@@ -365,7 +375,7 @@ export class TerminalView {
     }
   }
 
-  async startSession() {
+  async startSession(confirmed = false) {
     if (this.isOpening) return;
     this.isOpening = true;
 
@@ -374,7 +384,14 @@ export class TerminalView {
       this.transport.reconnectAttempts = 0;
       this.removeExitBanner();
       const dims = this.getDimensions();
-      const res = await NativeBridge.terminalOpen(dims.cols, dims.rows);
+      const res = await NativeBridge.terminalOpen(dims.cols, dims.rows, confirmed, true);
+
+      if (res && res.status === "auth_required") {
+        this.showAuthPrompt(res.workspace || "DeskAI");
+        return;
+      }
+
+      this.removeAuthPrompt();
 
       if (res && res.status === "ok" && res.session_id) {
         this.sessionId = res.session_id;
@@ -394,6 +411,102 @@ export class TerminalView {
     } finally {
       this.isOpening = false;
     }
+  }
+
+  showAuthPrompt(workspaceName) {
+    if (!this.host) return;
+    this.removeAuthPrompt();
+    this.isAuthPending = true;
+
+    const banner = document.createElement("div");
+    banner.className = "terminal-auth-banner";
+    banner.id = "terminalAuthBanner";
+    banner.setAttribute("role", "alertdialog");
+    banner.setAttribute("aria-modal", "false");
+    banner.setAttribute("aria-label", `Authorize terminal in ${workspaceName}`);
+
+    const icon = createSvgIcon("terminal", 14, "terminal-auth-icon");
+    banner.appendChild(icon);
+
+    const textSpan = document.createElement("span");
+    textSpan.className = "terminal-auth-text";
+    textSpan.textContent = `Open a host shell in ${workspaceName}?`;
+    banner.appendChild(textSpan);
+
+    const actions = document.createElement("div");
+    actions.className = "terminal-auth-actions";
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "terminal-auth-btn terminal-auth-confirm";
+    confirmBtn.setAttribute("data-action", "confirm-terminal-auth");
+    confirmBtn.setAttribute("aria-label", "Authorize host shell");
+    confirmBtn.title = "Authorize shell (Enter)";
+    confirmBtn.appendChild(createSvgIcon("check", 14));
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "terminal-auth-btn terminal-auth-cancel";
+    cancelBtn.setAttribute("data-action", "cancel-terminal-auth");
+    cancelBtn.setAttribute("aria-label", "Cancel authorization");
+    cancelBtn.title = "Cancel (Escape)";
+    cancelBtn.appendChild(createSvgIcon("close", 14));
+
+    actions.appendChild(confirmBtn);
+    actions.appendChild(cancelBtn);
+    banner.appendChild(actions);
+
+    confirmBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.removeAuthPrompt();
+      this.startSession(true);
+    });
+
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.cancelAuth();
+    });
+
+    banner.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
+    banner.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.cancelAuth();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        this.removeAuthPrompt();
+        this.startSession(true);
+      } else if (e.key === "Tab") {
+        if (e.shiftKey && document.activeElement === confirmBtn) {
+          e.preventDefault();
+          cancelBtn.focus();
+        } else if (!e.shiftKey && document.activeElement === cancelBtn) {
+          e.preventDefault();
+          confirmBtn.focus();
+        }
+      }
+    });
+
+    this.host.appendChild(banner);
+    confirmBtn.focus();
+    announce(
+      `Terminal authorization required: Open a host shell in ${workspaceName}? Press Enter to confirm, Escape to cancel.`
+    );
+  }
+
+  cancelAuth() {
+    this.removeAuthPrompt();
+    this.deactivate();
+    if (this.term) {
+      this.term.writeln("\r\n\x1b[33m[DeskAI] Terminal authorization cancelled.\x1b[0m\r\n");
+    }
+    announce("Terminal authorization cancelled.");
+    const tab = document.getElementById("tab-terminal");
+    if (tab) tab.focus();
   }
 
   connectWebSocket(sessionId) {
@@ -484,6 +597,14 @@ export class TerminalView {
     }
   }
 
+  removeAuthPrompt() {
+    this.isAuthPending = false;
+    if (this.host) {
+      const banner = this.host.querySelector(".terminal-auth-banner");
+      if (banner) banner.remove();
+    }
+  }
+
   getDimensions() {
     if (this.fitAddon && this.isPanelVisible()) {
       try {
@@ -529,8 +650,10 @@ export class TerminalView {
 
   destroy() {
     this.hasExited = true;
+    this.isAuthPending = false;
     updateTabStatus(false);
     this.removeExitBanner();
+    this.removeAuthPrompt();
     if (this.sessionId) {
       NativeBridge.terminalClose(this.sessionId);
     }

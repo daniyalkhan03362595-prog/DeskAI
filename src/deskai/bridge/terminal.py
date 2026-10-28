@@ -15,7 +15,13 @@ logger = logging.getLogger(__name__)
 class TerminalBridge(BaseBridgeModule):
     """Bridge methods for spawning and closing terminal sessions."""
 
-    def terminal_open(self, cols: int, rows: int) -> dict:
+    def terminal_open(
+        self,
+        cols: int = 80,
+        rows: int = 24,
+        confirmed: bool = False,
+        inline_auth: bool = False,
+    ) -> dict:
         """Opens a new interactive host shell in the active workspace."""
         if not self._is_origin_allowed():
             return {"status": "error", "message": "Unauthorized origin"}
@@ -35,17 +41,23 @@ class TerminalBridge(BaseBridgeModule):
         if not is_safe_workspace_path(self.workspace_root, self.workspace_root):
             return {"status": "error", "message": "Unsafe workspace root"}
 
+        if confirmed:
+            self._terminal_confirmed_in_session = True
+
         if not self._terminal_confirmed_in_session:
             ws_name = os.path.basename(self.workspace_root) or self.workspace_root
-            confirmed = False
+            if inline_auth:
+                return {"status": "auth_required", "workspace": ws_name}
+
+            confirmed_dialog = False
             if self._window and hasattr(self._window, "create_confirmation_dialog"):
-                confirmed = bool(
+                confirmed_dialog = bool(
                     self._window.create_confirmation_dialog(
                         "Terminal Authorization",
                         f"Open a host shell in {ws_name}?",
                     )
                 )
-            if not confirmed:
+            if not confirmed_dialog:
                 return {"status": "error", "message": "User declined terminal authorization"}
             self._terminal_confirmed_in_session = True
 

@@ -1358,6 +1358,89 @@ button[aria-busy="true"],
   border-color: var(--color-primary);
 }
 
+/* Terminal Inline Authorization Banner */
+.terminal-auth-banner {
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-regular);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  max-width: 90%;
+  white-space: nowrap;
+}
+
+.terminal-auth-icon {
+  color: var(--color-amber);
+  flex-shrink: 0;
+}
+
+.terminal-auth-text {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-1);
+  flex-shrink: 0;
+}
+
+.terminal-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background-color: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.terminal-auth-confirm {
+  color: var(--color-success);
+  background-color: var(--color-success-subtle);
+  border-color: var(--color-success);
+}
+
+.terminal-auth-confirm:hover,
+.terminal-auth-confirm:focus-visible {
+  background-color: var(--color-success);
+  color: var(--text-inverse);
+  outline: none;
+}
+
+.terminal-auth-cancel {
+  color: var(--color-danger);
+  background-color: var(--color-danger-subtle);
+  border-color: var(--color-danger);
+}
+
+.terminal-auth-cancel:hover,
+.terminal-auth-cancel:focus-visible {
+  background-color: var(--color-danger);
+  color: var(--text-inverse);
+  outline: none;
+}
+
 .drawer-panel {
   height: 100%;
   display: flex;

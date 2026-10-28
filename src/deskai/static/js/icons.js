@@ -41,6 +41,9 @@ const ICON_DEFS = {
     { tag: "line", attrs: { x1: "18", y1: "6", x2: "6", y2: "18" } },
     { tag: "line", attrs: { x1: "6", y1: "6", x2: "18", y2: "18" } },
   ],
+  "check": [
+    { tag: "polyline", attrs: { points: "20 6 9 17 4 12" } },
+  ],
   "chevron-right": [
     { tag: "polyline", attrs: { points: "9 18 15 12 9 6" } },
   ],

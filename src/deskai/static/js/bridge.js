@@ -86,9 +86,9 @@ export const NativeBridge = {
     return { status: "ok", branch: null };
   },
 
-  async terminalOpen(cols = 80, rows = 24) {
+  async terminalOpen(cols = 80, rows = 24, confirmed = false, inlineAuth = true) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.terminal_open) {
-      return await window.pywebview.api.terminal_open(cols, rows);
+      return await window.pywebview.api.terminal_open(cols, rows, confirmed, inlineAuth);
     }
     return { status: "error", message: "Bridge not ready" };
   },

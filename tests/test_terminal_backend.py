@@ -249,6 +249,41 @@ class TestTerminalBackend(unittest.TestCase):
         self.assertTrue(close_res)
         self.assertIsNone(self.manager.get_session(session_id))
 
+    def test_bridge_terminal_open_inline_authorization(self):
+        """DesktopBridgeAPI.terminal_open supports inline authorization workflow."""
+        mock_window = MagicMock()
+        mock_manager = MagicMock()
+        mock_server = MagicMock()
+        mock_server.port = 8765
+        mock_server.terminal_manager = self.manager
+        mock_manager.window = mock_window
+        mock_manager.server = mock_server
+
+        api = DesktopBridgeAPI(mock_manager)
+        api.workspace_root = self.temp_workspace
+        mock_window.get_current_url.return_value = "http://127.0.0.1:8765/"
+
+        # 1. Unconfirmed request with inline_auth=True returns auth_required without dialog
+        res_auth_req = api.terminal_open(cols=80, rows=24, confirmed=False, inline_auth=True)
+        self.assertEqual(res_auth_req["status"], "auth_required")
+        self.assertIn("workspace", res_auth_req)
+        mock_window.create_confirmation_dialog.assert_not_called()
+
+        # 2. Confirmed request spawns session directly without dialog
+        res_confirmed = api.terminal_open(cols=80, rows=24, confirmed=True, inline_auth=True)
+        self.assertEqual(res_confirmed["status"], "ok")
+        session_id = res_confirmed["session_id"]
+        self.assertIsNotNone(self.manager.get_session(session_id))
+        mock_window.create_confirmation_dialog.assert_not_called()
+
+        # 3. Subsequent open does not re-require authorization
+        res_subsequent = api.terminal_open(cols=80, rows=24, inline_auth=True)
+        self.assertEqual(res_subsequent["status"], "ok")
+        mock_window.create_confirmation_dialog.assert_not_called()
+
+        api.terminal_close(session_id)
+        api.terminal_close(res_subsequent["session_id"])
+
     def test_replay_buffer_ring_bounding(self):
         """ReplayBuffer clamps retained bytes to max_bytes in a ring fashion."""
         buf = ReplayBuffer(max_bytes=100)
