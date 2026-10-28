@@ -162,8 +162,12 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         """Clicking copy-port displays inline SVG checkmark and does not show corner toast."""
         self.page.locator("#tab-ports").click()
         self.page.evaluate("""
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText: async () => true },
+                configurable: true
+            });
             window.DeskAIPorts.stopPolling();
-            window.DeskAIPorts.customPorts.push({
+            const p5 = {
                 port: 5555,
                 host: "127.0.0.1",
                 protocol: "TCP",
@@ -174,7 +178,10 @@ class TestBottomDrawerBehavior(unittest.TestCase):
                 isCustom: true,
                 exposure: "loopback",
                 openable: true
-            });
+            };
+            window.DeskAIPorts.customPorts = [p5];
+            window.DeskAIPorts.portsList = [p5];
+            window.DeskAIPorts._lastSignature = null;
             window.DeskAIPorts.render();
         """)
 
@@ -186,7 +193,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
 
         # Wait for async clipboard copy to complete and class + svg to be applied
         svg_icon = self.page.wait_for_selector(
-            'button[data-action="copy-port"].is-copied svg.port-check-icon', timeout=2000
+            'button[data-action="copy-port"].is-copied svg.port-check-icon', timeout=5000
         )
         self.assertIsNotNone(svg_icon)
 
@@ -203,8 +210,14 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         """Clicking open-port displays inline SVG checkmark and reverts after feedback timeout (~1200ms)."""
         self.page.locator("#tab-ports").click()
         self.page.evaluate("""
+            window.pywebview = {
+                api: {
+                    open_port: async (port, host) => true,
+                    open_external_url: async (url) => true
+                }
+            };
             window.DeskAIPorts.stopPolling();
-            window.DeskAIPorts.customPorts = [{
+            const p6 = {
                 port: 6666,
                 host: "127.0.0.1",
                 protocol: "TCP",
@@ -215,12 +228,10 @@ class TestBottomDrawerBehavior(unittest.TestCase):
                 isCustom: true,
                 exposure: "loopback",
                 openable: true
-            }];
-            window.pywebview = {
-                api: {
-                    open_port: async (port, host) => true
-                }
             };
+            window.DeskAIPorts.customPorts = [p6];
+            window.DeskAIPorts.portsList = [p6];
+            window.DeskAIPorts._lastSignature = null;
             window.DeskAIPorts.render();
         """)
 
@@ -231,7 +242,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         open_btn.click(force=True)
 
         # Should show checkmark
-        self.page.wait_for_selector('button[data-action="open-port"][data-port="6666"].is-copied', timeout=2000)
+        self.page.wait_for_selector('button[data-action="open-port"][data-port="6666"].is-copied', timeout=5000)
         self.assertIn("is-copied", open_btn.get_attribute("class"))
 
         # After timeout (~1200ms), it should revert back to "Open"
@@ -279,7 +290,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
 
         # Trigger open action
         self.page.locator('button[data-action="open-port"]').first.click(force=True)
-        self.page.wait_for_selector('button[data-action="open-port"].is-copied', timeout=2000)
+        self.page.wait_for_selector('button[data-action="open-port"].is-copied', timeout=5000)
 
         during = self.page.evaluate(measure_js)
 

@@ -1577,6 +1577,10 @@ button[aria-busy="true"],
   z-index: 1;
 }
 
+.ports-table th:last-child {
+  pointer-events: none;
+}
+
 .ports-table th[data-sort] {
   cursor: pointer;
   user-select: none;
