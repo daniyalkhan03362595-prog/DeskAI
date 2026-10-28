@@ -21,6 +21,69 @@ window.DeskAITerminal = new TerminalView();
 window.DeskAIWelcome = new WelcomeScreenController();
 window.ExplorerManager = new ExplorerManager();
 
+export class WorkspacePillController {
+  constructor(store, bridge) {
+    this.store = store;
+    this.bridge = bridge;
+    this.pillEl = document.getElementById("headerWorkspacePill");
+    this.setupSubscriptions();
+    this.sync();
+  }
+
+  setupSubscriptions() {
+    if (this.store && typeof this.store.subscribe === "function") {
+      this.store.subscribe("workspace.rootPath", async (newPath) => {
+        this.sync();
+        if (newPath) {
+          try {
+            const res = await this.bridge.getGitBranch(newPath);
+            if (res && res.branch && this.store.state.workspace.rootPath === newPath) {
+              this.store.state.workspace.branch = res.branch;
+            }
+          } catch (e) {
+            // ignore
+          }
+        } else {
+          this.store.state.workspace.branch = null;
+          this.sync();
+        }
+      });
+
+      this.store.subscribe("workspace.branch", () => {
+        this.sync();
+      });
+    }
+  }
+
+  sync() {
+    if (!this.pillEl) return;
+    const rootPath = this.store.state.workspace.rootPath;
+    const branch = this.store.state.workspace.branch;
+
+    if (!rootPath) {
+      this.pillEl.textContent = "DeskAI / (no workspace)";
+      this.pillEl.title = "No active workspace folder";
+      this.pillEl.setAttribute("aria-label", "Workspace: No folder opened");
+      this.pillEl.classList.remove("has-workspace");
+      return;
+    }
+
+    const folderName = rootPath.split("/").pop().split("\\").pop() || rootPath;
+    let label;
+    if (folderName === "DeskAI") {
+      label = branch ? `DeskAI / ${branch}` : "DeskAI";
+    } else {
+      label = branch ? `DeskAI / ${folderName} / ${branch}` : `DeskAI / ${folderName}`;
+    }
+    this.pillEl.textContent = label;
+    this.pillEl.title = `${rootPath}${branch ? ` (branch: ${branch})` : ""}`;
+    this.pillEl.setAttribute("aria-label", `Active workspace: ${folderName}${branch ? `, branch: ${branch}` : ""}`);
+    this.pillEl.classList.add("has-workspace");
+  }
+}
+
+window.WorkspacePill = new WorkspacePillController(store, NativeBridge);
+
 const channelOutputEl = document.getElementById("channelOutput");
 if (channelOutputEl) {
   window.DeskAILogView = new LogView(channelOutputEl);

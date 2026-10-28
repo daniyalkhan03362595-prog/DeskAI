@@ -63,6 +63,13 @@ export const NativeBridge = {
     return false;
   },
 
+  async getGitBranch(targetPath) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_git_branch) {
+      return await window.pywebview.api.get_git_branch(targetPath);
+    }
+    return { status: "ok", branch: null };
+  },
+
   async terminalOpen(cols = 80, rows = 24) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.terminal_open) {
       return await window.pywebview.api.terminal_open(cols, rows);

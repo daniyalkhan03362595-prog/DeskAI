@@ -1,6 +1,7 @@
 export const initialState = {
   workspace: {
     rootPath: null,
+    branch: null,
     files: [],
     selectedPath: null
   },

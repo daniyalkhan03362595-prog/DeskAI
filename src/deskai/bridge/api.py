@@ -6,6 +6,7 @@ Handles native dialogs, external URL dispatch, window controls, and path sandbox
 
 import ipaddress
 import os
+from pathlib import Path
 import socket
 import sys
 from urllib.parse import urlsplit
@@ -544,6 +545,42 @@ class DesktopBridgeAPI:
             return {"status": "ok", "entries": entries, "path": canonical}
         except Exception as e:
             return {"status": "error", "message": str(e), "entries": []}
+
+    def get_git_branch(self, target_path: str | None = None) -> dict:
+        """Returns the active git branch name if the path is a git repository."""
+        if not self._is_origin_allowed():
+            return {"status": "error", "message": "Unauthorized origin", "branch": None}
+        if not target_path:
+            return {"status": "ok", "branch": None}
+        try:
+            p = Path(target_path).resolve()
+            git_path = p / ".git"
+            if not git_path.exists():
+                return {"status": "ok", "branch": None}
+
+            head_file = None
+            if git_path.is_dir():
+                head_file = git_path / "HEAD"
+            elif git_path.is_file():
+                # Git worktree / submodule reference pointer
+                text = git_path.read_text(encoding="utf-8").strip()
+                if text.startswith("gitdir:"):
+                    gitdir = Path(text.split("gitdir:", 1)[1].strip())
+                    if not gitdir.is_absolute():
+                        gitdir = (p / gitdir).resolve()
+                    head_file = gitdir / "HEAD"
+
+            if head_file and head_file.exists():
+                head_content = head_file.read_text(encoding="utf-8").strip()
+                if head_content.startswith("ref: refs/heads/"):
+                    branch = head_content.replace("ref: refs/heads/", "").strip()
+                    return {"status": "ok", "branch": branch}
+                elif head_content:
+                    # Detached HEAD (SHA-1 prefix)
+                    return {"status": "ok", "branch": head_content[:7]}
+        except Exception as e:
+            print(f"[DeskAI] Failed to read git branch: {e}")
+        return {"status": "ok", "branch": None}
 
     def get_system_telemetry(self) -> dict:
         """Returns real host system telemetry or fallback values."""

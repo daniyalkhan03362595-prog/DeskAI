@@ -56,9 +56,29 @@
   background-color: var(--bg-surface);
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 12px;
   border: 1px solid var(--border-subtle);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: default;
+  user-select: none;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.workspace-pill:hover {
+  border-color: var(--border-regular);
+  color: var(--text-primary);
+}
+
+.workspace-pill.has-workspace {
+  color: var(--text-primary);
+  border-color: var(--border-regular);
 }
 
 .header-right {
