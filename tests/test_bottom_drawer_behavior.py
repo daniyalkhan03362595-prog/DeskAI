@@ -691,8 +691,8 @@ class TestBottomDrawerBehavior(unittest.TestCase):
             srv.stop()
 
     @unittest.skipIf(
-        sys.platform == "win32" or (os.getenv("CI") and sys.version_info >= (3, 12)),
-        "POSIX PTY e2e test disabled on win32 and multi-threaded Python >=3.12 CI runners due to forkpty deadlock",
+        sys.platform == "win32" or os.getenv("CI"),
+        "POSIX PTY e2e test disabled on win32 and multi-threaded CI runners due to forkpty deadlock",
     )
     def test_terminal_end_to_end_frontend_backend_integration(self):
         """End-to-end integration: Live DesktopServer + Playwright browser + real PTY shell.
