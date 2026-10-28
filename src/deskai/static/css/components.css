@@ -1546,6 +1546,7 @@ button[aria-busy="true"],
 .ports-table-container {
   flex: 1;
   overflow: auto;
+  scroll-padding-top: 36px;
 }
 
 .ports-table {

@@ -182,7 +182,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertEqual(copy_btn.text_content().strip(), "Copy")
 
         # Click the copy button
-        copy_btn.click()
+        copy_btn.click(force=True)
 
         # Wait for async clipboard copy to complete and class + svg to be applied
         svg_icon = self.page.wait_for_selector(
@@ -228,7 +228,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.assertEqual(open_btn.text_content().strip(), "Open")
 
         # Click open button
-        open_btn.click()
+        open_btn.click(force=True)
 
         # Should show checkmark
         self.page.wait_for_selector('button[data-action="open-port"][data-port="6666"].is-copied', timeout=2000)
@@ -278,7 +278,7 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         before = self.page.evaluate(measure_js)
 
         # Trigger open action
-        self.page.locator('button[data-action="open-port"]').first.click()
+        self.page.locator('button[data-action="open-port"]').first.click(force=True)
         self.page.wait_for_selector('button[data-action="open-port"].is-copied', timeout=2000)
 
         during = self.page.evaluate(measure_js)

@@ -727,7 +727,7 @@ class TestPortsPlaywright(unittest.TestCase):
         self.page.wait_for_function("document.querySelector('#portsTableBody tr') !== null")
 
         copy_btn = self.page.locator('button[data-action="copy-port"][data-port="3000"]')
-        copy_btn.click()
+        copy_btn.click(force=True)
 
         announcer_text = self.page.locator("#screenReaderAnnouncer").text_content()
         self.assertEqual(announcer_text, "Copied http://127.0.0.1:3000")

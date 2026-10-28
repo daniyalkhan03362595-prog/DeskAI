@@ -116,7 +116,9 @@ class TestServerE2ESmoke(unittest.TestCase):
             )
 
             # Type echo command and verify round-trip
-            page.keyboard.type("echo DESKAI_HTTP_SMOKE_PASS\n")
+            page.evaluate("() => { if (window.DeskAITerminal) window.DeskAITerminal.activate(); }")
+            page.locator("#terminalHost").click()
+            page.keyboard.type("echo DESKAI_HTTP_SMOKE_PASS\n", delay=10)
             page.wait_for_function(
                 """() => {
                 const term = window.DeskAITerminal && window.DeskAITerminal.term;
