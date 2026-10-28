@@ -349,6 +349,69 @@ class TestTerminalBackend(unittest.TestCase):
 
         asyncio.run(run_slow_consumer())
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX ptyprocess backpressure test")
+    def test_backpressure_five_consecutive_runs_deliver_final_marker(self):
+        """Runs the slow consumer seq + ENDMARK scenario 5 consecutive times and asserts final marker every time."""
+        import asyncio
+
+        async def run_five_times():
+            for i in range(5):
+                session = self.manager.create_session(workspace_root=self.temp_workspace)
+                session.write(b"stty -echo\n")
+                await asyncio.sleep(0.02)
+
+                received = bytearray()
+
+                async def slow_consumer():
+                    count = 0
+                    async for chunk in session.read_chunks():
+                        received.extend(chunk)
+                        count += 1
+                        if count % 20 == 0:
+                            await asyncio.sleep(0.001)
+
+                consumer_task = asyncio.create_task(slow_consumer())
+                await asyncio.sleep(0.02)
+                session.write(b"seq 1 100000; echo END''MARK; exit\n")
+
+                await asyncio.wait_for(consumer_task, timeout=20.0)
+                session.close()
+
+                self.assertIn(
+                    b"ENDMARK",
+                    received,
+                    f"Final marker ENDMARK was not found in received stream on iteration {i + 1}",
+                )
+
+        asyncio.run(run_five_times())
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX ptyprocess test")
+    def test_short_command_exit_delivers_output(self):
+        """Short command (printf x; exit) must not lose any output before termination."""
+        import asyncio
+
+        async def run_short():
+            session = self.manager.create_session(workspace_root=self.temp_workspace)
+            session.write(b"stty -echo\n")
+            await asyncio.sleep(0.02)
+
+            received = bytearray()
+
+            async def consumer():
+                async for chunk in session.read_chunks():
+                    received.extend(chunk)
+
+            consumer_task = asyncio.create_task(consumer())
+            await asyncio.sleep(0.02)
+            session.write(b"printf 'SHORT_OUTPUT_X'; exit\n")
+
+            await asyncio.wait_for(consumer_task, timeout=10.0)
+            session.close()
+
+            self.assertIn(b"SHORT_OUTPUT_X", received, "Short command output lost on fast exit")
+
+        asyncio.run(run_short())
+
 
 if __name__ == "__main__":
     unittest.main()

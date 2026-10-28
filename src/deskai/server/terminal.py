@@ -169,6 +169,7 @@ class TerminalSession:
         self.replay_buffer = ReplayBuffer(max_bytes=replay_buffer_size)
         self._process = None
         self._closed = False
+        self._ended_dispatched = False
         self._exit_code: int | None = None
         self._subscribers: list[asyncio.Queue[bytes]] = []
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -217,19 +218,22 @@ class TerminalSession:
 
     def _reader_loop(self):
         try:
-            while not self._closed and self._is_alive():
-                if sys.platform == "win32":
-                    data = self._process.read(4096)
-                    if isinstance(data, str):
-                        data = data.encode("utf-8", errors="replace")
-                else:
-                    data = os.read(self._process.fd, 4096)
+            while not self._closed:
+                try:
+                    if sys.platform == "win32":
+                        data = self._process.read(4096)
+                        if isinstance(data, str):
+                            data = data.encode("utf-8", errors="replace")
+                    else:
+                        data = os.read(self._process.fd, 4096)
+                except (OSError, EOFError):
+                    break
                 if not data:
                     break
                 with self._lock:
                     self.replay_buffer.append(data)
                 self._dispatch_to_subscribers(data)
-        except (OSError, EOFError):
+        except Exception:
             pass
         finally:
             self._on_process_ended()
@@ -290,6 +294,10 @@ class TerminalSession:
                 time.sleep(0.001)
 
     def _on_process_ended(self):
+        with self._lock:
+            if self._ended_dispatched:
+                return
+            self._ended_dispatched = True
         if self._process:
             try:
                 for _ in range(20):
