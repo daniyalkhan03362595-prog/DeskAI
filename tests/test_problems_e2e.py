@@ -568,6 +568,36 @@ class TestProblemsE2E(unittest.TestCase):
 
         self.assertEqual(violations, [], f"Forbidden DOM insertion found: {violations}")
 
+    def test_problems_refresh_button_spin_animation(self):
+        """Clicking problems run button triggers deskai-spin animation for 400ms."""
+        ctx, page = self._create_page()
+        try:
+            page.locator("#tab-problems").click()
+            page.wait_for_selector("#problemsRunBtn", timeout=3000)
+
+            # Trigger runWorkspace and check animation class immediately
+            has_spin_class = page.evaluate("""() => {
+                const btn = document.getElementById("problemsRunBtn");
+                btn.click();
+                const hasClass = btn.classList.contains("is-refreshing");
+                const svg = btn.querySelector("svg");
+                const anim = svg ? window.getComputedStyle(svg).animationName : "";
+                return { hasClass, anim };
+            }""")
+
+            self.assertTrue(has_spin_class["hasClass"], "Button must have is-refreshing class immediately on click")
+            self.assertEqual(has_spin_class["anim"], "deskai-spin", "SVG must use deskai-spin animation")
+
+            # Wait > 400ms to ensure class is removed
+            page.wait_for_timeout(500)
+            is_removed = page.evaluate("""() => {
+                const btn = document.getElementById("problemsRunBtn");
+                return !btn.classList.contains("is-refreshing");
+            }""")
+            self.assertTrue(is_removed, "is-refreshing class must be removed after 400ms")
+        finally:
+            ctx.close()
+
     def test_capture_visual_evidence_screenshots(self):
         """Captures before/after screenshots of Problems panel at 900x600 and 1440x900 in dark and light."""
         out_dir = Path("docs/layer 1 technologies/UI features components/collapsible-bottom-drawer/problems-panel/HLD")

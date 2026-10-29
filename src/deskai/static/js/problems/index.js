@@ -213,6 +213,12 @@ export class ProblemsManager {
   }
 
   async runWorkspace() {
+    const runBtn = document.getElementById("problemsRunBtn");
+    if (runBtn) {
+      runBtn.classList.add("is-refreshing");
+      setTimeout(() => runBtn.classList.remove("is-refreshing"), 400);
+    }
+
     const panel = document.getElementById("problemsPanel");
     if (panel) panel.setAttribute("data-busy", "true");
 

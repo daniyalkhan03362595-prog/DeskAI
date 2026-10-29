@@ -218,7 +218,9 @@
   pointer-events: none;
 }
 
-.icon-btn.is-refreshing svg {
+.icon-btn.is-refreshing svg,
+.ports-btn.is-refreshing svg,
+#problemsPanel #problemsRunBtn.is-refreshing svg {
   animation: deskai-spin 0.4s ease-in-out;
 }
 
@@ -2170,7 +2172,7 @@ button[aria-busy="true"],
   color: var(--text-secondary);
 }
 
-#problemsPanel[data-busy="true"] #problemsRunBtn svg {
+#problemsPanel[data-busy="true"] #problemsRunBtn:not(.is-refreshing) svg {
   animation: problems-spin 1s linear infinite;
 }
 
@@ -2181,6 +2183,9 @@ button[aria-busy="true"],
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .icon-btn.is-refreshing svg,
+  .ports-btn.is-refreshing svg,
+  #problemsPanel #problemsRunBtn.is-refreshing svg,
   #problemsPanel[data-busy="true"] #problemsRunBtn svg {
     animation: none;
   }

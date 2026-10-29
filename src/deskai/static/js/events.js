@@ -374,9 +374,15 @@ export function initGlobalEvents() {
         if (modal && typeof modal.close === "function") modal.close();
         break;
       }
-      case "refresh-ports":
+      case "refresh-ports": {
+        const btn = trigger.closest("#refreshPortsBtn") || trigger;
+        if (btn) {
+          btn.classList.add("is-refreshing");
+          setTimeout(() => btn.classList.remove("is-refreshing"), 400);
+        }
         if (window.DeskAIPorts) window.DeskAIPorts.refresh();
         break;
+      }
       case "open-port":
         if (window.DeskAIPorts) {
           const port = trigger.getAttribute("data-port");
