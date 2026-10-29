@@ -173,6 +173,110 @@ export class EditorManager {
     return id;
   }
 
+  _formatFileSize(bytes) {
+    if (bytes === null || bytes === undefined || isNaN(bytes)) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  createImageBuffer(name, dataUrl, path = null, sizeBytes = null) {
+    const normalizedPath = this.normalizePath(path);
+    if (normalizedPath && this.pathToId.has(normalizedPath)) {
+      const existingId = this.pathToId.get(normalizedPath);
+      this.selectTab(existingId);
+      return existingId;
+    }
+
+    const id = "tab-" + crypto.randomUUID().slice(0, 8);
+    const buffer = {
+      id,
+      name,
+      path: normalizedPath,
+      content: dataUrl,
+      isImage: true,
+      sizeBytes,
+      isDirty: false,
+      mtime: Date.now(),
+      language: "image",
+      state: null,
+      view: null,
+      container: null,
+    };
+
+    const container = document.createElement("div");
+    container.className = "editor-view-container editor-image-container";
+    container.id = `editor-container-${id}`;
+    container.setAttribute("data-buffer-id", id);
+    container.setAttribute("role", "region");
+    container.setAttribute("aria-label", `Image Preview: ${name}`);
+
+    const imgWrapper = document.createElement("div");
+    imgWrapper.className = "editor-image-wrapper";
+
+    const img = document.createElement("img");
+    img.className = "editor-preview-image";
+    img.src = dataUrl;
+    img.alt = name;
+
+    imgWrapper.appendChild(img);
+    container.appendChild(imgWrapper);
+
+    const infoBar = document.createElement("div");
+    infoBar.className = "editor-image-infobar";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "image-info-name";
+    nameSpan.textContent = name;
+    infoBar.appendChild(nameSpan);
+
+    const sep1 = document.createElement("span");
+    sep1.className = "image-info-separator";
+    sep1.textContent = "•";
+    infoBar.appendChild(sep1);
+
+    const dimSpan = document.createElement("span");
+    dimSpan.className = "image-info-dim";
+    dimSpan.textContent = "Loading...";
+    infoBar.appendChild(dimSpan);
+
+    if (sizeBytes !== null && sizeBytes !== undefined) {
+      const sep2 = document.createElement("span");
+      sep2.className = "image-info-separator";
+      sep2.textContent = "•";
+      infoBar.appendChild(sep2);
+
+      const sizeSpan = document.createElement("span");
+      sizeSpan.className = "image-info-size";
+      sizeSpan.textContent = this._formatFileSize(sizeBytes);
+      infoBar.appendChild(sizeSpan);
+    }
+
+    img.addEventListener("load", () => {
+      dimSpan.textContent = `${img.naturalWidth} × ${img.naturalHeight} px`;
+    });
+    img.addEventListener("error", () => {
+      dimSpan.textContent = "Failed to load image";
+    });
+
+    container.appendChild(infoBar);
+    buffer.container = container;
+
+    if (this.editorHost) {
+      this.editorHost.appendChild(container);
+    }
+
+    this.buffers.set(id, buffer);
+    if (normalizedPath) {
+      this.pathToId.set(normalizedPath, id);
+    }
+
+    this.syncStore();
+    this.renderTabs();
+    this.selectTab(id);
+    return id;
+  }
+
   async openFile(filePath) {
     if (!filePath) return null;
     const normalizedPath = this.normalizePath(filePath);
@@ -191,6 +295,9 @@ export class EditorManager {
       }
 
       const filename = filePath.split("/").pop().split("\\").pop();
+      if (res.is_image) {
+        return this.createImageBuffer(filename, res.content, filePath, res.size_bytes);
+      }
       return this.createBuffer(filename, res.content, filePath);
     } catch (err) {
       console.error(`Exception opening file: ${filePath}`, err);
@@ -212,7 +319,8 @@ export class EditorManager {
     for (const [bufId, buffer] of this.buffers.entries()) {
       if (buffer.container) {
         if (bufId === id) {
-          buffer.container.style.display = "block";
+          buffer.container.style.display = buffer.isImage ? "flex" : "block";
+          buffer.container.classList.add("active");
           if (this.editorHost && buffer.container.parentElement !== this.editorHost) {
             this.editorHost.appendChild(buffer.container);
           }
@@ -224,6 +332,7 @@ export class EditorManager {
           }
         } else {
           buffer.container.style.display = "none";
+          buffer.container.classList.remove("active");
         }
       }
     }
@@ -298,6 +407,7 @@ export class EditorManager {
   async saveBuffer(id) {
     if (!id || !this.buffers.has(id)) return false;
     const buffer = this.buffers.get(id);
+    if (buffer.isImage) return true;
 
     if (!buffer.path) {
       return await this.saveBufferAs(id);
@@ -359,6 +469,7 @@ export class EditorManager {
   async revertBuffer(id) {
     if (!id || !this.buffers.has(id)) return false;
     const buffer = this.buffers.get(id);
+    if (buffer.isImage) return true;
     if (!buffer.path) return false;
 
     try {

@@ -97,6 +97,33 @@ class TestBridgeSplitModules(unittest.TestCase):
             self.assertEqual(r_res["status"], "ok")
             self.assertEqual(r_res["content"], "Hello FS")
 
+    def test_workspace_fs_bridge_reads_image_as_data_url(self):
+        """WorkspaceFSBridge reads binary image files as data URLs with metadata."""
+        import base64
+
+        with tempfile.TemporaryDirectory() as td:
+            ws_root = os.path.realpath(td)
+            fs = WorkspaceFSBridge(self.mock_manager)
+            fs.workspace_root = ws_root
+
+            png_bytes = (
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+                b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00"
+                b"\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+            img_path = os.path.join(ws_root, "test_image.png")
+            with open(img_path, "wb") as f:
+                f.write(png_bytes)
+
+            res = fs.read_file(img_path)
+            self.assertEqual(res["status"], "ok")
+            self.assertTrue(res["is_image"])
+            self.assertEqual(res["mime_type"], "image/png")
+            self.assertEqual(res["size_bytes"], len(png_bytes))
+            self.assertTrue(res["content"].startswith("data:image/png;base64,"))
+            b64_part = res["content"].split(",", 1)[1]
+            self.assertEqual(base64.b64decode(b64_part), png_bytes)
+
     def test_ports_bridge_isolated(self):
         """PortsBridge handles URL safety and reachable hosts."""
         ports = PortsBridge(self.mock_manager)

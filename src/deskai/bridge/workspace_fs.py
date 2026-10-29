@@ -3,6 +3,7 @@ Workspace Filesystem Bridge Module.
 Handles sandboxed file reads, atomic writes, directories, renaming, deletion, and file/folder dialogs.
 """
 
+import base64
 import logging
 import os
 import shutil
@@ -135,13 +136,44 @@ class WorkspaceFSBridge(BaseBridgeModule):
         if not os.path.isfile(canonical):
             return {"status": "error", "message": "File not found", "content": None}
 
-        if os.path.getsize(canonical) > 10 * 1024 * 1024:
+        file_size = os.path.getsize(canonical)
+        if file_size > 10 * 1024 * 1024:
             return {"status": "error", "message": "File exceeds maximum 10MB size limit", "content": None}
+
+        ext = os.path.splitext(canonical)[1].lower()
+        image_mimes = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".ico": "image/x-icon",
+            ".bmp": "image/bmp",
+            ".svg": "image/svg+xml",
+        }
+
+        if ext in image_mimes:
+            try:
+                with open(canonical, "rb") as f:
+                    raw_bytes = f.read()
+                b64 = base64.b64encode(raw_bytes).decode("ascii")
+                mime = image_mimes[ext]
+                data_url = f"data:{mime};base64,{b64}"
+                return {
+                    "status": "ok",
+                    "content": data_url,
+                    "path": canonical,
+                    "is_image": True,
+                    "mime_type": mime,
+                    "size_bytes": file_size,
+                }
+            except Exception as e:
+                return {"status": "error", "message": str(e), "content": None}
 
         try:
             with open(canonical, "r", encoding="utf-8") as f:
                 content = f.read()
-            return {"status": "ok", "content": content, "path": canonical}
+            return {"status": "ok", "content": content, "path": canonical, "is_image": False, "size_bytes": file_size}
         except UnicodeDecodeError:
             return {"status": "error", "message": "File is not valid UTF-8 text", "content": None}
         except Exception as e:

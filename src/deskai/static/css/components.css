@@ -2691,3 +2691,77 @@ button[aria-busy="true"],
 .prompt-send-btn:hover {
   background-color: var(--color-primary-hover);
 }
+
+/* ==========================================================================
+   IMAGE VIEWER COMPONENT (VS Code Style)
+   ========================================================================== */
+.editor-view-container.editor-image-container {
+  display: none;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  user-select: none;
+  overflow: hidden;
+}
+
+.editor-view-container.editor-image-container.active {
+  display: flex;
+}
+
+.editor-image-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: var(--space-6);
+  background-image: linear-gradient(45deg, var(--bg-card) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--bg-card) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--bg-card) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--bg-card) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.editor-preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+}
+
+.editor-image-infobar {
+  height: 28px;
+  min-height: 28px;
+  background-color: var(--bg-header);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.editor-image-infobar .image-info-name {
+  color: var(--text-secondary);
+  font-weight: 500;
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-image-infobar .image-info-separator {
+  color: var(--border-regular);
+}
+
+.editor-image-infobar .image-info-dim,
+.editor-image-infobar .image-info-size {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}

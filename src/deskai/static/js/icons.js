@@ -135,6 +135,11 @@ const ICON_DEFS = {
   "status-dot": [
     { tag: "circle", attrs: { cx: "12", cy: "12", r: "6", fill: "currentColor" } },
   ],
+  "image": [
+    { tag: "rect", attrs: { x: "3", y: "3", width: "18", height: "18", rx: "2", ry: "2" } },
+    { tag: "circle", attrs: { cx: "8.5", cy: "8.5", r: "1.5" } },
+    { tag: "polyline", attrs: { points: "21 15 16 10 5 21" } },
+  ],
 };
 
 /**

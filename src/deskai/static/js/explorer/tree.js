@@ -61,6 +61,20 @@ export function detectFileIcon(filename, isDir) {
     return "file-text";
   }
 
+  // Image extensions
+  if (
+    lower.endsWith(".png") ||
+    lower.endsWith(".jpg") ||
+    lower.endsWith(".jpeg") ||
+    lower.endsWith(".gif") ||
+    lower.endsWith(".webp") ||
+    lower.endsWith(".svg") ||
+    lower.endsWith(".ico") ||
+    lower.endsWith(".bmp")
+  ) {
+    return "image";
+  }
+
   return "file";
 }
 
