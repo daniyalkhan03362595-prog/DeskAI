@@ -11,6 +11,7 @@ Asserts:
 7. Killing a session re-enables #btnNewTerminal.
 """
 
+import sys
 import unittest
 from pathlib import Path
 
@@ -141,8 +142,9 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
 
         tabs = sidebar.locator(".terminal-tab-item")
         self.assertEqual(tabs.count(), 2)
+        expected_shell = "cmd" if sys.platform == "win32" else "bash"
         for i in range(tabs.count()):
-            self.assertEqual(tabs.nth(i).locator(".terminal-tab-title").inner_text().strip(), "bash")
+            self.assertEqual(tabs.nth(i).locator(".terminal-tab-title").inner_text().strip(), expected_shell)
 
     def test_tab_switching_between_terminals(self):
         """Clicking a terminal tab switches the active terminal instance."""
@@ -181,11 +183,12 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
         self.assertEqual(btn_new.get_attribute("aria-disabled"), "true")
         self.assertIn("Maximum 6", btn_new.get_attribute("title"))
 
-        # Verify all 6 tabs are cleanly titled 'bash' with no numeric suffixes
+        # Verify all 6 tabs are cleanly titled with shell name and no numeric suffixes
         tabs = self.page.locator(".terminal-tab-item")
         self.assertEqual(tabs.count(), 6)
+        expected_shell = "cmd" if sys.platform == "win32" else "bash"
         for i in range(6):
-            self.assertEqual(tabs.nth(i).locator(".terminal-tab-title").inner_text().strip(), "bash")
+            self.assertEqual(tabs.nth(i).locator(".terminal-tab-title").inner_text().strip(), expected_shell)
 
         # Trying to add 7th does not exceed 6
         btn_new.click(force=True)
