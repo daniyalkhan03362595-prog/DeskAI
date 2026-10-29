@@ -117,6 +117,11 @@
   font-weight: 600;
 }
 
+.status-bar-problems[data-has-infos="true"] .status-problems-infos {
+  color: var(--color-info);
+  font-weight: 600;
+}
+
 .header-right {
   display: flex;
   align-items: center;
