@@ -269,3 +269,16 @@ interface DiagnosticResult {
 ## 11. Traceability
 
 Existing tests **TC-PRB-01 to TC-PRB-06** remain valid and must keep passing. New tests are specified in `ORX-LLD-PROBLEMS-PANEL-V2` section 10 (**TC-PRB-07 onward**).
+
+---
+
+## 12. Visual Evidence
+
+| Viewport & Theme | State | Screenshot |
+| :--- | :--- | :--- |
+| **900x600 (Dark)** | Empty State | ![Problems Empty 900x600 Dark](./problems_empty_dark_900x600.png) |
+| **900x600 (Dark)** | Populated Problems | ![Problems Populated 900x600 Dark](./problems_populated_dark_900x600.png) |
+| **1440x900 (Dark)** | Populated Problems | ![Problems Populated 1440x900 Dark](./problems_populated_dark_1440x900.png) |
+| **900x600 (Light)** | Populated Problems | ![Problems Populated 900x600 Light](./problems_populated_light_900x600.png) |
+| **1440x900 (Light)** | Populated Problems | ![Problems Populated 1440x900 Light](./problems_populated_light_1440x900.png) |
+

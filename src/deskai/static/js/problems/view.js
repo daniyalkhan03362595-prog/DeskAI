@@ -1,6 +1,6 @@
 /**
  * ProblemsView: Safe DOM renderer and keyboard interaction model for the Problems panel.
- * Strictly adheres to zero innerHTML, WCAG 2.1 AA, and roving tabindex.
+ * Strictly adheres to zero raw markup injection, WCAG 2.1 AA, and roving tabindex.
  */
 
 import { createSvgIcon } from "../icons.js";
@@ -119,6 +119,14 @@ function renderItem(d, ui, isFirst) {
  * Attaches keyboard navigation (roving tabindex) and click handlers to the problems view container.
  */
 export function initViewKeyboardAndClicks(container, ui, onNavigate) {
+  container.addEventListener("focusin", (e) => {
+    const item = e.target.closest(".problems-file, .problem-item");
+    if (item) {
+      ui.focusedId = item.dataset.id || item.dataset.file;
+      setRovingTabindex(container, item);
+    }
+  });
+
   container.addEventListener("click", (e) => {
     const itemBtn = e.target.closest(".problem-item");
     if (itemBtn) {
@@ -155,6 +163,7 @@ export function initViewKeyboardAndClicks(container, ui, onNavigate) {
         e.preventDefault();
         const next = items[currentIndex + 1] || items[0];
         setRovingTabindex(container, next);
+        ui.focusedId = next.dataset.id || next.dataset.file;
         next.focus();
         break;
       }
@@ -162,6 +171,7 @@ export function initViewKeyboardAndClicks(container, ui, onNavigate) {
         e.preventDefault();
         const prev = items[currentIndex - 1] || items[items.length - 1];
         setRovingTabindex(container, prev);
+        ui.focusedId = prev.dataset.id || prev.dataset.file;
         prev.focus();
         break;
       }
@@ -171,6 +181,14 @@ export function initViewKeyboardAndClicks(container, ui, onNavigate) {
           const file = active.dataset.file;
           if (ui.collapsed.has(file)) {
             ui.toggleCollapse(file);
+          } else {
+            const group = active.closest(".problems-group");
+            const firstChild = group ? group.querySelector(".problem-item") : null;
+            if (firstChild) {
+              setRovingTabindex(container, firstChild);
+              ui.focusedId = firstChild.dataset.id;
+              firstChild.focus();
+            }
           }
         }
         break;
@@ -187,6 +205,7 @@ export function initViewKeyboardAndClicks(container, ui, onNavigate) {
           const head = group ? group.querySelector(".problems-file") : null;
           if (head) {
             setRovingTabindex(container, head);
+            ui.focusedId = head.dataset.file;
             head.focus();
           }
         }
@@ -195,8 +214,10 @@ export function initViewKeyboardAndClicks(container, ui, onNavigate) {
       case "Home": {
         e.preventDefault();
         if (items.length > 0) {
-          setRovingTabindex(container, items[0]);
-          items[0].focus();
+          const first = items[0];
+          setRovingTabindex(container, first);
+          ui.focusedId = first.dataset.id || first.dataset.file;
+          first.focus();
         }
         break;
       }
@@ -205,6 +226,7 @@ export function initViewKeyboardAndClicks(container, ui, onNavigate) {
         if (items.length > 0) {
           const last = items[items.length - 1];
           setRovingTabindex(container, last);
+          ui.focusedId = last.dataset.id || last.dataset.file;
           last.focus();
         }
         break;
