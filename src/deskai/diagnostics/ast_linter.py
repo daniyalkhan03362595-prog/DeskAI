@@ -108,6 +108,40 @@ class PythonASTLinter(ast.NodeVisitor):
                     seen_keys.add(val)
         self.generic_visit(node)
 
+    def visit_Compare(self, node: ast.Compare) -> None:
+        for op, comparator in zip(node.ops, node.comparators):
+            if isinstance(op, ast.Eq) and isinstance(comparator, ast.Constant) and comparator.value is None:
+                self.diagnostics.append(
+                    Diagnostic(
+                        source="python",
+                        code="I001",
+                        severity="info",
+                        message="Comparison to None should be 'cond is None' (PEP 8)",
+                        file=self.rel_path,
+                        start_line=node.lineno,
+                        start_col=node.col_offset + 1,
+                        end_line=getattr(node, "end_lineno", node.lineno),
+                        end_col=getattr(node, "end_col_offset", node.col_offset + 10) + 1,
+                        ai_fixable=True,
+                    )
+                )
+            elif isinstance(op, ast.NotEq) and isinstance(comparator, ast.Constant) and comparator.value is None:
+                self.diagnostics.append(
+                    Diagnostic(
+                        source="python",
+                        code="I001",
+                        severity="info",
+                        message="Comparison to None should be 'cond is not None' (PEP 8)",
+                        file=self.rel_path,
+                        start_line=node.lineno,
+                        start_col=node.col_offset + 1,
+                        end_line=getattr(node, "end_lineno", node.lineno),
+                        end_col=getattr(node, "end_col_offset", node.col_offset + 10) + 1,
+                        ai_fixable=True,
+                    )
+                )
+        self.generic_visit(node)
+
     def _check_function_scope(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         assigned_vars: dict[str, tuple[int, int, int, int]] = {}
         used_vars: set[str] = set()
@@ -169,12 +203,38 @@ class PythonASTLinter(ast.NodeVisitor):
 
 
 def check_python_ast(source: str, rel_path: str, tree: ast.AST | None = None) -> list[Diagnostic]:
-    """Run AST warning analysis on Python source. Returns list of Diagnostic warnings."""
+    """Run AST warning and info analysis on Python source. Returns list of Diagnostic items."""
     try:
         if tree is None:
             tree = ast.parse(source, filename=rel_path, type_comments=False)
         linter = PythonASTLinter(rel_path)
-        return linter.check(tree)
+        diags = linter.check(tree)
+
+        # Check for TODO / FIXME task comments (severity: info)
+        for idx, line in enumerate(source.splitlines(), start=1):
+            if "#" in line:
+                hash_pos = line.find("#")
+                comment = line[hash_pos:]
+                cmt_lower = comment.lower()
+                if "todo:" in cmt_lower or "todo " in cmt_lower or "fixme:" in cmt_lower:
+                    msg = comment.lstrip("#").strip()
+                    diags.append(
+                        Diagnostic(
+                            source="python",
+                            code="I002",
+                            severity="info",
+                            message=msg,
+                            file=rel_path,
+                            start_line=idx,
+                            start_col=hash_pos + 1,
+                            end_line=idx,
+                            end_col=hash_pos + 1 + len(comment),
+                            ai_fixable=False,
+                        )
+                    )
+
+        diags.sort(key=lambda d: (d.start_line, d.start_col, d.code or ""))
+        return diags
     except Exception:
         # If AST parsing fails or file has syntax error, syntax checker handles it
         return []

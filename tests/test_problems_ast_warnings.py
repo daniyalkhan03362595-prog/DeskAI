@@ -87,6 +87,31 @@ def broken():
         self.assertEqual(len(diags), 1)
         self.assertEqual(diags[0].severity, "error")
 
+    def test_info_comparison_to_none_i001(self) -> None:
+        source = """
+def is_empty(val):
+    if val == None:
+        return True
+    return False
+"""
+        diags = check_python_ast(source, "checks.py")
+        i001 = [d for d in diags if d.code == "I001"]
+        self.assertEqual(len(i001), 1)
+        self.assertEqual(i001[0].severity, "info")
+        self.assertIn("cond is None", i001[0].message)
+
+    def test_info_todo_comment_i002(self) -> None:
+        source = """
+def connect():
+    # TODO: add retry logic with exponential backoff
+    pass
+"""
+        diags = check_python_ast(source, "net.py")
+        i002 = [d for d in diags if d.code == "I002"]
+        self.assertEqual(len(i002), 1)
+        self.assertEqual(i002[0].severity, "info")
+        self.assertIn("add retry logic", i002[0].message)
+
 
 if __name__ == "__main__":
     unittest.main()
