@@ -539,7 +539,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
   transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.tree-create-btn svg,
+.tree-create-btn line,
+.tree-create-btn path,
+.tree-create-btn polyline {
+  pointer-events: none;
 }
 
 .tree-create-btn.tree-create-confirm {

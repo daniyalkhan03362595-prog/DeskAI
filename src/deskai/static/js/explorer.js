@@ -69,6 +69,16 @@ export class ExplorerManager {
 
     if (this.viewport) {
       this.viewport.addEventListener("click", async (e) => {
+        // Prevent clicks inside inline action controls (rename, delete, create) from activating tree nodes
+        if (
+          e.target.closest(".tree-rename-wrapper") ||
+          e.target.closest(".tree-create-actions") ||
+          e.target.closest(".tree-create-input-wrapper") ||
+          e.target.closest(".tree-delete-confirm-wrapper")
+        ) {
+          return;
+        }
+
         const inlineBtn = e.target.closest(".tree-inline-btn");
         if (inlineBtn) {
           e.stopPropagation();
@@ -205,14 +215,32 @@ export class ExplorerManager {
     }
   }
 
-  startInlineDelete(nodeEl, target) {
-    if (!nodeEl || nodeEl.classList.contains("is-deleting") || nodeEl.classList.contains("is-renaming")) return;
+  dismissActiveInlineEditors() {
+    if (!this.viewport) return;
+    const existingRenaming = this.viewport.querySelectorAll(".tree-item.is-renaming");
+    existingRenaming.forEach((el) => {
+      if (typeof el._cancelRename === "function") el._cancelRename();
+    });
 
-    // Clean up any other active inline deletions in the tree
     const existingDeleting = this.viewport.querySelectorAll(".tree-item.is-deleting");
     existingDeleting.forEach((el) => {
       if (typeof el._cancelDelete === "function") el._cancelDelete();
     });
+
+    const existingCreating = this.viewport.querySelectorAll(".tree-inline-create");
+    existingCreating.forEach((el) => {
+      if (typeof el._cancelCreate === "function") {
+        el._cancelCreate();
+      } else {
+        el.remove();
+      }
+    });
+  }
+
+  startInlineDelete(nodeEl, target) {
+    if (!nodeEl || nodeEl.classList.contains("is-deleting") || nodeEl.classList.contains("is-renaming")) return;
+
+    this.dismissActiveInlineEditors();
 
     const labelEl = nodeEl.querySelector(".tree-label");
     if (!labelEl) return;
@@ -397,6 +425,8 @@ export class ExplorerManager {
   startInlineRename(nodeEl) {
     if (!nodeEl || nodeEl.classList.contains("is-renaming") || nodeEl.classList.contains("is-deleting")) return;
 
+    this.dismissActiveInlineEditors();
+
     const labelEl = nodeEl.querySelector(".tree-label");
     if (!labelEl) return;
 
@@ -450,10 +480,17 @@ export class ExplorerManager {
 
     let committed = false;
     let cancelled = false;
+    let blurTimer = null;
 
     const cancel = () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
       if (committed || cancelled) return;
       cancelled = true;
+      delete nodeEl._cancelRename;
+      delete nodeEl._commitRename;
       if (renameContainer.parentElement) {
         renameContainer.parentElement.removeChild(renameContainer);
       }
@@ -464,14 +501,22 @@ export class ExplorerManager {
     };
 
     const commit = async () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
       if (committed || cancelled) return;
-      committed = true;
+
       const newName = inputEl.value.trim();
 
       if (!newName || newName === oldName) {
         cancel();
         return;
       }
+
+      committed = true;
+      delete nodeEl._cancelRename;
+      delete nodeEl._commitRename;
 
       const parentDir = oldPath.includes("/") ? oldPath.substring(0, oldPath.lastIndexOf("/")) : "";
       const newPath = parentDir ? `${parentDir}/${newName}` : newName;
@@ -498,19 +543,31 @@ export class ExplorerManager {
         const errorMsg = res && res.message ? res.message : `Failed to rename ${oldName}`;
         this.showToast(errorMsg, "error");
         this.announce(errorMsg);
+        committed = false;
         cancel();
       }
     };
 
-    confirmBtn.addEventListener("mousedown", (e) => e.preventDefault());
-    cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    nodeEl._cancelRename = cancel;
+    nodeEl._commitRename = commit;
+
+    confirmBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    cancelBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
 
     confirmBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
       e.stopPropagation();
       await commit();
     });
 
     cancelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
       e.stopPropagation();
       cancel();
     });
@@ -526,8 +583,16 @@ export class ExplorerManager {
       }
     });
 
-    inputEl.addEventListener("blur", async () => {
-      setTimeout(async () => {
+    inputEl.addEventListener("blur", (e) => {
+      if (
+        e.relatedTarget &&
+        (e.relatedTarget === confirmBtn ||
+          e.relatedTarget === cancelBtn ||
+          renameContainer.contains(e.relatedTarget))
+      ) {
+        return;
+      }
+      blurTimer = setTimeout(async () => {
         if (!committed && !cancelled) {
           await commit();
         }
@@ -554,6 +619,8 @@ export class ExplorerManager {
   async startInlineCreate({ type = "file", targetDirParam = null } = {}) {
     if (!this.viewport) return;
 
+    this.dismissActiveInlineEditors();
+
     let targetDir = targetDirParam || "";
     const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
 
@@ -566,12 +633,6 @@ export class ExplorerManager {
       } else if (rootPath) {
         targetDir = rootPath;
       }
-    }
-
-    // Clean up any existing inline creation row
-    const existing = this.viewport.querySelector(".tree-inline-create");
-    if (existing) {
-      existing.remove();
     }
 
     let level = 1;
@@ -674,10 +735,16 @@ export class ExplorerManager {
 
     let isCommitted = false;
     let isCancelled = false;
+    let blurTimer = null;
 
     const cancel = () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
       if (isCommitted || isCancelled) return;
       isCancelled = true;
+      delete rowEl._cancelCreate;
       rowEl.remove();
       if (emptyMsg && (!this.entries || this.entries.length === 0)) {
         emptyMsg.style.display = "";
@@ -685,6 +752,10 @@ export class ExplorerManager {
     };
 
     const commit = async () => {
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
       if (isCommitted || isCancelled) return;
       const rawName = inputEl.value.trim();
       if (!rawName) {
@@ -692,6 +763,7 @@ export class ExplorerManager {
         return;
       }
       isCommitted = true;
+      delete rowEl._cancelCreate;
       rowEl.remove();
 
       const root = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
@@ -721,24 +793,34 @@ export class ExplorerManager {
       }
     };
 
-    confirmBtn.addEventListener("mousedown", (e) => e.preventDefault());
-    cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    rowEl._cancelCreate = cancel;
 
-    confirmBtn.addEventListener("click", (e) => {
+    confirmBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      commit();
+    });
+    cancelBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    confirmBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await commit();
     });
 
     cancelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
       e.stopPropagation();
       cancel();
     });
 
-    inputEl.addEventListener("keydown", (e) => {
+    inputEl.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        commit();
+        await commit();
       } else if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -746,8 +828,16 @@ export class ExplorerManager {
       }
     });
 
-    inputEl.addEventListener("blur", () => {
-      setTimeout(() => {
+    inputEl.addEventListener("blur", (e) => {
+      if (
+        e.relatedTarget &&
+        (e.relatedTarget === confirmBtn ||
+          e.relatedTarget === cancelBtn ||
+          rowEl.contains(e.relatedTarget))
+      ) {
+        return;
+      }
+      blurTimer = setTimeout(() => {
         if (!isCommitted && !isCancelled && !inputEl.value.trim()) {
           cancel();
         }

@@ -317,3 +317,96 @@ class TestTreeNodeItem(unittest.TestCase):
         self.assertEqual(res["tabLabel"], "worker.ts")
         self.assertEqual(res["tabIcon"], "file-code")
         self.assertTrue(res["tabHasSvg"])
+
+    def test_tni_08_inline_rename_cancel_via_button_click(self):
+        """TC-TNI-08: Clicking the cancel button (✖) dismisses inline rename cleanly without calling renamePath."""
+        self.page.evaluate("""() => {
+            window._renameCalled = false;
+            window.NativeBridge.renamePath = async () => {
+                window._renameCalled = true;
+                return { status: "ok" };
+            };
+            window.ExplorerManager.entries = [
+                { name: "cancel-me.txt", is_dir: false, path: "/workspace/cancel-me.txt" }
+            ];
+            window.ExplorerManager.render();
+            const item = document.querySelector("#fileTreeViewport .tree-item");
+            window.ExplorerManager.startInlineRename(item);
+        }""")
+
+        self.assertEqual(self.page.locator(".tree-rename-input").count(), 1)
+        cancel_btn = self.page.locator(".tree-create-cancel").first
+        cancel_btn.click()
+        self.page.wait_for_timeout(200)
+
+        self.assertEqual(self.page.locator(".tree-rename-input").count(), 0)
+        rename_called = self.page.evaluate("() => window._renameCalled")
+        self.assertFalse(rename_called)
+        label = self.page.locator("#fileTreeViewport .tree-label").first.text_content()
+        self.assertEqual(label, "cancel-me.txt")
+
+    def test_tni_09_inline_rename_confirm_via_button_click(self):
+        """TC-TNI-09: Clicking the confirm button (✔) commits inline rename via NativeBridge.renamePath."""
+        self.page.evaluate("""() => {
+            window._lastRename = null;
+            window.NativeBridge.renamePath = async (oldP, newP) => {
+                window._lastRename = { oldP, newP };
+                return { status: "ok" };
+            };
+            window.NativeBridge.listDir = async () => ({
+                status: "ok",
+                entries: [
+                    { name: "confirmed.txt", is_dir: false, path: "/workspace/confirmed.txt" }
+                ]
+            });
+            window.ExplorerManager.entries = [
+                { name: "old-name.txt", is_dir: false, path: "/workspace/old-name.txt" }
+            ];
+            window.ExplorerManager.render();
+            const item = document.querySelector("#fileTreeViewport .tree-item");
+            window.ExplorerManager.startInlineRename(item);
+        }""")
+
+        input_el = self.page.locator(".tree-rename-input").first
+        input_el.fill("confirmed.txt")
+        confirm_btn = self.page.locator(".tree-create-confirm").first
+        confirm_btn.click()
+        self.page.wait_for_timeout(200)
+
+        self.assertEqual(self.page.locator(".tree-rename-input").count(), 0)
+        last_rename = self.page.evaluate("() => window._lastRename")
+        self.assertIsNotNone(last_rename)
+        self.assertEqual(last_rename["oldP"], "/workspace/old-name.txt")
+        self.assertEqual(last_rename["newP"], "/workspace/confirmed.txt")
+
+    def test_tni_10_inline_rename_singleton_enforcement(self):
+        """TC-TNI-10: Opening inline rename on an item dismisses any active inline editors (singleton rule)."""
+        self.page.evaluate("""() => {
+            window.ExplorerManager.entries = [
+                { name: "item1.txt", is_dir: false, path: "/workspace/item1.txt" },
+                { name: "item2.txt", is_dir: false, path: "/workspace/item2.txt" },
+                { name: "item3.txt", is_dir: false, path: "/workspace/item3.txt" }
+            ];
+            window.ExplorerManager.render();
+            const items = document.querySelectorAll("#fileTreeViewport .tree-item");
+            window.ExplorerManager.startInlineRename(items[0]);
+        }""")
+
+        self.assertEqual(self.page.locator(".tree-rename-input").count(), 1)
+        # Open rename on second item
+        self.page.evaluate("""() => {
+            const items = document.querySelectorAll("#fileTreeViewport .tree-item");
+            window.ExplorerManager.startInlineRename(items[1]);
+        }""")
+        self.assertEqual(self.page.locator(".tree-rename-input").count(), 1)
+        # Open rename on third item
+        self.page.evaluate("""() => {
+            const items = document.querySelectorAll("#fileTreeViewport .tree-item");
+            window.ExplorerManager.startInlineRename(items[2]);
+        }""")
+        self.assertEqual(self.page.locator(".tree-rename-input").count(), 1)
+
+        items = self.page.locator("#fileTreeViewport .tree-item")
+        self.assertFalse(items.nth(0).evaluate("el => el.classList.contains('is-renaming')"))
+        self.assertFalse(items.nth(1).evaluate("el => el.classList.contains('is-renaming')"))
+        self.assertTrue(items.nth(2).evaluate("el => el.classList.contains('is-renaming')"))
