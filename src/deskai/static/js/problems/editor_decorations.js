@@ -76,9 +76,12 @@ export class EditorDiagnosticsController {
       header.appendChild(codeSpan);
     }
 
+    const lineNum = diag.range ? diag.range.startLine : diag.start_line || diag.line || 1;
+    const colNum = diag.range ? diag.range.startCol : diag.start_col || diag.col || 1;
+
     const locSpan = document.createElement("span");
     locSpan.className = "problem-tooltip-loc";
-    locSpan.textContent = `Ln ${diag.line}, Col ${diag.col || 1}`;
+    locSpan.textContent = `Ln ${lineNum}, Col ${colNum}`;
     header.appendChild(locSpan);
 
     this.tooltipEl.appendChild(header);
@@ -235,9 +238,11 @@ export class EditorDiagnosticsController {
     }
 
     const gutterEls = buffer.container.querySelectorAll(".cm-gutter.cm-lineNumbers .cm-gutterElement");
+    const docLines = buffer.view && buffer.view.state && buffer.view.state.doc ? buffer.view.state.doc.lines : 1;
 
     for (const diag of matchedDiags) {
-      const lineNum = Number(diag.line) || 1;
+      const rawLine = diag.range ? diag.range.startLine : diag.start_line || diag.line || 1;
+      const lineNum = Math.min(Math.max(Number(rawLine) || 1, 1), docLines);
       const sev = (diag.severity || "error").toLowerCase();
 
       // Gutter decoration

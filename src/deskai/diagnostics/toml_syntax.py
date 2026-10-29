@@ -13,6 +13,16 @@ def check_toml(source: str, rel_path: str) -> list[Diagnostic]:
         msg = clean_text(str(exc))
         line = max(getattr(exc, "lineno", None) or 1, 1)
         col = max(getattr(exc, "colno", None) or 1, 1)
+
+        # If error occurs at EOF on an empty line, point to the last non-empty line with the unclosed token
+        lines = source.splitlines()
+        if line > len(lines) or (line <= len(lines) and not lines[line - 1].strip()):
+            for idx in range(min(line - 1, len(lines) - 1), -1, -1):
+                if lines[idx].strip():
+                    line = idx + 1
+                    col = len(lines[idx])
+                    break
+
         return [
             Diagnostic(
                 source="toml",
