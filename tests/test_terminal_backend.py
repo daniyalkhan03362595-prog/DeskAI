@@ -170,11 +170,11 @@ class TestTerminalBackend(unittest.TestCase):
         session.close()
 
     @unittest.skipIf(sys.platform == "win32", "Windows CI pseudo-console process lifecycle test")
-    def test_fifth_concurrent_session_is_refused(self):
-        """TerminalManager caps concurrent active sessions at 4."""
+    def test_seventh_concurrent_session_is_refused(self):
+        """TerminalManager caps concurrent active sessions at 6."""
         sessions = []
         try:
-            for _ in range(4):
+            for _ in range(6):
                 s = self.manager.create_session(workspace_root=self.temp_workspace)
                 sessions.append(s)
 

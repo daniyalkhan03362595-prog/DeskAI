@@ -1395,6 +1395,33 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.drawer-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: var(--space-1);
+}
+
+/* Maximized Drawer (VS Code Option A) */
+.editor-stage.drawer-maximized #editorViewport,
+.editor-stage.drawer-maximized .tab-strip,
+.editor-stage.drawer-maximized #resizerBottom {
+  display: none !important;
+}
+
+.editor-stage.drawer-maximized .bottom-drawer {
+  height: 100% !important;
+  flex: 1 1 100% !important;
+  max-height: 100% !important;
+}
+
 .drawer-tabs {
   display: flex;
   gap: var(--space-2);
@@ -1445,6 +1472,25 @@
 }
 
 /* Terminal Host Viewport */
+.terminal-main-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+  width: 100%;
+}
+
+.terminal-body {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+}
+
 #terminalHost {
   flex: 1;
   width: 100%;
@@ -1454,9 +1500,119 @@
   position: relative;
 }
 
+.terminal-instance {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+}
+
+.terminal-instance.active {
+  display: block;
+}
+
+.terminal-instance .xterm,
 #terminalHost .xterm {
   padding: 4px var(--space-2);
   height: 100%;
+}
+
+.terminal-tabs-sidebar {
+  display: none;
+  width: 130px;
+  background-color: var(--bg-card);
+  border-left: 1px solid var(--border-subtle);
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-1);
+  gap: 2px;
+  box-sizing: border-box;
+}
+
+.terminal-tabs-sidebar.is-visible {
+  display: flex;
+}
+
+.terminal-tab-item {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all var(--transition-fast);
+}
+
+.terminal-tab-item:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.terminal-tab-item:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: -1px;
+}
+
+.terminal-tab-item.active {
+  background-color: var(--bg-active);
+  color: var(--text-primary);
+  border-color: var(--border-regular);
+  border-left: 2px solid var(--color-amber);
+}
+
+.terminal-tab-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.terminal-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  padding: 0;
+}
+
+.terminal-tab-item:hover .terminal-tab-close,
+.terminal-tab-item.active .terminal-tab-close,
+.terminal-tab-close:focus-visible {
+  opacity: 1;
+}
+
+.terminal-tab-close:hover {
+  color: var(--color-danger);
+  background-color: var(--bg-hover);
+}
+
+.is-hidden {
+  display: none !important;
 }
 
 .terminal-footer {

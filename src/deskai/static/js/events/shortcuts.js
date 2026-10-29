@@ -45,6 +45,10 @@ export function initKeyboardShortcuts(store) {
       e.preventDefault();
       const promptInput = document.getElementById("promptTextarea");
       if (promptInput) promptInput.focus();
+    } else if (isCmd && e.shiftKey && (key === "`" || e.code === "Backquote")) {
+      e.preventDefault();
+      const newTermBtn = document.getElementById("btnNewTerminal");
+      if (newTermBtn) newTermBtn.click();
     } else if (isCmd && (key === "`" || e.code === "Backquote")) {
       e.preventDefault();
       const drawerToggleBtn = document.getElementById("drawerToggleBtn");

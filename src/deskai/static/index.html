@@ -126,12 +126,22 @@
               <button class="drawer-tab" id="tab-problems" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false" aria-controls="problemsPanel" tabindex="-1">Problems</button>
               <button class="drawer-tab" id="tab-ports" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false" aria-controls="portsPanel" tabindex="-1">Ports</button>
             </div>
-            <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer" tabindex="-1">─</button>
+            <div class="drawer-actions" id="drawerActions" role="toolbar" aria-label="Panel Actions">
+              <button class="icon-btn" id="btnNewTerminal" data-action="new-terminal" title="New Terminal" aria-label="New Terminal" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+              <button class="icon-btn" id="btnKillTerminalHeader" data-action="kill-terminal" title="No active terminal session" aria-label="Kill Active Terminal" disabled aria-disabled="true" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+              <button class="icon-btn" id="btnMaximizeDrawer" data-action="maximize-drawer" title="Maximize Terminal Panel" aria-label="Maximize Terminal Panel" aria-expanded="false" tabindex="-1"><svg class="deskai-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></button>
+              <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer" title="Minimize Panel" tabindex="-1">─</button>
+            </div>
           </div>
           <div class="drawer-content" id="drawerContent">
             <!-- Terminal Panel -->
             <div class="drawer-panel active" id="terminalPanel" role="tabpanel" aria-labelledby="tab-terminal" tabindex="-1">
-              <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
+              <div class="terminal-main-layout" id="terminalMainLayout">
+                <div class="terminal-body" id="terminalBody">
+                  <div id="terminalHost" role="log" aria-label="Terminal output" aria-live="off"></div>
+                </div>
+                <div class="terminal-tabs-sidebar" id="terminalTabsSidebar" role="tablist" aria-label="Terminal Sessions"></div>
+              </div>
               <div class="terminal-footer">
                 <span class="terminal-footer-hint" aria-hidden="true" title="Ctrl+Shift+M: Move focus out">Ctrl+Shift+M: Move focus out</span>
                 <div class="terminal-footer-actions">

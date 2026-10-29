@@ -116,6 +116,22 @@ const ICON_DEFS = {
     { tag: "polyline", attrs: { points: "4 17 10 11 4 5" } },
     { tag: "line", attrs: { x1: "12", y1: "19", x2: "20", y2: "19" } },
   ],
+  "plus": [
+    { tag: "line", attrs: { x1: "12", y1: "5", x2: "12", y2: "19" } },
+    { tag: "line", attrs: { x1: "5", y1: "12", x2: "19", y2: "12" } },
+  ],
+  "maximize": [
+    { tag: "polyline", attrs: { points: "15 3 21 3 21 9" } },
+    { tag: "polyline", attrs: { points: "9 21 3 21 3 15" } },
+    { tag: "line", attrs: { x1: "21", y1: "3", x2: "14", y2: "10" } },
+    { tag: "line", attrs: { x1: "3", y1: "21", x2: "10", y2: "14" } },
+  ],
+  "restore": [
+    { tag: "polyline", attrs: { points: "4 14 10 14 10 20" } },
+    { tag: "polyline", attrs: { points: "20 10 14 10 14 4" } },
+    { tag: "line", attrs: { x1: "14", y1: "10", x2: "21", y2: "3" } },
+    { tag: "line", attrs: { x1: "3", y1: "21", x2: "10", y2: "14" } },
+  ],
   "status-dot": [
     { tag: "circle", attrs: { cx: "12", cy: "12", r: "6", fill: "currentColor" } },
   ],

@@ -4,6 +4,7 @@
 import { NativeBridge } from "./bridge.js";
 import { store } from "./state.js";
 import { toggleTheme } from "./theme.js";
+import { createSvgIcon } from "./icons.js";
 import { initKeyboardShortcuts } from "./events/shortcuts.js";
 import { initPanelResizers, initHeaderAndWindowResizers } from "./events/resizers.js";
 
@@ -234,18 +235,63 @@ export function initGlobalEvents() {
         }
         break;
 
+      case "new-terminal":
+        if (window.DeskAITerminal) {
+          window.DeskAITerminal.newSession();
+        }
+        break;
+
+      case "maximize-drawer": {
+        const stage = document.getElementById("editorStage");
+        const drawer = document.getElementById("bottomDrawer");
+        const btn = document.getElementById("btnMaximizeDrawer");
+        if (stage && drawer) {
+          if (drawer.classList.contains("collapsed")) {
+            drawer.classList.remove("collapsed");
+            const toggleBtn = document.getElementById("drawerToggleBtn");
+            if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
+          }
+
+          const isMaximized = stage.classList.toggle("drawer-maximized");
+          if (btn) {
+            btn.setAttribute("aria-expanded", String(isMaximized));
+            btn.setAttribute("title", isMaximized ? "Restore Terminal Panel Size" : "Maximize Terminal Panel");
+            btn.setAttribute("aria-label", isMaximized ? "Restore Terminal Panel Size" : "Maximize Terminal Panel");
+            btn.replaceChildren(createSvgIcon(isMaximized ? "restore" : "maximize", 14));
+          }
+
+          if (window.DeskAITerminal) {
+            window.DeskAITerminal.fit();
+          }
+        }
+        break;
+      }
+
       case "toggle-drawer": {
         const drawer = document.getElementById("bottomDrawer");
+        const stage = document.getElementById("editorStage");
         if (drawer) {
           const isCollapsed = drawer.classList.toggle("collapsed");
           trigger.setAttribute("aria-expanded", String(!isCollapsed));
           if (isCollapsed) {
+            if (stage && stage.classList.contains("drawer-maximized")) {
+              stage.classList.remove("drawer-maximized");
+              const maxBtn = document.getElementById("btnMaximizeDrawer");
+              if (maxBtn) {
+                maxBtn.setAttribute("aria-expanded", "false");
+                maxBtn.setAttribute("title", "Maximize Terminal Panel");
+                maxBtn.setAttribute("aria-label", "Maximize Terminal Panel");
+                maxBtn.replaceChildren(createSvgIcon("maximize", 14));
+              }
+            }
             if (window.DeskAIPorts) window.DeskAIPorts.stopPolling();
           } else {
             const activeTab = document.querySelector(".drawer-tab.active");
             if (activeTab && activeTab.getAttribute("data-target") === "ports" && window.DeskAIPorts) {
               window.DeskAIPorts.refresh();
               window.DeskAIPorts.startPolling();
+            } else if (activeTab && activeTab.getAttribute("data-target") === "terminal" && window.DeskAITerminal) {
+              window.DeskAITerminal.fit();
             }
           }
         }
@@ -278,6 +324,13 @@ export function initGlobalEvents() {
             panel.setAttribute("hidden", "");
           }
         });
+
+        // Toggle terminal action buttons visibility in drawer header
+        const btnNewTerm = document.getElementById("btnNewTerminal");
+        const btnKillTerm = document.getElementById("btnKillTerminalHeader");
+        const isTerminalTab = target === "terminal";
+        if (btnNewTerm) btnNewTerm.classList.toggle("is-hidden", !isTerminalTab);
+        if (btnKillTerm) btnKillTerm.classList.toggle("is-hidden", !isTerminalTab);
 
         if (target === "terminal" && window.DeskAITerminal) {
           window.DeskAITerminal.onTabShown();

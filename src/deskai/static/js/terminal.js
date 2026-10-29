@@ -107,6 +107,13 @@ export class LogView {
 export class TerminalView {
   constructor() {
     this.host = document.getElementById("terminalHost");
+    this.tabsSidebar = document.getElementById("terminalTabsSidebar");
+    this.sessions = [];
+    this.activeSessionId = null;
+    this.sessionCounter = 0;
+    this.MAX_SESSIONS = 6;
+    this.primaryContainer = null;
+
     this.term = null;
     this.fitAddon = null;
     this.transport = new TerminalTransport({
@@ -125,7 +132,7 @@ export class TerminalView {
         updateTabStatus(false);
         this.showConnectionLostBanner(code);
       },
-      isExited: () => this.hasExited
+      isExited: () => this.hasExited,
     });
     this._sessionId = null;
     this.isInitialized = false;
@@ -136,22 +143,28 @@ export class TerminalView {
     this.isActive = false;
     this.isIdle = true;
     this.isAuthPending = false;
+    this._killBtnBound = false;
+    this._srBound = false;
   }
 
   get ws() {
-    return this.transport.ws;
+    return this.transport ? this.transport.ws : null;
   }
 
   set ws(val) {
-    this.transport.ws = val;
+    if (this.transport) {
+      this.transport.ws = val;
+    }
   }
 
   get reconnectAttempts() {
-    return this.transport.reconnectAttempts;
+    return this.transport ? this.transport.reconnectAttempts : 0;
   }
 
   set reconnectAttempts(val) {
-    this.transport.reconnectAttempts = val;
+    if (this.transport) {
+      this.transport.reconnectAttempts = val;
+    }
   }
 
   get sessionId() {
@@ -162,12 +175,20 @@ export class TerminalView {
     this._sessionId = val;
     if (val) {
       this.hasExited = false;
+      this.activeSessionId = val;
     }
     this._updateKillButtonState();
   }
 
   init() {
     if (!this.host || !window.Terminal) return;
+    this.tabsSidebar = document.getElementById("terminalTabsSidebar");
+
+    const session1Container = document.createElement("div");
+    session1Container.className = "terminal-instance active";
+    session1Container.id = "term-inst-initial";
+    this.host.appendChild(session1Container);
+    this.primaryContainer = session1Container;
 
     const theme = getTerminalTheme();
     const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
@@ -193,9 +214,9 @@ export class TerminalView {
       this.term.loadAddon(this.fitAddon);
     }
 
-    this.term.open(this.host);
+    this.term.open(session1Container);
 
-    const helperTa = this.host ? this.host.querySelector("textarea") : null;
+    const helperTa = session1Container.querySelector("textarea");
     if (helperTa) {
       helperTa.setAttribute("tabindex", "-1");
     }
@@ -213,7 +234,7 @@ export class TerminalView {
     }
 
     const srCheckbox = document.getElementById("terminalSrToggle");
-    if (srCheckbox) {
+    if (srCheckbox && !this._srBound) {
       srCheckbox.checked = srMode;
       srCheckbox.addEventListener("change", () => {
         const isEnabled = srCheckbox.checked;
@@ -221,15 +242,47 @@ export class TerminalView {
         if (this.term && this.term.options) {
           this.term.options.screenReaderMode = isEnabled;
         }
+        this.sessions.forEach((s) => {
+          if (s.term && s.term.options) {
+            s.term.options.screenReaderMode = isEnabled;
+          }
+        });
       });
+      this._srBound = true;
     }
 
     const killBtn = document.getElementById("terminalKillBtn");
-    if (killBtn) {
+    if (killBtn && !this._killBtnBound) {
       killBtn.addEventListener("click", () => this.kill());
+      this._killBtnBound = true;
     }
-    this._updateKillButtonState();
 
+    this._bindPrimaryTermEvents(isMac);
+
+    const panel = document.getElementById("terminalPanel");
+    if (panel) {
+      panel.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && document.activeElement === panel) {
+          e.preventDefault();
+          this.term.focus();
+          if (!this.sessionId && !this.isOpening && !this.hasExited) {
+            this.startSession();
+          }
+        }
+      });
+    }
+
+    if (!this.sessionId) {
+      this.term.writeln("\r\nPress Enter or click to start a shell\r\n");
+    }
+
+    this._updateKillButtonState();
+    this._updateNewTerminalButtonState();
+    this.renderTabsList();
+    this.isInitialized = true;
+  }
+
+  _bindPrimaryTermEvents(isMac) {
     this.term.attachCustomKeyEventHandler((e) => {
       if (this.isAuthPending) {
         return false;
@@ -307,31 +360,12 @@ export class TerminalView {
         this.showConnectionLostBanner(this.transport.lastCloseCode || 1006);
       }
     });
-
-    const panel = document.getElementById("terminalPanel");
-    if (panel) {
-      panel.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && document.activeElement === panel) {
-          e.preventDefault();
-          this.term.focus();
-          if (!this.sessionId && !this.isOpening && !this.hasExited) {
-            this.startSession();
-          }
-        }
-      });
-    }
-
-    if (!this.sessionId) {
-      this.term.writeln("\r\nPress Enter or click to start a shell\r\n");
-    }
-
-    this.isInitialized = true;
   }
 
   activate() {
     this.isActive = true;
     this.isIdle = false;
-    const helperTa = this.host ? this.host.querySelector("textarea") : null;
+    const helperTa = this.host ? this.host.querySelector(".terminal-instance.active textarea, textarea") : null;
     if (helperTa) {
       helperTa.setAttribute("tabindex", "0");
       if (!this.isAuthPending) {
@@ -352,7 +386,7 @@ export class TerminalView {
   deactivate() {
     this.isActive = false;
     this.isIdle = true;
-    const helperTa = this.host ? this.host.querySelector("textarea") : null;
+    const helperTa = this.host ? this.host.querySelector(".terminal-instance.active textarea, textarea") : null;
     if (helperTa) {
       helperTa.setAttribute("tabindex", "-1");
     }
@@ -395,7 +429,25 @@ export class TerminalView {
 
       if (res && res.status === "ok" && res.session_id) {
         this.sessionId = res.session_id;
+        this.activeSessionId = res.session_id;
+        this.sessionCounter = 1;
+        const isWin = navigator.platform && navigator.platform.toUpperCase().includes("WIN");
+        const shellName = isWin ? "cmd" : "bash";
+        const sessionObj = {
+          id: res.session_id,
+          name: `${shellName} 1`,
+          term: this.term,
+          fitAddon: this.fitAddon,
+          transport: this.transport,
+          containerEl: this.primaryContainer,
+          hasExited: false,
+        };
+        this.sessions = [sessionObj];
+
         this._updateKillButtonState();
+        this._updateNewTerminalButtonState();
+        this.renderTabsList();
+
         if (this.term) this.term.reset();
         updateTabStatus(true);
         this.connectWebSocket(this.sessionId);
@@ -411,6 +463,266 @@ export class TerminalView {
     } finally {
       this.isOpening = false;
     }
+  }
+
+  async newSession() {
+    if (this.sessions.length >= this.MAX_SESSIONS) {
+      announce("Maximum 6 terminal sessions reached");
+      return;
+    }
+
+    if (!this.isInitialized) {
+      this.init();
+    }
+
+    if (this.sessions.length === 0 && !this.sessionId && !this.isOpening) {
+      await this.startSession(true);
+      return;
+    }
+
+    await this._spawnAdditionalSession();
+  }
+
+  async _spawnAdditionalSession() {
+    if (this.sessions.length >= this.MAX_SESSIONS) {
+      announce("Maximum 6 terminal sessions reached");
+      return;
+    }
+
+    const dims = this.getDimensions();
+    const res = await NativeBridge.terminalOpen(dims.cols, dims.rows, true, true);
+    if (!res || res.status !== "ok" || !res.session_id) {
+      const errorMsg = res && res.message ? res.message : "Failed to spawn new terminal session";
+      if (this.term) {
+        this.term.writeln(`\r\n\x1b[31m[DeskAI] ${errorMsg}\x1b[0m\r\n`);
+      }
+      return;
+    }
+
+    this.sessionCounter++;
+    const isWin = navigator.platform && navigator.platform.toUpperCase().includes("WIN");
+    const shellName = isWin ? "cmd" : "bash";
+    const name = `${shellName} ${this.sessionCounter}`;
+
+    const sessionObj = this._createSessionInstance(res.session_id, name);
+    this.sessions.push(sessionObj);
+    this.switchSession(res.session_id);
+    sessionObj.transport.connect(res.session_id);
+
+    this.renderTabsList();
+    this._updateKillButtonState();
+    this._updateNewTerminalButtonState();
+    announce(`New terminal session created: ${name}`);
+  }
+
+  _createSessionInstance(sessionId, name) {
+    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    const theme = getTerminalTheme();
+    const srMode = getStoredScreenReaderMode();
+
+    const container = document.createElement("div");
+    container.className = "terminal-instance";
+    container.id = `term-inst-${sessionId}`;
+    this.host.appendChild(container);
+
+    const term = new window.Terminal({
+      cursorBlink: true,
+      fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
+      fontSize: 12,
+      lineHeight: 1.25,
+      scrollback: MAX_LOG_LINES,
+      screenReaderMode: srMode,
+      theme,
+      linkHandler: {
+        activate: (event, text) => {
+          NativeBridge.openExternalUrl(text);
+        },
+      },
+    });
+
+    let fitAddon = null;
+    if (window.FitAddon && window.FitAddon.FitAddon) {
+      fitAddon = new window.FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+    }
+
+    term.open(container);
+
+    const helperTa = container.querySelector("textarea");
+    if (helperTa) {
+      helperTa.setAttribute("tabindex", "-1");
+    }
+
+    const sessionObj = {
+      id: sessionId,
+      name,
+      term,
+      fitAddon,
+      transport: null,
+      containerEl: container,
+      hasExited: false,
+    };
+
+    const transport = new TerminalTransport({
+      onOpen: () => {
+        updateTabStatus(true);
+        this.removeExitBanner(sessionObj);
+        this.fit();
+      },
+      onData: (bytes) => {
+        if (sessionObj.term) sessionObj.term.write(bytes);
+      },
+      onExit: (code) => {
+        this.handleProcessExit(code, sessionObj);
+      },
+      onClose: (code) => {
+        updateTabStatus(false);
+        this.showConnectionLostBanner(code, sessionObj);
+      },
+      isExited: () => sessionObj.hasExited,
+    });
+
+    sessionObj.transport = transport;
+
+    this._bindSessionTermEvents(sessionObj, isMac);
+
+    return sessionObj;
+  }
+
+  _bindSessionTermEvents(sessionObj, isMac) {
+    const term = sessionObj.term;
+    const transport = sessionObj.transport;
+
+    term.attachCustomKeyEventHandler((e) => {
+      const isCmd = isMac ? e.metaKey : e.ctrlKey;
+      const key = e.key.toLowerCase();
+
+      if (key === "escape" || (isCmd && e.shiftKey && key === "m")) {
+        if (e.type === "keydown") {
+          e.preventDefault();
+          this.deactivate();
+          const tab = document.getElementById("tab-terminal");
+          if (tab) tab.focus();
+        }
+        return false;
+      }
+
+      if (isCmd && ((e.shiftKey && key === "c") || (isMac && key === "c"))) {
+        if (term.hasSelection()) {
+          if (e.type === "keydown") {
+            e.preventDefault();
+            navigator.clipboard.writeText(term.getSelection());
+          }
+          return false;
+        }
+      }
+
+      if (isCmd && (key === "s" || key === "w" || key === "enter")) {
+        return true;
+      }
+
+      return true;
+    });
+
+    term.onData((data) => {
+      const sent = transport.sendData(data);
+      if (!sent && !sessionObj.hasExited && sessionObj.id) {
+        this.showConnectionLostBanner(transport.lastCloseCode || 1006, sessionObj);
+      }
+    });
+
+    term.onBinary((data) => {
+      const bytes = new Uint8Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        bytes[i] = data.charCodeAt(i) & 255;
+      }
+      const sent = transport.sendData(bytes);
+      if (!sent && !sessionObj.hasExited && sessionObj.id) {
+        this.showConnectionLostBanner(transport.lastCloseCode || 1006, sessionObj);
+      }
+    });
+  }
+
+  switchSession(sessionId) {
+    const targetSession = this.sessions.find((s) => s.id === sessionId);
+    if (!targetSession) return;
+
+    this.sessions.forEach((s) => {
+      if (s.containerEl) {
+        s.containerEl.classList.toggle("active", s.id === sessionId);
+      }
+    });
+
+    this.activeSessionId = targetSession.id;
+    this._sessionId = targetSession.id;
+    this.term = targetSession.term;
+    this.fitAddon = targetSession.fitAddon;
+    this.transport = targetSession.transport;
+    this.hasExited = targetSession.hasExited;
+
+    this.renderTabsList();
+    this._updateKillButtonState();
+    this.fit();
+    if (this.term) {
+      this.term.focus();
+    }
+    announce(`Switched to ${targetSession.name}`);
+  }
+
+  renderTabsList() {
+    if (!this.tabsSidebar) {
+      this.tabsSidebar = document.getElementById("terminalTabsSidebar");
+    }
+    if (!this.tabsSidebar) return;
+
+    if (this.sessions.length <= 1) {
+      this.tabsSidebar.classList.remove("is-visible");
+      this.tabsSidebar.replaceChildren();
+      return;
+    }
+
+    this.tabsSidebar.classList.add("is-visible");
+    this.tabsSidebar.replaceChildren();
+
+    this.sessions.forEach((session) => {
+      const isSelected = session.id === this.activeSessionId;
+      const tabBtn = document.createElement("button");
+      tabBtn.type = "button";
+      tabBtn.className = `terminal-tab-item${isSelected ? " active" : ""}`;
+      tabBtn.setAttribute("role", "tab");
+      tabBtn.setAttribute("aria-selected", String(isSelected));
+      tabBtn.setAttribute("tabindex", isSelected ? "0" : "-1");
+      tabBtn.title = session.name;
+
+      const titleSpan = document.createElement("span");
+      titleSpan.className = "terminal-tab-title";
+      titleSpan.appendChild(createSvgIcon("terminal", 12));
+      const nameText = document.createElement("span");
+      nameText.textContent = session.name;
+      titleSpan.appendChild(nameText);
+      tabBtn.appendChild(titleSpan);
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "terminal-tab-close";
+      closeBtn.setAttribute("data-action", "close-terminal-tab");
+      closeBtn.setAttribute("aria-label", `Kill ${session.name}`);
+      closeBtn.title = `Kill ${session.name}`;
+      closeBtn.appendChild(createSvgIcon("close", 12));
+
+      closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.killSession(session.id);
+      });
+
+      tabBtn.appendChild(closeBtn);
+
+      tabBtn.addEventListener("click", () => {
+        this.switchSession(session.id);
+      });
+
+      this.tabsSidebar.appendChild(tabBtn);
+    });
   }
 
   showAuthPrompt(workspaceName) {
@@ -510,15 +822,26 @@ export class TerminalView {
   }
 
   connectWebSocket(sessionId) {
-    this.transport.connect(sessionId);
+    if (this.transport) {
+      this.transport.connect(sessionId);
+    }
   }
 
-  handleProcessExit(code) {
-    this.hasExited = true;
-    this._updateKillButtonState();
-    updateTabStatus(false);
-    if (!this.host) return;
-    this.removeExitBanner();
+  handleProcessExit(code, sessionObj = null) {
+    const targetSession = sessionObj || this.sessions.find((s) => s.id === this.activeSessionId);
+    if (targetSession) {
+      targetSession.hasExited = true;
+    }
+    if (!targetSession || targetSession.id === this.activeSessionId) {
+      this.hasExited = true;
+      this._updateKillButtonState();
+      updateTabStatus(false);
+    }
+
+    const hostTarget = targetSession ? targetSession.containerEl : this.host;
+    if (!hostTarget) return;
+
+    this.removeExitBanner(targetSession);
 
     const banner = document.createElement("div");
     banner.className = "terminal-status-banner";
@@ -531,37 +854,126 @@ export class TerminalView {
     restartBtn.setAttribute("data-action", "restart-terminal");
     restartBtn.textContent = "Restart terminal";
     restartBtn.addEventListener("click", () => {
-      const oldSessionId = this.sessionId;
-      this.sessionId = null;
-      if (oldSessionId) {
-        NativeBridge.terminalClose(oldSessionId);
+      if (targetSession) {
+        this.killSession(targetSession.id);
+        this.newSession();
+      } else {
+        const oldSessionId = this.sessionId;
+        this.sessionId = null;
+        if (oldSessionId) {
+          NativeBridge.terminalClose(oldSessionId);
+        }
+        if (this.term) this.term.reset();
+        this.startSession();
       }
-      if (this.term) this.term.reset();
-      this.startSession();
     });
 
     banner.appendChild(msgSpan);
     banner.appendChild(restartBtn);
-    this.host.appendChild(banner);
+    hostTarget.appendChild(banner);
 
     announce(`Terminal exited with code ${code}`);
   }
 
-  async kill() {
-    if (this.sessionId) {
-      const id = this.sessionId;
+  async kill(sessionId = null) {
+    const targetId = sessionId || this.activeSessionId || this.sessionId;
+    if (!targetId) return;
+    await this.killSession(targetId);
+  }
+
+  async killSession(sessionId) {
+    const idx = this.sessions.findIndex((s) => s.id === sessionId);
+    if (idx === -1) {
+      // Fallback for single/mock session (e.g. test_task5)
       this.sessionId = null;
       this.hasExited = true;
       this._updateKillButtonState();
-      await NativeBridge.terminalClose(id);
+      await NativeBridge.terminalClose(sessionId);
       this.handleProcessExit(137);
+      return;
     }
+
+    const session = this.sessions[idx];
+    if (session.transport) {
+      session.transport.close();
+    }
+    await NativeBridge.terminalClose(session.id);
+    if (session.term) {
+      session.term.dispose();
+    }
+    if (session.containerEl) {
+      session.containerEl.remove();
+    }
+
+    this.sessions.splice(idx, 1);
+
+    if (this.activeSessionId === sessionId) {
+      if (this.sessions.length > 0) {
+        const nextIdx = Math.min(idx, this.sessions.length - 1);
+        this.switchSession(this.sessions[nextIdx].id);
+      } else {
+        this.activeSessionId = null;
+        this.sessionId = null;
+        this.hasExited = true;
+        this._updateKillButtonState();
+        this._updateNewTerminalButtonState();
+        this.renderTabsList();
+        this._createInitialIdleTerm();
+      }
+    } else {
+      this.renderTabsList();
+      this._updateKillButtonState();
+      this._updateNewTerminalButtonState();
+    }
+
+    announce("Terminal session closed");
   }
 
-  showConnectionLostBanner(code = 1006) {
+  _createInitialIdleTerm() {
+    if (this.primaryContainer) {
+      this.primaryContainer.remove();
+    }
+    const session1Container = document.createElement("div");
+    session1Container.className = "terminal-instance active";
+    session1Container.id = "term-inst-idle";
+    this.host.appendChild(session1Container);
+    this.primaryContainer = session1Container;
+
+    const theme = getTerminalTheme();
+    const srMode = getStoredScreenReaderMode();
+    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+
+    this.term = new window.Terminal({
+      cursorBlink: true,
+      fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
+      fontSize: 12,
+      lineHeight: 1.25,
+      scrollback: MAX_LOG_LINES,
+      screenReaderMode: srMode,
+      theme,
+    });
+
+    if (window.FitAddon && window.FitAddon.FitAddon) {
+      this.fitAddon = new window.FitAddon.FitAddon();
+      this.term.loadAddon(this.fitAddon);
+    }
+
+    this.term.open(session1Container);
+    this.term.writeln("\r\nPress Enter or click to start a shell\r\n");
+
+    const helperTa = session1Container.querySelector("textarea");
+    if (helperTa) {
+      helperTa.setAttribute("tabindex", "-1");
+    }
+
+    this._bindPrimaryTermEvents(isMac);
+  }
+
+  showConnectionLostBanner(code = 1006, sessionObj = null) {
     updateTabStatus(false);
-    if (!this.host) return;
-    this.removeExitBanner();
+    const hostTarget = sessionObj ? sessionObj.containerEl : this.host;
+    if (!hostTarget) return;
+    this.removeExitBanner(sessionObj);
 
     const banner = document.createElement("div");
     banner.className = "terminal-status-banner connection-lost";
@@ -574,25 +986,33 @@ export class TerminalView {
     reconnectBtn.setAttribute("data-action", "reconnect-terminal");
     reconnectBtn.textContent = "Reconnect";
     reconnectBtn.addEventListener("click", () => {
-      this.removeExitBanner();
-      if (this.term) this.term.reset();
-      if (this.sessionId) {
-        this.connectWebSocket(this.sessionId);
+      this.removeExitBanner(sessionObj);
+      if (sessionObj) {
+        if (sessionObj.term) sessionObj.term.reset();
+        if (sessionObj.id) {
+          sessionObj.transport.connect(sessionObj.id);
+        }
       } else {
-        this.startSession();
+        if (this.term) this.term.reset();
+        if (this.sessionId) {
+          this.connectWebSocket(this.sessionId);
+        } else {
+          this.startSession();
+        }
       }
     });
 
     banner.appendChild(msgSpan);
     banner.appendChild(reconnectBtn);
-    this.host.appendChild(banner);
+    hostTarget.appendChild(banner);
 
     announce(`Connection lost (code ${code})`);
   }
 
-  removeExitBanner() {
-    if (this.host) {
-      const banner = this.host.querySelector(".terminal-status-banner");
+  removeExitBanner(sessionObj = null) {
+    const hostTarget = sessionObj ? sessionObj.containerEl : this.host;
+    if (hostTarget) {
+      const banner = hostTarget.querySelector(".terminal-status-banner");
       if (banner) banner.remove();
     }
   }
@@ -635,20 +1055,37 @@ export class TerminalView {
     if (this.resizeRafId) cancelAnimationFrame(this.resizeRafId);
     this.resizeRafId = requestAnimationFrame(() => {
       this.resizeRafId = 0;
-      if (!this.isPanelVisible() || !this.fitAddon || !this.term) return;
+      if (!this.isPanelVisible()) return;
 
-      try {
-        this.fitAddon.fit();
-        const cols = this.term.cols;
-        const rows = this.term.rows;
-        this.transport.sendResize(cols, rows);
-      } catch (err) {
-        // Ignored
+      const currentFit = this.fitAddon;
+      const currentTerm = this.term;
+      const currentTransport = this.transport;
+
+      if (currentFit && currentTerm) {
+        try {
+          currentFit.fit();
+          const cols = currentTerm.cols;
+          const rows = currentTerm.rows;
+          if (currentTransport) {
+            currentTransport.sendResize(cols, rows);
+          }
+        } catch (err) {
+          // Ignored
+        }
       }
     });
   }
 
   destroy() {
+    this.sessions.forEach((s) => {
+      if (s.transport) s.transport.close();
+      if (s.id) NativeBridge.terminalClose(s.id);
+      if (s.term) s.term.dispose();
+      if (s.containerEl) s.containerEl.remove();
+    });
+    this.sessions = [];
+    this.activeSessionId = null;
+
     this.hasExited = true;
     this.isAuthPending = false;
     updateTabStatus(false);
@@ -657,28 +1094,53 @@ export class TerminalView {
     if (this.sessionId) {
       NativeBridge.terminalClose(this.sessionId);
     }
-    this.transport.close();
+    if (this.transport) {
+      this.transport.close();
+    }
     if (this.term) {
       this.term.dispose();
       this.term = null;
     }
     this.sessionId = null;
     this._updateKillButtonState();
+    this._updateNewTerminalButtonState();
+    this.renderTabsList();
     this.isInitialized = false;
   }
 
   _updateKillButtonState() {
     const killBtn = document.getElementById("terminalKillBtn");
-    if (!killBtn) return;
+    const headerKillBtn = document.getElementById("btnKillTerminalHeader");
     const isAlive = Boolean(this.sessionId && !this.hasExited);
-    if (isAlive) {
-      killBtn.removeAttribute("disabled");
-      killBtn.setAttribute("aria-disabled", "false");
-      killBtn.title = "Kill active terminal session";
+
+    [killBtn, headerKillBtn].forEach((btn) => {
+      if (!btn) return;
+      if (isAlive) {
+        btn.removeAttribute("disabled");
+        btn.setAttribute("aria-disabled", "false");
+        btn.title = "Kill active terminal session";
+      } else {
+        btn.setAttribute("disabled", "disabled");
+        btn.setAttribute("aria-disabled", "true");
+        btn.title = "No active terminal session";
+      }
+    });
+
+    this._updateNewTerminalButtonState();
+  }
+
+  _updateNewTerminalButtonState() {
+    const newBtn = document.getElementById("btnNewTerminal");
+    if (!newBtn) return;
+    const isMax = this.sessions.length >= this.MAX_SESSIONS;
+    if (isMax) {
+      newBtn.setAttribute("disabled", "disabled");
+      newBtn.setAttribute("aria-disabled", "true");
+      newBtn.title = "Maximum 6 terminal sessions reached";
     } else {
-      killBtn.setAttribute("disabled", "disabled");
-      killBtn.setAttribute("aria-disabled", "true");
-      killBtn.title = "No active terminal session";
+      newBtn.removeAttribute("disabled");
+      newBtn.setAttribute("aria-disabled", "false");
+      newBtn.title = "New Terminal (Ctrl+Shift+`)";
     }
   }
 }

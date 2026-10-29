@@ -420,7 +420,7 @@ class TerminalSession:
 class TerminalManager:
     """Manages active terminal sessions, spawn gating, and clean teardown."""
 
-    MAX_SESSIONS = 4
+    MAX_SESSIONS = 6
 
     def __init__(self):
         self._sessions: dict[str, TerminalSession] = {}
