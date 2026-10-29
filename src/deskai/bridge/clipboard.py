@@ -44,8 +44,11 @@ class ClipboardBridge(BaseBridgeModule):
     def _win32_write(self, text: str) -> dict:
         import ctypes
 
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
+        windll = getattr(ctypes, "windll", None)
+        if windll is None:
+            return {"status": "error", "message": "Windows ctypes.windll unavailable"}
+        user32 = windll.user32
+        kernel32 = windll.kernel32
 
         CF_UNICODETEXT = 13
         GMEM_MOVEABLE = 0x0002
@@ -69,8 +72,11 @@ class ClipboardBridge(BaseBridgeModule):
     def _win32_read(self) -> dict:
         import ctypes
 
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
+        windll = getattr(ctypes, "windll", None)
+        if windll is None:
+            return {"status": "error", "message": "Windows ctypes.windll unavailable", "text": ""}
+        user32 = windll.user32
+        kernel32 = windll.kernel32
 
         CF_UNICODETEXT = 13
 
