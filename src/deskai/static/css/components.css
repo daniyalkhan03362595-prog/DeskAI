@@ -2137,7 +2137,7 @@ button[aria-busy="true"],
   gap: 2px;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   padding: 2px 7px;
   font-size: 11px;
   font-weight: 500;
@@ -2149,7 +2149,7 @@ button[aria-busy="true"],
 
 .problem-action-btn:hover,
 .problem-action-btn:focus-visible {
-  background: var(--color-primary-muted);
+  background: var(--bg-hover);
   color: var(--color-primary);
   border-color: var(--color-primary);
   outline: none;
@@ -2244,19 +2244,19 @@ button[aria-busy="true"],
    In-Editor Diagnostic Squiggles, Gutter Dots & Tooltip
    ------------------------------------------------------------- */
 .cm-line-diagnostic-error {
-  text-decoration: underline wavy var(--color-danger, #ef4444) !important;
+  text-decoration: underline wavy var(--color-danger) !important;
   text-decoration-skip-ink: none !important;
   text-underline-offset: 3px !important;
 }
 
 .cm-line-diagnostic-warning {
-  text-decoration: underline wavy var(--color-warning, #f59e0b) !important;
+  text-decoration: underline wavy var(--color-warning) !important;
   text-decoration-skip-ink: none !important;
   text-underline-offset: 3px !important;
 }
 
 .cm-line-diagnostic-info {
-  text-decoration: underline wavy var(--color-info, #3b82f6) !important;
+  text-decoration: underline wavy var(--color-info) !important;
   text-decoration-skip-ink: none !important;
   text-underline-offset: 3px !important;
 }
@@ -2267,7 +2267,7 @@ button[aria-busy="true"],
 }
 
 .cm-gutter-diagnostic-error {
-  color: var(--color-danger, #ef4444) !important;
+  color: var(--color-danger) !important;
 }
 
 .cm-gutter-diagnostic-error::before {
@@ -2279,11 +2279,11 @@ button[aria-busy="true"],
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: var(--color-danger, #ef4444);
+  background-color: var(--color-danger);
 }
 
 .cm-gutter-diagnostic-warning {
-  color: var(--color-warning, #f59e0b) !important;
+  color: var(--color-warning) !important;
 }
 
 .cm-gutter-diagnostic-warning::before {
@@ -2295,11 +2295,11 @@ button[aria-busy="true"],
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: var(--color-warning, #f59e0b);
+  background-color: var(--color-warning);
 }
 
 .cm-gutter-diagnostic-info {
-  color: var(--color-info, #3b82f6) !important;
+  color: var(--color-info) !important;
 }
 
 .cm-gutter-diagnostic-info::before {
@@ -2311,7 +2311,7 @@ button[aria-busy="true"],
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: var(--color-info, #3b82f6);
+  background-color: var(--color-info);
 }
 
 .problem-editor-tooltip {
