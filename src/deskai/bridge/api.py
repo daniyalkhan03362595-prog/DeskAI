@@ -8,6 +8,7 @@ import sys  # noqa: F401 (retained on API namespace for backward-compatible test
 from typing import TYPE_CHECKING
 
 from deskai.bridge.base import BaseBridgeModule
+from deskai.bridge.clipboard import ClipboardBridge
 from deskai.bridge.diagnostics import DiagnosticsBridge
 from deskai.bridge.git import GitBridge
 from deskai.bridge.ports import (
@@ -43,6 +44,7 @@ class DesktopBridgeAPI(
     TelemetryBridge,
     TerminalBridge,
     DiagnosticsBridge,
+    ClipboardBridge,
     BaseBridgeModule,
 ):
     """

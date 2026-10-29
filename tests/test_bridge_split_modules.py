@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from deskai.bridge.api import DesktopBridgeAPI
+from deskai.bridge.clipboard import ClipboardBridge
 from deskai.bridge.git import GitBridge
 from deskai.bridge.ports import PortsBridge, _is_safe_external_url, _reachable_host
 from deskai.bridge.telemetry import TelemetryBridge
@@ -54,6 +55,8 @@ class TestBridgeSplitModules(unittest.TestCase):
             "resize_window_absolute",
             "window_control",
             "set_dirty_status",
+            "clipboard_write",
+            "clipboard_read",
             "_is_origin_allowed",
         ]
         api_dir = dir(api)
@@ -170,6 +173,22 @@ class TestBridgeSplitModules(unittest.TestCase):
         term.workspace_root = "/tmp"
         res2 = term.terminal_open(cols=1, rows=24)
         self.assertEqual(res2["status"], "error")
+
+    def test_clipboard_bridge_isolated(self):
+        """ClipboardBridge handles read and write operations."""
+        cb = ClipboardBridge(self.mock_manager)
+
+        # Unauthorized origin
+        self.mock_window.get_current_url.return_value = "http://evil.com/"
+        self.assertEqual(cb.clipboard_write("secret")["status"], "error")
+        self.assertEqual(cb.clipboard_read()["status"], "error")
+
+        # Authorized origin
+        self.mock_window.get_current_url.return_value = "http://127.0.0.1:8000/"
+        write_res = cb.clipboard_write("deskai-test-clipboard")
+        self.assertIn(write_res["status"], ["ok", "error"])
+        read_res = cb.clipboard_read()
+        self.assertIn(read_res["status"], ["ok", "error"])
 
 
 if __name__ == "__main__":

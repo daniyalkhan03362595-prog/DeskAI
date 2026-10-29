@@ -281,6 +281,83 @@ export class TerminalView {
     this.isInitialized = true;
   }
 
+  async copySelection(term) {
+    if (!term) return;
+    const text = term.getSelection();
+    if (!text) return;
+
+    let copied = false;
+    try {
+      if (NativeBridge && typeof NativeBridge.clipboardWrite === "function") {
+        const res = await NativeBridge.clipboardWrite(text);
+        if (res && res.status === "ok") {
+          copied = true;
+        }
+      }
+    } catch (e) {
+      console.warn("[Terminal] NativeBridge.clipboardWrite error:", e);
+    }
+
+    if (!copied) {
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        }
+      } catch (e) {
+        console.warn("[Terminal] navigator.clipboard.writeText error:", e);
+      }
+    }
+
+    if (!copied) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        copied = true;
+      } catch (e) {
+        console.error("[Terminal] execCommand copy error:", e);
+      }
+    }
+  }
+
+  async pasteClipboard(term) {
+    if (!term) return;
+    let text = "";
+
+    try {
+      if (NativeBridge && typeof NativeBridge.clipboardRead === "function") {
+        const res = await NativeBridge.clipboardRead();
+        if (res && res.status === "ok" && typeof res.text === "string" && res.text.length > 0) {
+          text = res.text;
+        }
+      }
+    } catch (e) {
+      console.warn("[Terminal] NativeBridge.clipboardRead error:", e);
+    }
+
+    if (!text) {
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.readText === "function") {
+          text = await navigator.clipboard.readText();
+        }
+      } catch (e) {
+        console.warn("[Terminal] navigator.clipboard.readText error:", e);
+      }
+    }
+
+    if (text) {
+      term.paste(text);
+    }
+  }
+
   _bindPrimaryTermEvents(isMac) {
     this.term.attachCustomKeyEventHandler((e) => {
       if (this.isAuthPending) {
@@ -306,14 +383,30 @@ export class TerminalView {
         return false;
       }
 
+      if (isCmd && ((e.shiftKey && key === "a") || (isMac && key === "a"))) {
+        if (e.type === "keydown") {
+          e.preventDefault();
+          this.term.selectAll();
+        }
+        return false;
+      }
+
       if (isCmd && ((e.shiftKey && key === "c") || (isMac && key === "c"))) {
         if (this.term.hasSelection()) {
           if (e.type === "keydown") {
             e.preventDefault();
-            navigator.clipboard.writeText(this.term.getSelection());
+            this.copySelection(this.term);
           }
           return false;
         }
+      }
+
+      if (isCmd && ((e.shiftKey && key === "v") || (isMac && key === "v"))) {
+        if (e.type === "keydown") {
+          e.preventDefault();
+          this.pasteClipboard(this.term);
+        }
+        return false;
       }
 
       if (isCmd && (key === "s" || key === "w" || key === "enter")) {
@@ -604,14 +697,30 @@ export class TerminalView {
         return false;
       }
 
+      if (isCmd && ((e.shiftKey && key === "a") || (isMac && key === "a"))) {
+        if (e.type === "keydown") {
+          e.preventDefault();
+          term.selectAll();
+        }
+        return false;
+      }
+
       if (isCmd && ((e.shiftKey && key === "c") || (isMac && key === "c"))) {
         if (term.hasSelection()) {
           if (e.type === "keydown") {
             e.preventDefault();
-            navigator.clipboard.writeText(term.getSelection());
+            this.copySelection(term);
           }
           return false;
         }
+      }
+
+      if (isCmd && ((e.shiftKey && key === "v") || (isMac && key === "v"))) {
+        if (e.type === "keydown") {
+          e.preventDefault();
+          this.pasteClipboard(term);
+        }
+        return false;
       }
 
       if (isCmd && (key === "s" || key === "w" || key === "enter")) {

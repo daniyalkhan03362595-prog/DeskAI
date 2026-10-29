@@ -100,6 +100,20 @@ export const NativeBridge = {
     return false;
   },
 
+  async clipboardWrite(text) {
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.clipboard_write === "function") {
+      return await window.pywebview.api.clipboard_write(text);
+    }
+    return { status: "error", message: "Bridge not ready" };
+  },
+
+  async clipboardRead() {
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.clipboard_read === "function") {
+      return await window.pywebview.api.clipboard_read();
+    }
+    return { status: "error", message: "Bridge not ready", text: "" };
+  },
+
   async setDirtyStatus(isDirty) {
     if (window.pywebview && window.pywebview.api) {
       return await window.pywebview.api.set_dirty_status(Boolean(isDirty));

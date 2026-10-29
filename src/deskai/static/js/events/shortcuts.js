@@ -14,7 +14,7 @@ export function initKeyboardShortcuts(store) {
       (terminalHost.contains(document.activeElement) ||
         (document.activeElement && (document.activeElement.closest("#terminalHost") || document.activeElement.closest(".xterm"))))
     ) {
-      if (isCmd && (key === "s" || key === "w" || e.key === "Enter")) {
+      if (!(isCmd && (key === "`" || e.code === "Backquote"))) {
         return;
       }
     }

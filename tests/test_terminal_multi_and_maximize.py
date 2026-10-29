@@ -50,13 +50,21 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
         # Mock pywebview bridge
         self.page.add_init_script("""
             let sessionCounter = 0;
+            window._clipboardMock = "";
             window.pywebview = {
                 api: {
                     terminal_open: async (cols, rows, confirmed, inlineAuth) => {
                         sessionCounter++;
                         return { status: "ok", session_id: "mock-sess-" + sessionCounter };
                     },
-                    terminal_close: async (sessionId) => true
+                    terminal_close: async (sessionId) => true,
+                    clipboard_write: async (text) => {
+                        window._clipboardMock = text;
+                        return { status: "ok" };
+                    },
+                    clipboard_read: async () => {
+                        return { status: "ok", text: window._clipboardMock || "" };
+                    }
                 }
             };
         """)
@@ -203,6 +211,70 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
         self.assertEqual(self.page.evaluate("() => window.DeskAITerminal.sessions.length"), 5)
         self.assertFalse(btn_new.is_disabled())
         self.assertEqual(btn_new.get_attribute("aria-disabled"), "false")
+
+    def test_terminal_clipboard_shortcuts(self):
+        """Ctrl+Shift+A selects all, Ctrl+Shift+C copies selection, Ctrl+Shift+V pastes clipboard."""
+        # 1. Write text into terminal buffer
+        self.page.evaluate("""() => {
+            window.DeskAITerminal.term.write("test sample command line");
+        }""")
+        self.page.wait_for_timeout(50)
+
+        # 2. Select All via Ctrl+Shift+A
+        self.page.evaluate("""() => {
+            const ev = new KeyboardEvent("keydown", {
+                key: "a",
+                code: "KeyA",
+                ctrlKey: true,
+                shiftKey: true,
+                bubbles: true,
+                cancelable: true
+            });
+            window.DeskAITerminal.term.textarea.dispatchEvent(ev);
+        }""")
+        self.page.wait_for_timeout(50)
+
+        has_selection = self.page.evaluate("() => window.DeskAITerminal.term.hasSelection()")
+        self.assertTrue(has_selection, "Ctrl+Shift+A should select text in terminal")
+        sel_text = self.page.evaluate("() => window.DeskAITerminal.term.getSelection()")
+        self.assertIn("test sample command line", sel_text)
+
+        # 3. Copy via Ctrl+Shift+C
+        self.page.evaluate("""() => {
+            const ev = new KeyboardEvent("keydown", {
+                key: "c",
+                code: "KeyC",
+                ctrlKey: true,
+                shiftKey: true,
+                bubbles: true,
+                cancelable: true
+            });
+            window.DeskAITerminal.term.textarea.dispatchEvent(ev);
+        }""")
+        self.page.wait_for_timeout(50)
+
+        clipboard_val = self.page.evaluate("() => window._clipboardMock")
+        self.assertIn("test sample command line", clipboard_val)
+
+        # 4. Paste via Ctrl+Shift+V
+        self.page.evaluate("""() => {
+            window._clipboardMock = "pasted_from_clipboard";
+            window._pastedData = "";
+            window.DeskAITerminal.term.onData(d => { window._pastedData += d; });
+            const ev = new KeyboardEvent("keydown", {
+                key: "v",
+                code: "KeyV",
+                ctrlKey: true,
+                shiftKey: true,
+                bubbles: true,
+                cancelable: true
+            });
+            window.DeskAITerminal.term.textarea.dispatchEvent(ev);
+        }""")
+        self.page.wait_for_timeout(50)
+
+        pasted = self.page.evaluate("() => window._pastedData")
+        self.assertIn("pasted_from_clipboard", pasted)
 
 
 if __name__ == "__main__":
