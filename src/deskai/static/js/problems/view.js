@@ -112,6 +112,37 @@ function renderItem(d, ui, isFirst) {
 
   btn.append(icon, sevSpan, msgSpan, srcSpan, locSpan);
   li.appendChild(btn);
+
+  // Phase 2: Action Button Group (Fix with AI & Explain)
+  const actionsDiv = el("div", "problem-item-actions");
+
+  const fixBtn = el("button", "problem-action-btn problem-btn-ai-fix");
+  fixBtn.type = "button";
+  fixBtn.setAttribute("aria-label", `Fix error in ${d.file} line ${startLine} with AI`);
+  fixBtn.setAttribute("title", "Fix this error using DeskAI Assistant");
+  fixBtn.textContent = "✨ Fix";
+  fixBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (typeof ui.triggerAiFix === "function") {
+      ui.triggerAiFix(d);
+    }
+  });
+
+  const explainBtn = el("button", "problem-action-btn problem-btn-explain");
+  explainBtn.type = "button";
+  explainBtn.setAttribute("aria-label", `Explain error in ${d.file} line ${startLine}`);
+  explainBtn.setAttribute("title", "Explain why this error occurred");
+  explainBtn.textContent = "💡 Explain";
+  explainBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (typeof ui.triggerAiExplain === "function") {
+      ui.triggerAiExplain(d);
+    }
+  });
+
+  actionsDiv.append(fixBtn, explainBtn);
+  li.appendChild(actionsDiv);
+
   return li;
 }
 

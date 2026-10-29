@@ -25,6 +25,8 @@ class Diagnostic:
     start_col: int
     end_line: int
     end_col: int
+    ai_fixable: bool = True
+    quick_fix_suggestion: str | None = None
 
     @property
     def id(self) -> str:
@@ -32,7 +34,7 @@ class Diagnostic:
         return hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()[:16]
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "id": self.id,
             "source": self.source,
             "code": self.code,
@@ -45,4 +47,8 @@ class Diagnostic:
                 "endLine": max(self.end_line, self.start_line, 1),
                 "endCol": max(self.end_col, self.start_col + 1, 1),
             },
+            "aiFixable": self.ai_fixable,
         }
+        if self.quick_fix_suggestion:
+            data["quickFixSuggestion"] = self.quick_fix_suggestion
+        return data

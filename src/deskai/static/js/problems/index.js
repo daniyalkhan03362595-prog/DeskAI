@@ -237,6 +237,31 @@ export class ProblemsManager {
     }
   }
 
+  triggerAiFix(d) {
+    if (!d) return;
+    const startLine = d.range ? d.range.startLine : d.start_line || 1;
+    const startCol = d.range ? d.range.startCol : d.start_col || 1;
+    const prompt = `Fix the following ${d.severity || "error"} in \`${d.file}\` at line ${startLine}, col ${startCol}:\nError: ${d.message} (${d.source || ""} ${d.code || ""})\nPlease provide the surgical patch diff to resolve this issue.`;
+
+    const ta = document.getElementById("promptTextarea");
+    if (ta) {
+      ta.value = prompt;
+      ta.focus();
+    }
+  }
+
+  triggerAiExplain(d) {
+    if (!d) return;
+    const startLine = d.range ? d.range.startLine : d.start_line || 1;
+    const prompt = `Explain why this error occurred in \`${d.file}\` line ${startLine}:\nError: ${d.message} (${d.source || ""} ${d.code || ""})\nWhat caused this problem and how can I resolve it cleanly?`;
+
+    const ta = document.getElementById("promptTextarea");
+    if (ta) {
+      ta.value = prompt;
+      ta.focus();
+    }
+  }
+
   reset() {
     this.generation++;
     for (const timer of this._debounceTimers.values()) {
