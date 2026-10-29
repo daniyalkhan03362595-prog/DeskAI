@@ -332,6 +332,10 @@ export function initGlobalEvents() {
         if (btnNewTerm) btnNewTerm.classList.toggle("is-hidden", !isTerminalTab);
         if (btnKillTerm) btnKillTerm.classList.toggle("is-hidden", !isTerminalTab);
 
+        if (target !== "ports" && window.DeskAIPorts) {
+          window.DeskAIPorts.stopPolling();
+        }
+
         if (target === "terminal" && window.DeskAITerminal) {
           window.DeskAITerminal.onTabShown();
         } else if (target === "ports" && window.DeskAIPorts) {
@@ -339,8 +343,6 @@ export function initGlobalEvents() {
           window.DeskAIPorts.startPolling();
         } else if (target === "problems" && window.DeskAIProblems) {
           window.DeskAIProblems.onShow();
-        } else if (window.DeskAIPorts) {
-          window.DeskAIPorts.stopPolling();
         }
         break;
       }

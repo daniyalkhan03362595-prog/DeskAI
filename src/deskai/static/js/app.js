@@ -109,6 +109,7 @@ window.DeskAIPorts = ports;
 window.DeskAITerminal = terminal;
 window.DeskAIWelcome = welcome;
 window.ExplorerManager = explorer;
+window.DeskAIExplorer = explorer;
 window.DeskAIProblems = problems;
 window.WorkspacePill = workspacePill;
 
@@ -359,6 +360,19 @@ NativeBridge.getWorkspaceRoot().then(async (res) => {
   }
   if (store.state.workspace.rootPath && window.ExplorerManager) {
     await window.ExplorerManager.refresh();
+  }
+});
+
+// Resync explorer and diagnostics when window gains focus
+window.addEventListener("focus", () => {
+  const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
+  if (rootPath) {
+    if (window.ExplorerManager && typeof window.ExplorerManager.pollWorkspaceChanges === "function") {
+      window.ExplorerManager.pollWorkspaceChanges();
+    }
+    if (window.DeskAIProblems && typeof window.DeskAIProblems.runWorkspace === "function") {
+      window.DeskAIProblems.runWorkspace({ silent: true });
+    }
   }
 });
 

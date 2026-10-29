@@ -51,6 +51,22 @@ export class DiagnosticsStore {
     }
   }
 
+  replaceAllWorkspace(filesMap) {
+    this._bySourceFile.clear();
+    for (const [file, diags] of Object.entries(filesMap || {})) {
+      if (!Array.isArray(diags)) continue;
+      const sources = new Set(diags.map((d) => d.source));
+      for (const src of sources) {
+        const items = diags.filter((d) => d.source === src);
+        if (items.length > 0) {
+          const k = `${src}\u0000${DiagnosticsStore.key(file)}`;
+          this._bySourceFile.set(k, { source: src, file, items });
+        }
+      }
+    }
+    this._emit();
+  }
+
   counts() {
     let errors = 0;
     let warnings = 0;

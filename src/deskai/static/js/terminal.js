@@ -123,6 +123,7 @@ export class TerminalView {
       },
       onData: (bytes) => {
         if (this.term) this.term.write(bytes);
+        this._scheduleWorkspaceSync();
       },
       onExit: (code) => {
         this.handleProcessExit(code);
@@ -144,6 +145,7 @@ export class TerminalView {
     this.isAuthPending = false;
     this._killBtnBound = false;
     this._srBound = false;
+    this._syncTimer = null;
   }
 
   get ws() {
@@ -177,6 +179,22 @@ export class TerminalView {
       this.activeSessionId = val;
     }
     this._updateKillButtonState();
+  }
+
+  _scheduleWorkspaceSync() {
+    if (this._syncTimer) {
+      clearTimeout(this._syncTimer);
+    }
+    this._syncTimer = setTimeout(() => {
+      this._syncTimer = null;
+      const explorer = window.DeskAIExplorer || window.ExplorerManager;
+      if (explorer && typeof explorer.pollWorkspaceChanges === "function") {
+        explorer.pollWorkspaceChanges();
+      }
+      if (window.DeskAIProblems && typeof window.DeskAIProblems.runWorkspace === "function") {
+        window.DeskAIProblems.runWorkspace({ silent: true });
+      }
+    }, 600);
   }
 
   init() {
@@ -427,6 +445,9 @@ export class TerminalView {
 
     this.term.onData((data) => {
       if (this.isAuthPending) return;
+      if (data === "\r" || data === "\n") {
+        this._scheduleWorkspaceSync();
+      }
       const sent = this.transport.sendData(data);
       if (!sent) {
         if (!this.sessionId && !this.isOpening && !this.hasExited) {
@@ -661,6 +682,7 @@ export class TerminalView {
       },
       onData: (bytes) => {
         if (sessionObj.term) sessionObj.term.write(bytes);
+        this._scheduleWorkspaceSync();
       },
       onExit: (code) => {
         this.handleProcessExit(code, sessionObj);
@@ -731,6 +753,9 @@ export class TerminalView {
     });
 
     term.onData((data) => {
+      if (data === "\r" || data === "\n") {
+        this._scheduleWorkspaceSync();
+      }
       const sent = transport.sendData(data);
       if (!sent && !sessionObj.hasExited && sessionObj.id) {
         this.showConnectionLostBanner(transport.lastCloseCode || 1006, sessionObj);

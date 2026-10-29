@@ -80,6 +80,29 @@ class TestTask4EmptyStates(unittest.TestCase):
         finally:
             context.close()
 
+    def test_explorer_empty_state_when_folder_is_empty(self):
+        """When workspace root is set but contains 0 entries, empty state shows 'Folder is empty' and 'New File'."""
+        context, page = self._create_page()
+        try:
+            page.evaluate("""() => {
+                if (window.store && window.store.state) {
+                    window.store.state.workspace.rootPath = "/test/empty-project";
+                }
+                if (window.ExplorerManager) {
+                    window.ExplorerManager.entries = [];
+                    window.ExplorerManager.render();
+                }
+            }""")
+            empty_msg = page.locator("#treeEmptyMessage")
+            self.assertTrue(empty_msg.is_visible(), "Explorer empty state #treeEmptyMessage not visible")
+
+            text = empty_msg.text_content()
+            self.assertIn("Folder is empty", text)
+            self.assertIn("Ctrl+N", text)
+            self.assertIn("New File", text)
+        finally:
+            context.close()
+
     def test_ai_assistant_empty_state_and_prompt_chips(self):
         """AI Assistant shows empty state with 3 prompt chips that fill the textarea without sending."""
         context, page = self._create_page()

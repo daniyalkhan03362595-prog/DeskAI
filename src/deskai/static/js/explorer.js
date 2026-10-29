@@ -28,11 +28,13 @@ export class ExplorerManager {
       executeContextAction: (action, target) => this.handleContextAction(action, target)
     });
 
+    this._autoWatchTimer = null;
     this.setupWorkspaceSubscription();
 
     const initialRoot = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
     if (initialRoot) {
       this.refresh();
+      this._startAutoWatch();
     } else {
       this.render();
     }
@@ -48,11 +50,55 @@ export class ExplorerManager {
         if (newPath) {
           await NativeBridge.setWorkspaceRoot(newPath);
           await this.refresh();
+          this._startAutoWatch();
         } else {
+          this._stopAutoWatch();
           this.entries = [];
           this.render();
+          if (window.DeskAIProblems && window.DeskAIProblems.store && typeof window.DeskAIProblems.store.clearAll === "function") {
+            window.DeskAIProblems.store.clearAll();
+          }
         }
       });
+    }
+  }
+
+  _startAutoWatch() {
+    this._stopAutoWatch();
+    this._autoWatchTimer = setInterval(() => {
+      this.pollWorkspaceChanges();
+    }, 2500);
+  }
+
+  _stopAutoWatch() {
+    if (this._autoWatchTimer) {
+      clearInterval(this._autoWatchTimer);
+      this._autoWatchTimer = null;
+    }
+  }
+
+  async pollWorkspaceChanges() {
+    const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
+    if (!rootPath || document.hidden) return;
+
+    if (
+      this.viewport &&
+      this.viewport.querySelector(".tree-rename-wrapper, .tree-inline-create, .tree-delete-confirm-wrapper")
+    ) {
+      return;
+    }
+
+    const res = await NativeBridge.listDir(rootPath);
+    if (!res || res.status !== "ok" || !Array.isArray(res.entries)) return;
+
+    const newSig = res.entries.map((e) => `${e.name}:${e.is_dir}`).join("|");
+    const oldSig = (this.entries || []).map((e) => `${e.name}:${e.is_dir}`).join("|");
+
+    if (newSig !== oldSig) {
+      await this.refresh({ silent: true });
+      if (window.DeskAIProblems && typeof window.DeskAIProblems.runWorkspace === "function") {
+        window.DeskAIProblems.runWorkspace({ silent: true });
+      }
     }
   }
 
@@ -858,14 +904,16 @@ export class ExplorerManager {
     }, 10);
   }
 
-  async refresh() {
+  async refresh({ silent = false } = {}) {
     const currentScrollTop = this.viewport ? this.viewport.scrollTop : 0;
     const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
 
-    const refreshBtn = document.getElementById("btnRefreshTree");
-    if (refreshBtn) {
-      refreshBtn.classList.add("is-refreshing");
-      setTimeout(() => refreshBtn.classList.remove("is-refreshing"), 400);
+    if (!silent) {
+      const refreshBtn = document.getElementById("btnRefreshTree");
+      if (refreshBtn) {
+        refreshBtn.classList.add("is-refreshing");
+        setTimeout(() => refreshBtn.classList.remove("is-refreshing"), 400);
+      }
     }
 
     const res = await NativeBridge.listDir(rootPath);
@@ -904,6 +952,9 @@ export class ExplorerManager {
     this.viewport.replaceChildren();
 
     if (!this.entries || this.entries.length === 0) {
+      const rootPath = store && store.state && store.state.workspace ? store.state.workspace.rootPath : null;
+      const isWorkspaceOpen = Boolean(rootPath);
+
       const emptyContainer = document.createElement("div");
       emptyContainer.className = "tree-empty-message";
       emptyContainer.id = "treeEmptyMessage";
@@ -916,24 +967,32 @@ export class ExplorerManager {
 
       const emptyTitle = document.createElement("h3");
       emptyTitle.className = "empty-title";
-      emptyTitle.textContent = "No folder open";
+      emptyTitle.textContent = isWorkspaceOpen ? "Folder is empty" : "No folder open";
       emptyContainer.appendChild(emptyTitle);
 
       const emptyDesc = document.createElement("p");
       emptyDesc.className = "empty-desc";
-      emptyDesc.textContent = "Open a local project directory to browse files, run tests, and build with DeskAI.";
+      emptyDesc.textContent = isWorkspaceOpen
+        ? "This workspace directory has no files yet. Create a file or folder to get started."
+        : "Open a local project directory to browse files, run tests, and build with DeskAI.";
       emptyContainer.appendChild(emptyDesc);
 
       const actionBtn = document.createElement("button");
       actionBtn.type = "button";
       actionBtn.className = "empty-action-btn welcome-btn secondary";
-      actionBtn.setAttribute("data-action", "open-folder-dialog");
-      actionBtn.setAttribute("aria-label", "Open Project Folder (Ctrl+O)");
-      actionBtn.textContent = "Open Folder";
+      if (isWorkspaceOpen) {
+        actionBtn.setAttribute("data-action", "new-file");
+        actionBtn.setAttribute("aria-label", "Create New File (Ctrl+N)");
+        actionBtn.textContent = "New File";
+      } else {
+        actionBtn.setAttribute("data-action", "open-folder-dialog");
+        actionBtn.setAttribute("aria-label", "Open Project Folder (Ctrl+O)");
+        actionBtn.textContent = "Open Folder";
+      }
 
       const btnKey = document.createElement("span");
       btnKey.className = "welcome-btn-shortcut";
-      btnKey.textContent = "Ctrl+O";
+      btnKey.textContent = isWorkspaceOpen ? "Ctrl+N" : "Ctrl+O";
 
       emptyContainer.appendChild(actionBtn);
       emptyContainer.appendChild(btnKey);

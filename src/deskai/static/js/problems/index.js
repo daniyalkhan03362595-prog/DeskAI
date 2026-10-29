@@ -212,9 +212,9 @@ export class ProblemsManager {
     this._announce();
   }
 
-  async runWorkspace() {
+  async runWorkspace({ silent = false } = {}) {
     const runBtn = document.getElementById("problemsRunBtn");
-    if (runBtn) {
+    if (runBtn && !silent) {
       runBtn.classList.add("is-refreshing");
       setTimeout(() => runBtn.classList.remove("is-refreshing"), 400);
     }
@@ -226,12 +226,7 @@ export class ProblemsManager {
       const reqId = ++this._reqSeq;
       const res = await NativeBridge.runWorkspaceDiagnostics(reqId);
       if (res && res.status === "ok" && res.files) {
-        for (const [file, diags] of Object.entries(res.files)) {
-          const sources = new Set(diags.map(d => d.source));
-          for (const src of sources) {
-            this.store.replace(src, file, diags.filter(d => d.source === src));
-          }
-        }
+        this.store.replaceAllWorkspace(res.files);
       }
     } catch (e) {
       console.error("[ProblemsManager] runWorkspace error:", e);
