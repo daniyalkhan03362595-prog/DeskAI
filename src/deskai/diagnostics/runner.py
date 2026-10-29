@@ -8,6 +8,9 @@ from typing import Any
 from .json_syntax import check_json
 from .models import Diagnostic
 from .python_syntax import check_python
+from .toml_syntax import check_toml
+from .html_syntax import check_html
+from .xml_syntax import check_xml
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,11 @@ CHECKERS_BY_EXT = {
     ".py": ["python"],
     ".pyw": ["python"],
     ".json": ["json"],
+    ".toml": ["toml"],
+    ".html": ["html"],
+    ".htm": ["html"],
+    ".xml": ["xml"],
+    ".svg": ["xml"],
 }
 
 
@@ -173,6 +181,12 @@ def run_checks(abs_path: str, root: str, request_id: str = "") -> dict:
             all_diags.extend(check_python(source, rel))
         elif name == "json":
             all_diags.extend(check_json(source, rel))
+        elif name == "toml":
+            all_diags.extend(check_toml(source, rel))
+        elif name == "html":
+            all_diags.extend(check_html(source, rel))
+        elif name == "xml":
+            all_diags.extend(check_xml(source, rel))
 
     # Deduplicate by id, keeping the first occurrence
     seen_ids: set[str] = set()
