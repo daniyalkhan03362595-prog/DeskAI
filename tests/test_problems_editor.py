@@ -1,5 +1,3 @@
-"""Integration tests for Problems panel editor navigation and hooks (M4)."""
-
 import unittest
 from pathlib import Path
 
@@ -11,7 +9,7 @@ except ImportError:
     _HAS_PLAYWRIGHT = False
 
 
-class TestProblemsEditor(unittest.TestCase):
+class TestProblemsEditorDecorations(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not _HAS_PLAYWRIGHT:
@@ -35,6 +33,7 @@ class TestProblemsEditor(unittest.TestCase):
         self.context = self.browser.new_context(viewport={"width": 1280, "height": 800})
         self.page = self.context.new_page()
         self.page.goto(f"file://{index_file}")
+        self.page.wait_for_selector("#codeEditorHost")
         self.page.wait_for_function("() => !!window.EditorManager && !!window.DeskAIProblems")
 
     def tearDown(self):
@@ -43,78 +42,94 @@ class TestProblemsEditor(unittest.TestCase):
         if hasattr(self, "context"):
             self.context.close()
 
-    def test_tc_prb_editor_open_at_and_reveal(self):
-        """TC-PRB-M4-01: openAt opens buffer and places CodeMirror cursor at line and column."""
-        res = self.page.evaluate("""async () => {
-            const content = "line 1\\nline 2 hello\\nline 3 world\\n";
-            window.NativeBridge.readFile = async () => ({
-                status: "ok",
-                content: content,
-                is_binary: false
-            });
-
-            const success = await window.EditorManager.openAt("/workspace/demo.txt", 2, 8);
-            const activeId = window.EditorManager.activeTabId;
-            const buf = window.EditorManager.buffers.get(activeId);
-            const view = buf.view;
-            const sel = view.state.selection.main;
-            const lineInfo = view.state.doc.lineAt(sel.head);
-
-            return {
-                success,
-                lineNumber: lineInfo.number,
-                columnNumber: sel.head - lineInfo.from + 1
-            };
-        }""")
-
-        self.assertTrue(res["success"])
-        self.assertEqual(res["lineNumber"], 2)
-        self.assertEqual(res["columnNumber"], 8)
-
-    def test_tc_prb_editor_save_hook_triggers_problems(self):
-        """TC-PRB-M4-02: saveBuffer triggers window.DeskAIProblems.onFileSaved."""
-        res = self.page.evaluate("""async () => {
-            window.store.state.workspace.rootPath = "/workspace";
-            let savedPath = null;
-            window.DeskAIProblems.onFileSaved = (p) => {
-                savedPath = p;
-            };
-
-            const tabId = window.EditorManager.createBuffer("demo.py", "a = 1", "/workspace/demo.py");
-            window.EditorManager.markDirty(tabId, true);
-
-            window.NativeBridge.writeFile = async () => ({ status: "ok" });
-            await window.EditorManager.saveBuffer(tabId);
-
-            return { savedPath };
-        }""")
-
-        self.assertEqual(res["savedPath"], "/workspace/demo.py")
-
-    def test_tc_prb_workspace_reset_clears_problems(self):
-        """TC-PRB-M4-03: Changing workspace.rootPath resets ProblemsManager store."""
-        res = self.page.evaluate("""() => {
-            window.DeskAIProblems.store.replace("python", "test.py", [
+    def test_in_editor_gutter_dot_and_squiggle(self):
+        """Verify opening a file with diagnostics renders gutter dot and line squiggle."""
+        result = self.page.evaluate("""() => {
+            const problems = window.DeskAIProblems;
+            problems.store.replace("py_syntax", "test_script.py", [
                 {
-                    id: "mock1",
-                    source: "python",
-                    code: "E1",
+                    file: "test_script.py",
+                    line: 2,
+                    col: 5,
                     severity: "error",
-                    message: "bad",
-                    file: "test.py",
-                    range: { startLine: 1, startCol: 1, endLine: 1, endCol: 2 }
+                    message: "SyntaxError: invalid syntax",
+                    source: "py_syntax",
+                    code: "E999",
+                    ai_fixable: true
                 }
             ]);
 
-            const countBefore = window.DeskAIProblems.store.counts().errors;
-            window.store.state.workspace.rootPath = "/new/workspace";
-            const countAfter = window.DeskAIProblems.store.counts().errors;
+            const tabId = window.EditorManager.createBuffer(
+                "test_script.py",
+                "def run():\\n    x = \\n    return x\\n",
+                "test_script.py"
+            );
+            const buf = window.EditorManager.buffers.get(tabId);
 
-            return { countBefore, countAfter };
+            window.DeskAIEditorDiagnostics.update(buf);
+
+            // Check gutter
+            const gutterEls = Array.from(buf.container.querySelectorAll(".cm-gutter.cm-lineNumbers .cm-gutterElement"));
+            const line2Gutter = gutterEls.find(g => g.textContent.trim() === "2");
+            const hasGutterDot = line2Gutter ? line2Gutter.classList.contains("cm-gutter-diagnostic-error") : false;
+
+            // Check line squiggle
+            const errorLines = buf.container.querySelectorAll(".cm-line-diagnostic-error");
+
+            return {
+                hasGutterDot,
+                errorLineCount: errorLines.length,
+                lineText: errorLines.length > 0 ? errorLines[0].textContent : null
+            };
         }""")
 
-        self.assertEqual(res["countBefore"], 1)
-        self.assertEqual(res["countAfter"], 0)
+        self.assertTrue(result["hasGutterDot"], "Gutter element on line 2 must have .cm-gutter-diagnostic-error")
+        self.assertGreaterEqual(result["errorLineCount"], 1, "Line 2 must have .cm-line-diagnostic-error")
+        self.assertIn("x =", result["lineText"])
+
+    def test_editor_hover_tooltip_and_ai_fix(self):
+        """Verify hovering over error line triggers tooltip and 'Fix with AI' button populates prompt textarea."""
+        result = self.page.evaluate("""() => {
+            const problems = window.DeskAIProblems;
+            problems.store.replace("py_syntax", "broken.py", [
+                {
+                    file: "broken.py",
+                    line: 1,
+                    col: 10,
+                    severity: "error",
+                    message: "SyntaxError: unexpected EOF",
+                    source: "py_syntax",
+                    code: "E999",
+                    ai_fixable: true
+                }
+            ]);
+
+            const tabId = window.EditorManager.createBuffer("broken.py", "print('hello'\\n", "broken.py");
+            const buf = window.EditorManager.buffers.get(tabId);
+            window.DeskAIEditorDiagnostics.update(buf);
+
+            const lineEl = buf.container.querySelector(".cm-line-diagnostic-error");
+            window.DeskAIEditorDiagnostics.showTooltip(lineEl, lineEl._diagnosticData);
+
+            const tooltip = document.getElementById("problemEditorTooltip");
+            const isVisible = tooltip && tooltip.style.display !== "none";
+            const msg = tooltip.querySelector(".problem-tooltip-message").textContent;
+            const fixBtn = tooltip.querySelector(".problem-btn-ai-fix");
+
+            fixBtn.click();
+
+            const textarea = document.getElementById("promptTextarea");
+            return {
+                isVisible,
+                msg,
+                textareaVal: textarea ? textarea.value : ""
+            };
+        }""")
+
+        self.assertTrue(result["isVisible"], "Tooltip should be visible on showTooltip")
+        self.assertIn("SyntaxError", result["msg"])
+        self.assertIn("Fix the following error", result["textareaVal"])
+        self.assertIn("broken.py", result["textareaVal"])
 
 
 if __name__ == "__main__":

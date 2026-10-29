@@ -2240,6 +2240,131 @@ button[aria-busy="true"],
   }
 }
 
+/* -------------------------------------------------------------
+   In-Editor Diagnostic Squiggles, Gutter Dots & Tooltip
+   ------------------------------------------------------------- */
+.cm-line-diagnostic-error {
+  text-decoration: underline wavy var(--color-danger, #ef4444) !important;
+  text-decoration-skip-ink: none !important;
+  text-underline-offset: 3px !important;
+}
+
+.cm-line-diagnostic-warning {
+  text-decoration: underline wavy var(--color-warning, #f59e0b) !important;
+  text-decoration-skip-ink: none !important;
+  text-underline-offset: 3px !important;
+}
+
+.cm-line-diagnostic-info {
+  text-decoration: underline wavy var(--color-info, #3b82f6) !important;
+  text-decoration-skip-ink: none !important;
+  text-underline-offset: 3px !important;
+}
+
+.cm-gutter-diagnostic {
+  position: relative;
+  font-weight: 700;
+}
+
+.cm-gutter-diagnostic-error {
+  color: var(--color-danger, #ef4444) !important;
+}
+
+.cm-gutter-diagnostic-error::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--color-danger, #ef4444);
+}
+
+.cm-gutter-diagnostic-warning {
+  color: var(--color-warning, #f59e0b) !important;
+}
+
+.cm-gutter-diagnostic-warning::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--color-warning, #f59e0b);
+}
+
+.cm-gutter-diagnostic-info {
+  color: var(--color-info, #3b82f6) !important;
+}
+
+.cm-gutter-diagnostic-info::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--color-info, #3b82f6);
+}
+
+.problem-editor-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 480px;
+  min-width: 240px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  pointer-events: auto;
+  line-height: 1.4;
+}
+
+.problem-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.problem-tooltip-code {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.problem-tooltip-loc {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.problem-tooltip-message {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.problem-tooltip-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+
 /* Ports Panel */
 .ports-toolbar {
   display: flex;

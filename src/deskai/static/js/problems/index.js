@@ -35,6 +35,13 @@ export class ProblemsManager {
     this.store.subscribe(() => {
       this.render();
       this._syncCounts();
+      if (
+        typeof window !== "undefined" &&
+        window.DeskAIEditorDiagnostics &&
+        typeof window.DeskAIEditorDiagnostics.update === "function"
+      ) {
+        window.DeskAIEditorDiagnostics.update();
+      }
     });
 
     if (store && typeof store.subscribe === "function") {

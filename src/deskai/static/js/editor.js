@@ -133,6 +133,13 @@ export class EditorManager {
               if (!buffer.isDirty) {
                 this.markDirty(id, true);
               }
+              if (
+                typeof window !== "undefined" &&
+                window.DeskAIEditorDiagnostics &&
+                typeof window.DeskAIEditorDiagnostics.update === "function"
+              ) {
+                window.DeskAIEditorDiagnostics.update(buffer);
+              }
             }
           }),
           keyboardTrapHandler
@@ -322,6 +329,14 @@ export class EditorManager {
     const pos = lineInfo.from + targetCol;
     buffer.view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
     buffer.view.focus();
+
+    if (
+      typeof window !== "undefined" &&
+      window.DeskAIEditorDiagnostics &&
+      typeof window.DeskAIEditorDiagnostics.update === "function"
+    ) {
+      window.DeskAIEditorDiagnostics.update(buffer);
+    }
   }
 
   selectTab(id) {
@@ -363,6 +378,16 @@ export class EditorManager {
       if (activeEl && typeof activeEl.scrollIntoView === "function") {
         activeEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       }
+    }
+
+    const activeBuf = this.buffers.get(id);
+    if (
+      activeBuf &&
+      typeof window !== "undefined" &&
+      window.DeskAIEditorDiagnostics &&
+      typeof window.DeskAIEditorDiagnostics.update === "function"
+    ) {
+      window.DeskAIEditorDiagnostics.update(activeBuf);
     }
   }
 

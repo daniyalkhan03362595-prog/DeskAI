@@ -11,6 +11,7 @@ import { WelcomeScreenController } from "./welcome.js";
 import { ExplorerManager } from "./explorer.js";
 import { initTheme } from "./theme.js";
 import { initProblems } from "./problems/index.js";
+import { editorDiagnostics } from "./problems/editor_decorations.js";
 
 // Global singletons instantiated and wired
 const wsClient = new WebSocketClient(`ws://${location.host}/ws`);
@@ -111,6 +112,7 @@ window.DeskAIWelcome = welcome;
 window.ExplorerManager = explorer;
 window.DeskAIExplorer = explorer;
 window.DeskAIProblems = problems;
+window.DeskAIEditorDiagnostics = editorDiagnostics;
 window.WorkspacePill = workspacePill;
 
 const channelOutputEl = document.getElementById("channelOutput");

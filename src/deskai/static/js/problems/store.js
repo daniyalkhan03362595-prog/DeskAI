@@ -81,6 +81,30 @@ export class DiagnosticsStore {
     return { errors, warnings, infos };
   }
 
+  all() {
+    const list = [];
+    for (const entry of this._bySourceFile.values()) {
+      for (const d of entry.items) {
+        list.push(d);
+      }
+    }
+    return list;
+  }
+
+  forFile(file) {
+    if (!file) return [];
+    const fileKey = DiagnosticsStore.key(file);
+    const list = [];
+    for (const entry of this._bySourceFile.values()) {
+      if (DiagnosticsStore.key(entry.file) === fileKey) {
+        for (const d of entry.items) {
+          list.push(d);
+        }
+      }
+    }
+    return list;
+  }
+
   grouped(filter = null) {
     const fileMap = new Map();
     for (const entry of this._bySourceFile.values()) {
