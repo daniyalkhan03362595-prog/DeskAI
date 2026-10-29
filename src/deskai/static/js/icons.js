@@ -140,6 +140,25 @@ const ICON_DEFS = {
     { tag: "circle", attrs: { cx: "8.5", cy: "8.5", r: "1.5" } },
     { tag: "polyline", attrs: { points: "21 15 16 10 5 21" } },
   ],
+  "error": [
+    { tag: "circle", attrs: { cx: "12", cy: "12", r: "10" } },
+    { tag: "line", attrs: { x1: "15", y1: "9", x2: "9", y2: "15" } },
+    { tag: "line", attrs: { x1: "9", y1: "9", x2: "15", y2: "15" } },
+  ],
+  "warning": [
+    { tag: "path", attrs: { d: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" } },
+    { tag: "line", attrs: { x1: "12", y1: "9", x2: "12", y2: "13" } },
+    { tag: "line", attrs: { x1: "12", y1: "17", x2: "12.01", y2: "17" } },
+  ],
+  "info": [
+    { tag: "circle", attrs: { cx: "12", cy: "12", r: "10" } },
+    { tag: "line", attrs: { x1: "12", y1: "16", x2: "12", y2: "12" } },
+    { tag: "line", attrs: { x1: "12", y1: "8", x2: "12.01", y2: "8" } },
+  ],
+  "collapse-all": [
+    { tag: "rect", attrs: { x: "3", y: "3", width: "18", height: "18", rx: "2", ry: "2" } },
+    { tag: "line", attrs: { x1: "8", y1: "12", x2: "16", y2: "12" } },
+  ],
 };
 
 /**

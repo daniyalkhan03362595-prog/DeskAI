@@ -26,6 +26,13 @@ export const initialState = {
   connection: {
     isSocketConnected: false,
     lastSeq: 0
+  },
+  diagnostics: {
+    errors: 0,
+    warnings: 0,
+    infos: 0,
+    status: "idle",
+    checkedAt: null
   }
 };
 

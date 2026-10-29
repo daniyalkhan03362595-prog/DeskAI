@@ -205,5 +205,25 @@ export const NativeBridge = {
       });
     }
     return { status: "ok", ports: fallbackPorts, warnings: [] };
+  },
+
+  async runDiagnostics(filePath, requestId = "") {
+    await this.whenReady();
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.run_diagnostics === "function") {
+      return await window.pywebview.api.run_diagnostics(filePath, String(requestId));
+    }
+    return { status: "error", message: "Bridge unavailable", request_id: String(requestId), diagnostics: [] };
+  },
+
+  async runWorkspaceDiagnostics(requestId = "") {
+    await this.whenReady();
+    if (
+      window.pywebview &&
+      window.pywebview.api &&
+      typeof window.pywebview.api.run_workspace_diagnostics === "function"
+    ) {
+      return await window.pywebview.api.run_workspace_diagnostics(String(requestId));
+    }
+    return { status: "error", message: "Bridge unavailable", request_id: String(requestId), diagnostics: [] };
   }
 };

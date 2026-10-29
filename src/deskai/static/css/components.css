@@ -1984,14 +1984,206 @@ button[aria-busy="true"],
   display: none !important;
 }
 
-.problems-view {
-  padding: var(--space-3);
+/* Problems Panel */
+.problems-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.problems-filter {
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-regular);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.problems-filter[aria-pressed="true"] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.problems-filter-input {
+  flex: 1;
+  min-width: 80px;
+  min-height: 28px;
+  font: inherit;
+  font-size: var(--text-xs);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+}
+
+.problems-filter-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.problems-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-1) 0;
 }
 
 .problems-empty {
+  display: block;
+  padding: var(--space-3);
   color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.problems-group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.problems-file {
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.problems-file:hover {
+  background: var(--bg-hover);
+}
+
+.problems-file-name {
+  font-weight: 500;
+}
+
+.problems-file-count {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.problems-list,
+.problems-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.problem-item {
+  display: grid;
+  grid-template-columns: 16px auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--space-3) 0 var(--space-6);
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.problem-item:hover {
+  background: var(--bg-hover);
+}
+
+.problem-item:focus-visible,
+.problems-file:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.severity-error .problem-severity,
+.severity-error.problem-severity-icon,
+.severity-error svg {
+  color: var(--color-danger);
+}
+
+.severity-warning .problem-severity,
+.severity-warning.problem-severity-icon,
+.severity-warning svg {
+  color: var(--color-warning);
+}
+
+.severity-info .problem-severity,
+.severity-info.problem-severity-icon,
+.severity-info svg {
+  color: var(--color-info);
+}
+
+.problem-severity {
+  font-weight: 500;
+}
+
+.problem-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.problem-source,
+.problem-location {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.problems-notice {
+  padding: var(--space-1-5) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tab-badge {
+  margin-left: var(--space-1-5);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  min-width: 16px;
+  text-align: center;
+  display: inline-block;
+  background-color: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+#problemsPanel[data-busy="true"] #problemsRunBtn svg {
+  animation: problems-spin 1s linear infinite;
+}
+
+@keyframes problems-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #problemsPanel[data-busy="true"] #problemsRunBtn svg {
+    animation: none;
+  }
 }
 
 /* Ports Panel */

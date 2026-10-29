@@ -337,8 +337,30 @@ export function initGlobalEvents() {
         } else if (target === "ports" && window.DeskAIPorts) {
           window.DeskAIPorts.refresh();
           window.DeskAIPorts.startPolling();
+        } else if (target === "problems" && window.DeskAIProblems) {
+          window.DeskAIProblems.onShow();
         } else if (window.DeskAIPorts) {
           window.DeskAIPorts.stopPolling();
+        }
+        break;
+      }
+
+      case "problems-filter": {
+        const sev = trigger.getAttribute("data-severity");
+        if (window.DeskAIProblems && sev) {
+          window.DeskAIProblems.toggleFilter(sev);
+        }
+        break;
+      }
+      case "problems-collapse": {
+        if (window.DeskAIProblems) {
+          window.DeskAIProblems.toggleCollapseAll();
+        }
+        break;
+      }
+      case "problems-run": {
+        if (window.DeskAIProblems) {
+          window.DeskAIProblems.runWorkspace();
         }
         break;
       }

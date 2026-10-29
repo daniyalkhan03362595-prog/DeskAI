@@ -28,6 +28,8 @@
   --color-warning: #f59e0b;
   --color-danger: #ff6b6b;      /* Contrast 5.8:1 on card */
   --color-danger-subtle: rgba(255, 107, 107, 0.12);
+  --color-info: #7aa2f7;        /* Contrast 6.4:1 on card */
+  --color-info-subtle: rgba(122, 162, 247, 0.12);
   --color-text-white: #ffffff;
 
   /* Text Colors (Optimized for WCAG 2.1 AA Compliance >= 4.5:1) */
@@ -172,6 +174,8 @@
     --color-warning: #b45309;
     --color-danger: #b91c1c;
     --color-danger-subtle: rgba(185, 28, 28, 0.12);
+    --color-info: #1d4ed8;      /* Contrast 6.7:1 on card */
+    --color-info-subtle: rgba(29, 78, 216, 0.12);
     --color-text-white: #ffffff;
 
     --text-primary: #0f172a;
@@ -243,6 +247,8 @@
   --color-warning: #b45309;
   --color-danger: #b91c1c;
   --color-danger-subtle: rgba(185, 28, 28, 0.12);
+  --color-info: #1d4ed8;        /* Contrast 6.7:1 on card */
+  --color-info-subtle: rgba(29, 78, 216, 0.12);
   --color-text-white: #ffffff;
 
   --text-primary: #0f172a;

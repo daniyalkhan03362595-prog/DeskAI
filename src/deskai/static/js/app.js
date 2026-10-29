@@ -10,6 +10,7 @@ import { NativeBridge } from "./bridge.js";
 import { WelcomeScreenController } from "./welcome.js";
 import { ExplorerManager } from "./explorer.js";
 import { initTheme } from "./theme.js";
+import { initProblems } from "./problems/index.js";
 
 // Global singletons instantiated and wired
 const wsClient = new WebSocketClient(`ws://${location.host}/ws`);
@@ -19,6 +20,7 @@ const ports = initPorts();
 const terminal = new TerminalView();
 const welcome = new WelcomeScreenController();
 const explorer = new ExplorerManager();
+const problems = initProblems();
 
 export class WorkspacePillController {
   constructor(store, bridge) {
@@ -107,6 +109,7 @@ window.DeskAIPorts = ports;
 window.DeskAITerminal = terminal;
 window.DeskAIWelcome = welcome;
 window.ExplorerManager = explorer;
+window.DeskAIProblems = problems;
 window.WorkspacePill = workspacePill;
 
 const channelOutputEl = document.getElementById("channelOutput");
