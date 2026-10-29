@@ -5,6 +5,7 @@
 
 import { DiagnosticsStore } from "./store.js";
 import { renderGroups, initViewKeyboardAndClicks } from "./view.js";
+import { StatusBarProblemsWidget } from "./status_bar.js";
 import { NativeBridge } from "../bridge.js";
 import { store } from "../state.js";
 import { createSvgIcon } from "../icons.js";
@@ -56,6 +57,7 @@ export class ProblemsManager {
       });
     }
 
+    this.statusBar = new StatusBarProblemsWidget(this.store);
     this._syncCounts();
   }
 
@@ -288,6 +290,7 @@ export class ProblemsManager {
       store.state.diagnostics.checkedAt = null;
     }
 
+    this.statusBar = new StatusBarProblemsWidget(this.store);
     this._syncCounts();
   }
 
