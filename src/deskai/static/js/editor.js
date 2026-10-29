@@ -305,6 +305,25 @@ export class EditorManager {
     }
   }
 
+  async openAt(filePath, line, col) {
+    const id = await this.openFile(filePath);
+    if (!id) return false;
+    this.revealPosition(id, line, col);
+    return true;
+  }
+
+  revealPosition(id, line, col) {
+    const buffer = this.buffers.get(id);
+    if (!buffer || !buffer.view) return;
+    const doc = buffer.view.state.doc;
+    const targetLine = Math.min(Math.max(Number(line) || 1, 1), doc.lines);
+    const lineInfo = doc.line(targetLine);
+    const targetCol = Math.min(Math.max((Number(col) || 1) - 1, 0), lineInfo.length);
+    const pos = lineInfo.from + targetCol;
+    buffer.view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+    buffer.view.focus();
+  }
+
   selectTab(id) {
     if (!this.buffers.has(id)) return;
     this.activeTabId = id;
@@ -418,6 +437,9 @@ export class EditorManager {
       if (writeRes && writeRes.status === "ok") {
         buffer.mtime = Date.now();
         this.markDirty(id, false);
+        if (window.DeskAIProblems && typeof window.DeskAIProblems.onFileSaved === "function") {
+          window.DeskAIProblems.onFileSaved(buffer.path);
+        }
         return true;
       }
       return false;
@@ -452,6 +474,9 @@ export class EditorManager {
           this.markDirty(id, false);
           this.renderTabs();
           this.syncStore();
+          if (window.DeskAIProblems && typeof window.DeskAIProblems.onFileSaved === "function") {
+            window.DeskAIProblems.onFileSaved(buffer.path);
+          }
           return true;
         }
       }

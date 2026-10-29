@@ -200,6 +200,9 @@ export class ExplorerManager {
     const isDir = target.isDir;
     const res = await NativeBridge.deletePath(target.path);
     if (res && res.status === "ok") {
+      if (window.DeskAIProblems && typeof window.DeskAIProblems.onPathRemoved === "function") {
+        window.DeskAIProblems.onPathRemoved(target.path);
+      }
       if (!isDir && window.EditorManager && window.EditorManager.buffers) {
         for (const [id, buf] of window.EditorManager.buffers.entries()) {
           if (buf.path === target.path) {
@@ -315,6 +318,9 @@ export class ExplorerManager {
 
       const res = await NativeBridge.deletePath(targetPath);
       if (res && res.status === "ok") {
+        if (window.DeskAIProblems && typeof window.DeskAIProblems.onPathRemoved === "function") {
+          window.DeskAIProblems.onPathRemoved(targetPath);
+        }
         if (!isDir && window.EditorManager && window.EditorManager.buffers) {
           for (const [id, buf] of window.EditorManager.buffers.entries()) {
             if (buf.path === targetPath) {
@@ -523,6 +529,9 @@ export class ExplorerManager {
 
       const res = await NativeBridge.renamePath(oldPath, newPath);
       if (res && res.status === "ok") {
+        if (window.DeskAIProblems && typeof window.DeskAIProblems.onPathRemoved === "function") {
+          window.DeskAIProblems.onPathRemoved(oldPath);
+        }
         if (!isDir && window.EditorManager && window.EditorManager.buffers) {
           for (const [id, buf] of window.EditorManager.buffers.entries()) {
             if (buf.path === oldPath) {
