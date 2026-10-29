@@ -370,11 +370,14 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         res = self.page.evaluate("""async () => {
             const appBody = document.getElementById("appBody");
             const sidebar = document.getElementById("sidebarLeft");
+            const editorStage = document.getElementById("editorStage");
+            const sidebarRight = document.getElementById("sidebarRight");
             const toggleBtn = document.getElementById("btnToggleSidebar");
             const expandPill = document.getElementById("btnExpandSidebar");
 
             const initialCollapsed = appBody.classList.contains("sidebar-left-collapsed");
             const initialAriaChecked = toggleBtn.getAttribute("aria-checked");
+            const initialEditorWidth = editorStage.getBoundingClientRect().width;
 
             // Click toggle switch to collapse
             toggleBtn.click();
@@ -383,6 +386,8 @@ class TestTreeHeaderToolbar(unittest.TestCase):
             const afterCollapseBody = appBody.classList.contains("sidebar-left-collapsed");
             const afterCollapseSidebar = sidebar.classList.contains("collapsed");
             const afterCollapseAria = toggleBtn.getAttribute("aria-checked");
+            const afterCollapseEditorWidth = editorStage.getBoundingClientRect().width;
+            const afterCollapseSidebarRightX = sidebarRight.getBoundingClientRect().x;
 
             // Click expand pill to restore
             expandPill.click();
@@ -395,9 +400,12 @@ class TestTreeHeaderToolbar(unittest.TestCase):
             return {
                 initialCollapsed,
                 initialAriaChecked,
+                initialEditorWidth,
                 afterCollapseBody,
                 afterCollapseSidebar,
                 afterCollapseAria,
+                afterCollapseEditorWidth,
+                afterCollapseSidebarRightX,
                 afterRestoreBody,
                 afterRestoreSidebar,
                 afterRestoreAria
@@ -409,6 +417,8 @@ class TestTreeHeaderToolbar(unittest.TestCase):
         self.assertTrue(res["afterCollapseBody"])
         self.assertTrue(res["afterCollapseSidebar"])
         self.assertEqual(res["afterCollapseAria"], "false")
+        self.assertGreater(res["afterCollapseEditorWidth"], res["initialEditorWidth"])
+        self.assertGreater(res["afterCollapseSidebarRightX"], 500)
         self.assertFalse(res["afterRestoreBody"])
         self.assertFalse(res["afterRestoreSidebar"])
         self.assertEqual(res["afterRestoreAria"], "true")

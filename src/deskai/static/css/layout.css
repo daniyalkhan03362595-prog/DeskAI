@@ -35,16 +35,49 @@ button, input, select, textarea {
   position: relative;
 }
 
+#sidebarLeft {
+  grid-column: 1;
+}
+
+#resizerLeft {
+  grid-column: 2;
+}
+
+#editorStage {
+  grid-column: 3;
+}
+
+#resizerRight {
+  grid-column: 4;
+}
+
+#sidebarRight {
+  grid-column: 5;
+}
+
 #appBody.sidebar-left-collapsed {
   grid-template-columns: 0px 0px 1fr 1px var(--sidebar-right-w);
 }
 
 #sidebarLeft.collapsed {
-  display: none;
+  display: block;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  border: none !important;
+  padding: 0 !important;
 }
 
 #resizerLeft.collapsed {
-  display: none;
+  display: block;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .sidebar-expand-pill {
