@@ -110,7 +110,6 @@ export class TerminalView {
     this.tabsSidebar = document.getElementById("terminalTabsSidebar");
     this.sessions = [];
     this.activeSessionId = null;
-    this.sessionCounter = 0;
     this.MAX_SESSIONS = 6;
     this.primaryContainer = null;
 
@@ -430,12 +429,11 @@ export class TerminalView {
       if (res && res.status === "ok" && res.session_id) {
         this.sessionId = res.session_id;
         this.activeSessionId = res.session_id;
-        this.sessionCounter = 1;
         const isWin = navigator.platform && navigator.platform.toUpperCase().includes("WIN");
         const shellName = isWin ? "cmd" : "bash";
         const sessionObj = {
           id: res.session_id,
-          name: `${shellName} 1`,
+          name: shellName,
           term: this.term,
           fitAddon: this.fitAddon,
           transport: this.transport,
@@ -499,10 +497,9 @@ export class TerminalView {
       return;
     }
 
-    this.sessionCounter++;
     const isWin = navigator.platform && navigator.platform.toUpperCase().includes("WIN");
     const shellName = isWin ? "cmd" : "bash";
-    const name = `${shellName} ${this.sessionCounter}`;
+    const name = shellName;
 
     const sessionObj = this._createSessionInstance(res.session_id, name);
     this.sessions.push(sessionObj);
@@ -664,6 +661,11 @@ export class TerminalView {
     this._updateKillButtonState();
     this.fit();
     if (this.term) {
+      try {
+        this.term.refresh(0, this.term.rows - 1);
+      } catch (err) {
+        // Ignored
+      }
       this.term.focus();
     }
     announce(`Switched to ${targetSession.name}`);
@@ -684,7 +686,7 @@ export class TerminalView {
     this.tabsSidebar.classList.add("is-visible");
     this.tabsSidebar.replaceChildren();
 
-    this.sessions.forEach((session) => {
+    this.sessions.forEach((session, idx) => {
       const isSelected = session.id === this.activeSessionId;
       const tabBtn = document.createElement("button");
       tabBtn.type = "button";
@@ -693,6 +695,7 @@ export class TerminalView {
       tabBtn.setAttribute("aria-selected", String(isSelected));
       tabBtn.setAttribute("tabindex", isSelected ? "0" : "-1");
       tabBtn.title = session.name;
+      tabBtn.setAttribute("aria-label", `Terminal session ${idx + 1}: ${session.name}`);
 
       const titleSpan = document.createElement("span");
       titleSpan.className = "terminal-tab-title";
@@ -706,7 +709,7 @@ export class TerminalView {
       closeBtn.type = "button";
       closeBtn.className = "terminal-tab-close";
       closeBtn.setAttribute("data-action", "close-terminal-tab");
-      closeBtn.setAttribute("aria-label", `Kill ${session.name}`);
+      closeBtn.setAttribute("aria-label", `Kill terminal ${idx + 1}: ${session.name}`);
       closeBtn.title = `Kill ${session.name}`;
       closeBtn.appendChild(createSvgIcon("close", 12));
 
@@ -1069,6 +1072,7 @@ export class TerminalView {
           if (currentTransport) {
             currentTransport.sendResize(cols, rows);
           }
+          currentTerm.refresh(0, currentTerm.rows - 1);
         } catch (err) {
           // Ignored
         }

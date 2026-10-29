@@ -114,7 +114,7 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
             mock_sock.setsockopt.assert_called_with(socket.SOL_SOCKET, -5, 1)
 
     def test_terminal_websocket_per_session_cap(self):
-        """Terminal WebSocket adheres to 4-socket per-session limit (returns 4429 on 5th)."""
+        """Terminal WebSocket adheres to 8-socket per-session limit (returns 4429 on 9th)."""
         token = self.server.security.create_launch_token()
         res_redeem = self.client.get(
             f"/auth/redeem?token={token}", headers={"Host": f"127.0.0.1:{self.port}"}, follow_redirects=False
@@ -122,18 +122,18 @@ class TestSecurityHeadersAndHardening(unittest.TestCase):
         session_cookie = res_redeem.cookies.get("deskai_session")
         self.assertIsNotNone(session_cookie)
 
-        # Pre-register 4 sockets for this session in security manager
-        mock_ws = [MagicMock() for _ in range(4)]
+        # Pre-register 8 sockets for this session in security manager
+        mock_ws = [MagicMock() for _ in range(8)]
         for ws in mock_ws:
             self.server.security.register_socket(session_cookie, ws)
 
-        # Attempt to open a 5th terminal websocket with same cookie
+        # Attempt to open a 9th terminal websocket with same cookie
         with self.client.websocket_connect(
             "/ws/terminal/dummy_session",
             headers={"Host": f"127.0.0.1:{self.port}", "Origin": f"http://127.0.0.1:{self.port}"},
             cookies={"deskai_session": session_cookie},
         ) as ws:
-            # 5th socket must be rejected with 4429
+            # 9th socket must be rejected with 4429
             pass
 
     def test_resize_window_absolute_bounds_validation(self):

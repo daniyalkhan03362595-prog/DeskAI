@@ -141,6 +141,8 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
 
         tabs = sidebar.locator(".terminal-tab-item")
         self.assertEqual(tabs.count(), 2)
+        for i in range(tabs.count()):
+            self.assertEqual(tabs.nth(i).locator(".terminal-tab-title").inner_text().strip(), "bash")
 
     def test_tab_switching_between_terminals(self):
         """Clicking a terminal tab switches the active terminal instance."""
@@ -178,6 +180,12 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
         self.assertTrue(btn_new.is_disabled())
         self.assertEqual(btn_new.get_attribute("aria-disabled"), "true")
         self.assertIn("Maximum 6", btn_new.get_attribute("title"))
+
+        # Verify all 6 tabs are cleanly titled 'bash' with no numeric suffixes
+        tabs = self.page.locator(".terminal-tab-item")
+        self.assertEqual(tabs.count(), 6)
+        for i in range(6):
+            self.assertEqual(tabs.nth(i).locator(".terminal-tab-title").inner_text().strip(), "bash")
 
         # Trying to add 7th does not exceed 6
         btn_new.click(force=True)

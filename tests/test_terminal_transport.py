@@ -342,6 +342,45 @@ class TestTerminalTransport(unittest.TestCase):
 
         asyncio.run(run())
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX pty test")
+    def test_six_concurrent_terminal_websockets_all_connect_and_stream(self):
+        """All 6 concurrent terminal sessions plus 1 notification socket connect and stream without 4429."""
+
+        async def run():
+            notif_url = f"ws://127.0.0.1:{self.server.port}/ws"
+            notif_ws = await websockets.connect(notif_url, additional_headers=self.ws_headers)
+
+            term_sockets = []
+            sessions = []
+            try:
+                for i in range(6):
+                    session = self.server.terminal_manager.create_session(self.temp_workspace)
+                    sessions.append(session)
+                    term_url = f"ws://127.0.0.1:{self.server.port}/ws/terminal/{session.session_id}"
+                    ws = await websockets.connect(term_url, additional_headers=self.ws_headers)
+                    term_sockets.append(ws)
+
+                for i, ws in enumerate(term_sockets):
+                    token = f"TERM_OK_{i}".encode("utf-8")
+                    sessions[i].write(b"echo " + token + b"\n")
+                    received = bytearray()
+                    start_time = time.monotonic()
+                    while time.monotonic() - start_time < 3.0:
+                        frame = await asyncio.wait_for(ws.recv(), timeout=2.0)
+                        if isinstance(frame, bytes):
+                            received.extend(frame)
+                            if token in received:
+                                break
+                    self.assertIn(token, received, f"Terminal session {i + 1} did not receive expected output")
+            finally:
+                for ws in term_sockets:
+                    await ws.close()
+                await notif_ws.close()
+                for s in sessions:
+                    s.close()
+
+        asyncio.run(run())
+
 
 if __name__ == "__main__":
     unittest.main()

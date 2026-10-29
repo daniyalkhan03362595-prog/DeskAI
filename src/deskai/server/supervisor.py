@@ -21,6 +21,16 @@ from deskai.server.terminal import TerminalManager
 from deskai.utils.net import bind_ephemeral_loopback_socket, is_valid_loopback_host
 
 
+def _is_terminal_socket(ws) -> bool:
+    try:
+        scope = getattr(ws, "scope", None)
+        if isinstance(scope, dict):
+            return str(scope.get("path", "")).startswith("/ws/terminal")
+    except Exception:
+        pass
+    return False
+
+
 class DesktopServer:
     def __init__(self, static_dir: str | Path | None = None):
         if static_dir is None:
@@ -152,8 +162,9 @@ class DesktopServer:
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
-            # D. Concurrency Limit: Max 4 Sockets Per Session
-            if len(self.security.get_session_sockets(cookie)) >= 4:
+            # D. Concurrency Limit: Max 4 Notification Sockets Per Session (/ws)
+            notif_sockets = [s for s in self.security.get_session_sockets(cookie) if not _is_terminal_socket(s)]
+            if len(notif_sockets) >= 4:
                 await ws.close(code=4429, reason="Too Many Sockets for Session")
                 return
 
@@ -363,8 +374,9 @@ class DesktopServer:
                 await ws.close(code=4401, reason="Unauthorized Session")
                 return
 
-            # C2. Concurrency Limit: Max 4 Sockets Per Session (consistent with /ws)
-            if len(self.security.get_session_sockets(cookie)) >= 4:
+            # C2. Concurrency Limit: Up to MAX_SESSIONS (6) terminal sockets + 1 main socket + headroom (cap at 8)
+            MAX_TERMINAL_SESSION_SOCKETS = 8
+            if len(self.security.get_session_sockets(cookie)) >= MAX_TERMINAL_SESSION_SOCKETS:
                 await ws.close(code=4429, reason="Too Many Sockets for Session")
                 return
 
