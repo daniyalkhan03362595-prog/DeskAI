@@ -16,6 +16,13 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from deskai.server.output_hub import (
+    RING_SIZE,
+    OutputHub,
+    _Subscriber,
+    install_output_logging,
+    uninstall_output_logging,
+)
 from deskai.server.security import SessionSecurityManager
 from deskai.server.terminal import TerminalManager
 from deskai.utils.net import bind_ephemeral_loopback_socket, is_valid_loopback_host
@@ -31,6 +38,25 @@ def _is_terminal_socket(ws) -> bool:
     return False
 
 
+def _get_write_buffer_size(ws: WebSocket) -> int:
+    for attr in ("_transport", "transport"):
+        t = getattr(ws, attr, None)
+        if t and hasattr(t, "get_write_buffer_size"):
+            try:
+                return t.get_write_buffer_size()
+            except Exception:
+                pass
+    raw = getattr(ws, "_websocket", None)
+    if raw:
+        t = getattr(raw, "transport", None)
+        if t and hasattr(t, "get_write_buffer_size"):
+            try:
+                return t.get_write_buffer_size()
+            except Exception:
+                pass
+    return 0
+
+
 class DesktopServer:
     def __init__(self, static_dir: str | Path | None = None):
         if static_dir is None:
@@ -40,10 +66,15 @@ class DesktopServer:
 
         # 1. Ephemeral Port Allocation with Pre-Bound Socket
         self.listen_socket, self.port = bind_ephemeral_loopback_socket()
-        self.security = SessionSecurityManager(self.port)
+
+        # Output hub for live system and channel logs
+        self.output_hub = OutputHub()
+        self.security = SessionSecurityManager(self.port, on_token_created=self.output_hub.register_secret)
         self.launch_token = self.security.launch_token
         self.terminal_manager = TerminalManager()
         self.max_processed_requests = 1000
+        self._output_sockets: dict[str, int] = {}
+        self._log_handler = None
 
         # Load shared UEC transition matrix
         transitions_file = self.static_dir / "transitions.json"
@@ -60,6 +91,23 @@ class DesktopServer:
 
         self._configure_routes_and_guards()
 
+    async def _authorize_ws(self, ws: WebSocket) -> str | None:
+        """Accepts, then applies Host -> Origin -> cookie checks. Returns session cookie or None (socket closed)."""
+        await ws.accept()
+        host = ws.headers.get("host", "")
+        if not is_valid_loopback_host(host, self.port):
+            await ws.close(code=4403, reason="Invalid Host")
+            return None
+        origin = ws.headers.get("origin")
+        if origin != f"http://127.0.0.1:{self.port}":
+            await ws.close(code=4403, reason="Cross-Origin WebSocket Denied")
+            return None
+        cookie = ws.cookies.get("deskai_session")
+        if not cookie or not self.security.is_valid_session(cookie):
+            await ws.close(code=4401, reason="Unauthorized Session")
+            return None
+        return cookie
+
     def _configure_routes_and_guards(self):
         # 1. Single-Use Token Redemption Route
         @self.app.get("/auth/redeem")
@@ -74,6 +122,8 @@ class DesktopServer:
             if not session_id:
                 resp = Response(status_code=403, content="Invalid or Expired Launch Token")
                 return self.security.apply_security_headers(resp, is_no_store=True)
+
+            self.output_hub.register_secret(session_id)
 
             # Redirect to clean root URL with HttpOnly SameSite=Strict cookie
             response = RedirectResponse(url="/", status_code=303)
@@ -142,24 +192,8 @@ class DesktopServer:
         # to abort with HTTP 403, preventing WebSocket clients from receiving the application close code.
         @self.app.websocket("/ws")
         async def websocket_endpoint(ws: WebSocket):
-            await ws.accept()
-
-            # A. Verify Host Header
-            host = ws.headers.get("host", "")
-            if not is_valid_loopback_host(host, self.port):
-                await ws.close(code=4403, reason="Invalid Host")
-                return
-
-            # B. Verify Origin Header (Strict Match - Null Not Allowed)
-            origin = ws.headers.get("origin")
-            if origin != f"http://127.0.0.1:{self.port}":
-                await ws.close(code=4403, reason="Cross-Origin WebSocket Denied")
-                return
-
-            # C. Verify Session Cookie
-            cookie = ws.cookies.get("deskai_session")
-            if not cookie or not self.security.is_valid_session(cookie):
-                await ws.close(code=4401, reason="Unauthorized Session")
+            cookie = await self._authorize_ws(ws)
+            if cookie is None:
                 return
 
             # D. Concurrency Limit: Max 4 Notification Sockets Per Session (/ws)
@@ -330,48 +364,14 @@ class DesktopServer:
                 self.security.unregister_socket(cookie, ws)
 
         # 4. Dedicated Terminal WebSocket Transport (/ws/terminal/{session_id})
-        def _get_write_buffer_size(ws: WebSocket) -> int:
-            for attr in ("_transport", "transport"):
-                t = getattr(ws, attr, None)
-                if t and hasattr(t, "get_write_buffer_size"):
-                    try:
-                        return t.get_write_buffer_size()
-                    except Exception:
-                        pass
-            raw = getattr(ws, "_websocket", None)
-            if raw:
-                t = getattr(raw, "transport", None)
-                if t and hasattr(t, "get_write_buffer_size"):
-                    try:
-                        return t.get_write_buffer_size()
-                    except Exception:
-                        pass
-            return 0
-
         # Note: Starlette/ASGI and RFC 6455 require completing the HTTP 101 Switching Protocols
         # handshake (await ws.accept()) before transmitting WebSocket close frames with custom application
         # codes (4403, 4401, 4404, 4429). Calling ws.close() prior to ws.accept() causes ASGI servers (Uvicorn)
         # to abort with HTTP 403, preventing WebSocket clients from receiving the application close code.
         @self.app.websocket("/ws/terminal/{session_id}")
         async def terminal_websocket_endpoint(ws: WebSocket, session_id: str):
-            await ws.accept()
-
-            # A. Verify Host Header
-            host = ws.headers.get("host", "")
-            if not is_valid_loopback_host(host, self.port):
-                await ws.close(code=4403, reason="Invalid Host")
-                return
-
-            # B. Verify Origin Header (Strict Match)
-            origin = ws.headers.get("origin")
-            if origin != f"http://127.0.0.1:{self.port}":
-                await ws.close(code=4403, reason="Cross-Origin WebSocket Denied")
-                return
-
-            # C. Verify Session Cookie
-            cookie = ws.cookies.get("deskai_session")
-            if not cookie or not self.security.is_valid_session(cookie):
-                await ws.close(code=4401, reason="Unauthorized Session")
+            cookie = await self._authorize_ws(ws)
+            if cookie is None:
                 return
 
             # C2. Concurrency Limit: Up to MAX_SESSIONS (6) terminal sockets + 1 main socket + headroom (cap at 8)
@@ -500,12 +500,100 @@ class DesktopServer:
                 if session is not None:
                     session.has_active_websocket = False
 
+        # Output Channel WebSocket Endpoint
+        @self.app.websocket("/ws/output")
+        async def output_websocket_endpoint(ws: WebSocket):
+            cookie = await self._authorize_ws(ws)
+            if cookie is None:
+                return
+            if self._output_sockets.get(cookie, 0) >= 2:
+                await ws.close(code=4429, reason="Too Many Output Sockets")
+                return
+            self._output_sockets[cookie] = self._output_sockets.get(cookie, 0) + 1
+
+            try:
+                since = max(0, int(ws.query_params.get("since", "0")))
+            except ValueError:
+                since = 0
+            sub = _Subscriber(asyncio.get_running_loop())
+            records, reset, first, last = self.output_hub.snapshot_and_subscribe(sub, since)
+            try:
+                await ws.send_text(
+                    json.dumps({"type": "hello", "firstSeq": first, "lastSeq": last, "ringSize": RING_SIZE})
+                )
+                if reset:
+                    await ws.send_text(json.dumps({"type": "reset", "firstSeq": first, "lastSeq": last}))
+                for i in range(0, len(records), 200):  # replay in chunks
+                    chunk = records[i : i + 200]
+                    await ws.send_text(
+                        json.dumps(
+                            {
+                                "type": "batch",
+                                "records": [r.to_dict() for r in chunk],
+                                "lastSeq": chunk[-1].seq,
+                                "dropped": 0,
+                            }
+                        )
+                    )
+
+                async def pump():
+                    while True:
+                        batch = [await sub.queue.get()]
+                        await asyncio.sleep(0.1)  # batching window
+                        while len(batch) < 50 and not sub.queue.empty():
+                            batch.append(sub.queue.get_nowait())
+                        self.output_hub.flush_pending()
+                        if _get_write_buffer_size(ws) > 1_000_000:  # slow consumer: drop and report
+                            sub.dropped += len(batch)
+                            continue
+                        dropped, sub.dropped = sub.dropped, 0
+                        await ws.send_text(
+                            json.dumps(
+                                {
+                                    "type": "batch",
+                                    "records": [r.to_dict() for r in batch],
+                                    "lastSeq": batch[-1].seq,
+                                    "dropped": dropped,
+                                }
+                            )
+                        )
+
+                async def ticker():  # flush trailing repeat summaries while quiet
+                    while True:
+                        await asyncio.sleep(1.0)
+                        self.output_hub.flush_pending()
+
+                async def receiver():  # inbound data is ignored; oversize closes with 1009
+                    while True:
+                        msg = await ws.receive()
+                        if msg["type"] == "websocket.disconnect":
+                            return
+                        if len(msg.get("text") or "") > 1024 or len(msg.get("bytes") or b"") > 1024:
+                            await ws.close(code=1009, reason="Message Too Big")
+                            return
+
+                tasks = [asyncio.create_task(c()) for c in (pump, ticker, receiver)]
+                await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                for t in tasks:
+                    t.cancel()
+            except (WebSocketDisconnect, ConnectionResetError, RuntimeError):
+                pass
+            finally:
+                self.output_hub.unsubscribe(sub)
+                self._output_sockets[cookie] = max(0, self._output_sockets.get(cookie, 1) - 1)
+
         # 4. Root Static File Mounting (Directly at / so relative css/..., js/... all resolve)
         if self.static_dir.exists():
             self.app.mount("/", StaticFiles(directory=str(self.static_dir), html=True), name="static")
 
     def start(self):
         """Starts server in a background daemon thread with the pre-bound socket."""
+        self._log_handler = install_output_logging(self.output_hub)
+        import logging
+
+        logging.getLogger("deskai.supervisor").info(
+            "Supervisor active on loopback port %s. Ready for tasks.", self.port
+        )
         config = uvicorn.Config(
             app=self.app,
             log_config=None,
@@ -522,6 +610,14 @@ class DesktopServer:
 
     def stop(self):
         """Clean teardown of uvicorn, thread join, socket closure and session clearance."""
+        if hasattr(self, "_log_handler") and self._log_handler:
+            try:
+                uninstall_output_logging(self._log_handler)
+            except Exception:
+                pass
+            self._log_handler = None
+        if hasattr(self, "_output_sockets"):
+            self._output_sockets.clear()
         if hasattr(self, "terminal_manager") and self.terminal_manager:
             try:
                 self.terminal_manager.close_all()

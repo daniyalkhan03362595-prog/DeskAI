@@ -5,6 +5,7 @@ DeskAI Security Store, Single-Use Token Redemption & CSP Generator.
 from collections import defaultdict
 import secrets
 import time
+from typing import Callable
 
 
 class SessionStore(dict):
@@ -20,9 +21,12 @@ class SessionStore(dict):
 class SessionSecurityManager:
     SESSION_TTL_SECONDS = 12 * 3600  # 12-hour maximum session TTL
 
-    def __init__(self, port: int):
+    def __init__(self, port: int, on_token_created: Callable[[str], None] | None = None):
         self.port = port
+        self.on_token_created = on_token_created
         self.launch_token: str | None = secrets.token_urlsafe(32)
+        if self.on_token_created and self.launch_token:
+            self.on_token_created(self.launch_token)
         self.style_nonce: str = secrets.token_urlsafe(16)
         # Tracks active sessions with creation timestamp: session_id -> created_at
         self.active_sessions: SessionStore = SessionStore()
@@ -32,6 +36,8 @@ class SessionSecurityManager:
     def create_launch_token(self) -> str:
         """Generates and sets a new single-use launch token."""
         self.launch_token = secrets.token_urlsafe(32)
+        if self.on_token_created:
+            self.on_token_created(self.launch_token)
         return self.launch_token
 
     def redeem_launch_token(self, provided_token: str | None) -> str | None:
