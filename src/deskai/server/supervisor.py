@@ -7,6 +7,7 @@ and hardened WebSocket gateway.
 import asyncio
 from collections import OrderedDict
 import json
+import logging
 import secrets
 import threading
 import time
@@ -284,6 +285,9 @@ class DesktopServer:
                             target_state = payload.get("to")
                             allowed = self.transitions_table.get(uec_state, [])
                             if target_state in allowed:
+                                logging.getLogger("deskai.server.uec").info(
+                                    "Task transition: %s -> %s", uec_state, target_state
+                                )
                                 uec_state = str(target_state)
                                 await send_frame("uec.ack", payload={"state": uec_state})
                             else:
@@ -315,6 +319,9 @@ class DesktopServer:
 
                             allowed = self.transitions_table.get(uec_state, [])
                             if next_state in allowed:
+                                logging.getLogger("deskai.server.uec").info(
+                                    "Task approved: %s -> %s", uec_state, next_state
+                                )
                                 uec_state = next_state
                                 if req_id:
                                     record_processed_request(req_id)
@@ -348,6 +355,9 @@ class DesktopServer:
 
                             allowed = self.transitions_table.get(uec_state, [])
                             if next_state in allowed:
+                                logging.getLogger("deskai.server.uec").warning(
+                                    "Task rejected: %s -> %s", uec_state, next_state
+                                )
                                 uec_state = next_state
                                 if req_id:
                                     record_processed_request(req_id)

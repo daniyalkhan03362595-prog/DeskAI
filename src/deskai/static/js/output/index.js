@@ -209,11 +209,15 @@ export class OutputManager {
       badge.hidden = false;
       badge.textContent = String(total);
       if (this.unreadErrors > 0) {
+        badge.classList.add("has-errors");
+        badge.classList.remove("has-warnings");
         this.tabEl.setAttribute(
           "aria-label",
           `Output, ${this.unreadErrors} new error${this.unreadErrors !== 1 ? "s" : ""}`
         );
       } else {
+        badge.classList.add("has-warnings");
+        badge.classList.remove("has-errors");
         this.tabEl.setAttribute(
           "aria-label",
           `Output, ${this.unreadWarnings} new warning${this.unreadWarnings !== 1 ? "s" : ""}`
@@ -222,6 +226,7 @@ export class OutputManager {
     } else {
       badge.hidden = true;
       badge.textContent = "";
+      badge.classList.remove("has-errors", "has-warnings");
       this.tabEl.setAttribute("aria-label", "Output");
     }
   }
@@ -302,10 +307,12 @@ export class OutputManager {
     if (!this.view || !this.view.el) return;
     const lines = [];
     const rows = this.view.el.querySelectorAll(".log-line");
+    const showTime = !!(this.view && this.view.options && this.view.options.timestamps);
     for (const row of rows) {
-      const time = row.querySelector(".log-time")?.textContent || "";
+      const time = showTime ? (row.querySelector(".log-time")?.textContent || "") : "";
       const chan = row.querySelector(".log-channel")?.textContent || "";
-      const tag = row.querySelector(".log-level-tag")?.textContent || "";
+      const isTagVisible = row.classList.contains("log-warn") || row.classList.contains("log-error");
+      const tag = isTagVisible ? (row.querySelector(".log-level-tag")?.textContent || "") : "";
       const text = row.querySelector(".log-text")?.textContent || "";
       const parts = [];
       if (time) parts.push(time);

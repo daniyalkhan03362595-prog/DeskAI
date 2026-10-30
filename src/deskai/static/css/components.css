@@ -2265,6 +2265,18 @@ button[aria-busy="true"],
   color: var(--text-secondary);
 }
 
+.tab-badge.has-errors {
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  font-weight: 600;
+}
+
+.tab-badge.has-warnings {
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  font-weight: 600;
+}
+
 #problemsPanel[data-busy="true"] #problemsRunBtn:not(.is-refreshing) svg {
   animation: problems-spin 1s linear infinite;
 }
