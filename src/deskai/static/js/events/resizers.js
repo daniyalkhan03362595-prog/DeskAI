@@ -2,6 +2,7 @@
  * Panel and Window Resizing Drag Modules.
  */
 import { NativeBridge } from "../bridge.js";
+import { createSvgIcon } from "../icons.js";
 
 export function initPanelResizers() {
   const resizerLeft = document.getElementById("resizerLeft");
@@ -54,6 +55,23 @@ export function initPanelResizers() {
   const bottomDrawer = document.getElementById("bottomDrawer");
   const drawerToggleBtn = document.getElementById("drawerToggleBtn");
 
+  const clearDrawerMaximized = () => {
+    const stage = document.getElementById("editorStage");
+    if (stage && stage.classList.contains("drawer-maximized")) {
+      stage.classList.remove("drawer-maximized");
+      const maxBtn = document.getElementById("btnMaximizeDrawer");
+      if (maxBtn) {
+        const activeTab = document.querySelector(".drawer-tab.active");
+        const target = activeTab ? activeTab.getAttribute("data-target") : "terminal";
+        const tabLabel = target ? (target.charAt(0).toUpperCase() + target.slice(1)) : "Panel";
+        maxBtn.setAttribute("aria-expanded", "false");
+        maxBtn.setAttribute("title", `Maximize ${tabLabel} Panel`);
+        maxBtn.setAttribute("aria-label", `Maximize ${tabLabel} Panel`);
+        maxBtn.replaceChildren(createSvgIcon("maximize", 14));
+      }
+    }
+  };
+
   if (resizerBottom && bottomDrawer) {
     let lastExpandedHeight = 220;
     try {
@@ -105,6 +123,7 @@ export function initPanelResizers() {
         const maxH = getMaxH();
 
         if (rawH < 50) {
+          clearDrawerMaximized();
           bottomDrawer.classList.add("collapsed");
           if (drawerToggleBtn) drawerToggleBtn.setAttribute("aria-expanded", "false");
           root.style.setProperty("--bottom-drawer-h", "48px");
@@ -173,6 +192,7 @@ export function initPanelResizers() {
           window.DeskAIPorts.startPolling();
         }
       } else {
+        clearDrawerMaximized();
         bottomDrawer.classList.add("collapsed");
         if (drawerToggleBtn) drawerToggleBtn.setAttribute("aria-expanded", "false");
         if (window.DeskAIPorts) window.DeskAIPorts.stopPolling();
@@ -208,6 +228,7 @@ export function initPanelResizers() {
         e.preventDefault();
         const newH = currentH - step;
         if (newH < 50) {
+          clearDrawerMaximized();
           bottomDrawer.classList.add("collapsed");
           if (drawerToggleBtn) drawerToggleBtn.setAttribute("aria-expanded", "false");
           root.style.setProperty("--bottom-drawer-h", "48px");
@@ -220,6 +241,7 @@ export function initPanelResizers() {
         }
       } else if (e.key === "Home") {
         e.preventDefault();
+        clearDrawerMaximized();
         bottomDrawer.classList.add("collapsed");
         if (drawerToggleBtn) drawerToggleBtn.setAttribute("aria-expanded", "false");
         root.style.setProperty("--bottom-drawer-h", "48px");

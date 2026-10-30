@@ -2,6 +2,7 @@
  * Ports Table View Renderer Module.
  * Renders data rows, status badges, accessibility announcements, and click feedback icons.
  */
+import { createSvgIcon } from "../icons.js";
 
 export class PortTableRenderer {
   constructor(tableBody, countBadge, announcer) {
@@ -224,7 +225,7 @@ export class PortTableRenderer {
         delBtn.setAttribute("data-host", item.host || "127.0.0.1");
         delBtn.setAttribute("aria-label", `Stop watching port ${item.port} on ${item.host || "127.0.0.1"}`);
         delBtn.title = "Stop Watching Port";
-        delBtn.textContent = "✕";
+        delBtn.appendChild(createSvgIcon("close", 12));
         tdActions.appendChild(delBtn);
       }
 

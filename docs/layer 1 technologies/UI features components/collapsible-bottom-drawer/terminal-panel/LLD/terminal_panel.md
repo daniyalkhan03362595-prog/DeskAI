@@ -57,7 +57,7 @@ A terminal exposes arbitrary shell execution and is the highest-privilege surfac
    * **Security Trade-Off (`SSH_AUTH_SOCK`):** Exposing `SSH_AUTH_SOCK` enables seamless interactive git/ssh operations without repeated passphrase prompts, but grants processes in the user's shell access to the running `ssh-agent` socket. This trade-off is accepted exclusively because this terminal is a user-operated developer console (D1); AI agent commands are never executed in this shell and run under separate, isolated UEC environments.
    * **Unconditional Stripping:** Explicitly strips all `DESKAI_*` secrets and any environment variable whose key contains `TOKEN` (case-insensitive).
 4. **Concurrency & Resource Limits:**
-   * Maximum 4 concurrent terminal sessions per application.
+   * Maximum 6 concurrent terminal sessions per application.
    * Unguessable session IDs (`secrets.token_urlsafe(32)`).
    * 256 KB bounded server-side ring replay buffer per session for client resynchronization.
 5. **Teardown & Reaping:**

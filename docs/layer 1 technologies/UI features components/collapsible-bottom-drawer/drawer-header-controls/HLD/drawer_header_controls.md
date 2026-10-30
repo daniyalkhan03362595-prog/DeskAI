@@ -98,12 +98,17 @@ stateDiagram-v2
 ```html
 <div class="drawer-header">
   <div class="drawer-tabs" role="tablist" aria-label="Drawer Panels">
-    <button class="drawer-tab active" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true">Terminal</button>
-    <button class="drawer-tab" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false">Output</button>
-    <button class="drawer-tab" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false">Problems</button>
-    <button class="drawer-tab" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false">Ports</button>
+    <button class="drawer-tab active" id="tab-terminal" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true" tabindex="0">Terminal</button>
+    <button class="drawer-tab" id="tab-output" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false" tabindex="-1">Output<span class="tab-badge" id="outputTabBadge" hidden></span></button>
+    <button class="drawer-tab" id="tab-problems" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false" tabindex="-1">Problems<span class="tab-badge" id="problemsTabBadge" hidden></span></button>
+    <button class="drawer-tab" id="tab-ports" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false" tabindex="-1">Ports</button>
   </div>
-  <button class="icon-btn close-drawer-btn" data-action="toggle-drawer" aria-label="Toggle Drawer">─</button>
+  <div class="drawer-actions" id="drawerActions" role="toolbar" aria-label="Panel Actions">
+    <button class="icon-btn" id="btnNewTerminal" data-action="new-terminal" title="New Terminal" aria-label="New Terminal" tabindex="0">...</button>
+    <button class="icon-btn" id="btnKillTerminalHeader" data-action="kill-terminal" title="No active terminal session" aria-label="Kill Active Terminal" disabled aria-disabled="true" tabindex="-1">...</button>
+    <button class="icon-btn" id="btnMaximizeDrawer" data-action="maximize-drawer" title="Maximize Terminal Panel" aria-label="Maximize Terminal Panel" aria-expanded="false" tabindex="-1">...</button>
+    <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer" title="Minimize Panel" tabindex="-1">...</button>
+  </div>
 </div>
 ```
 

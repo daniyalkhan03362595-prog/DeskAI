@@ -6,7 +6,9 @@
 **Target Codebase:** `DeskAI`  
 **Primary Target Files:**
 * `src/deskai/static/index.html`
-* `src/deskai/static/js/ports.js`
+* `src/deskai/static/js/ports.js` (Facade manager)
+* `src/deskai/static/js/ports/scanner.js` (Port scanner & probing engine)
+* `src/deskai/static/js/ports/table.js` (DOM table renderer & accessibility feedback)
 * `src/deskai/static/js/bridge.js`
 * `src/deskai/static/js/events.js`
 * `src/deskai/static/css/components.css`

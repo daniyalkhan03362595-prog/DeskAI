@@ -82,7 +82,7 @@ A host terminal provides arbitrary command execution by design. It represents th
    * The user's personal dotfiles (`.bashrc`, `.profile`) are trusted as the user's own configuration.
 
 4. **Resource Constraints & Concurrency:**
-   * Maximum 4 concurrent terminal sessions per application instance.
+   * Maximum 6 concurrent terminal sessions per application instance.
    * Unguessable cryptographically random session IDs (`secrets.token_urlsafe(32)`).
    * Bounded server-side ring replay buffer (256 KB) per session to allow reconnects and tab-switches without unbounded memory growth.
 

@@ -80,14 +80,13 @@ The component is located directly inside `<section class="bottom-drawer" id="bot
       </button>
     </div>
 
-    <!-- Toggle / Minimize Button -->
-    <button 
-      class="icon-btn close-drawer-btn" 
-      data-action="toggle-drawer" 
-      aria-label="Toggle Drawer"
-      title="Toggle Drawer">
-      ─
-    </button>
+    <!-- Drawer Actions Toolbar (WAI-ARIA Roving Tabindex) -->
+    <div class="drawer-actions" id="drawerActions" role="toolbar" aria-label="Panel Actions">
+      <button class="icon-btn" id="btnNewTerminal" data-action="new-terminal" title="New Terminal" aria-label="New Terminal" tabindex="0">...</button>
+      <button class="icon-btn" id="btnKillTerminalHeader" data-action="kill-terminal" title="No active terminal session" aria-label="Kill Active Terminal" disabled aria-disabled="true" tabindex="-1">...</button>
+      <button class="icon-btn" id="btnMaximizeDrawer" data-action="maximize-drawer" title="Maximize Terminal Panel" aria-label="Maximize Terminal Panel" aria-expanded="false" tabindex="-1">...</button>
+      <button class="icon-btn close-drawer-btn" id="drawerToggleBtn" data-action="toggle-drawer" aria-expanded="true" aria-label="Toggle Drawer" title="Minimize Panel" tabindex="-1">...</button>
+    </div>
   </div>
 
   <!-- Drawer Body Content Panels -->

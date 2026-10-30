@@ -85,4 +85,53 @@ export function initKeyboardShortcuts(store) {
       }
     });
   }
+
+  // Drawer Actions toolbar roving tabindex navigation
+  const drawerActions = document.getElementById("drawerActions");
+  if (drawerActions) {
+    function updateActionsFocus(targetBtn, buttons) {
+      buttons.forEach((btn) => {
+        btn.setAttribute("tabindex", btn === targetBtn ? "0" : "-1");
+      });
+      targetBtn.focus();
+    }
+
+    drawerActions.addEventListener("keydown", (e) => {
+      const visibleButtons = Array.from(drawerActions.querySelectorAll("button:not(.is-hidden):not([disabled])"));
+      if (visibleButtons.length === 0) return;
+
+      const activeEl = document.activeElement;
+      const currentIndex = visibleButtons.indexOf(activeEl);
+      if (currentIndex === -1) return;
+
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIndex = (currentIndex + 1) % visibleButtons.length;
+        updateActionsFocus(visibleButtons[nextIndex], visibleButtons);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIndex = (currentIndex - 1 + visibleButtons.length) % visibleButtons.length;
+        updateActionsFocus(visibleButtons[prevIndex], visibleButtons);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        updateActionsFocus(visibleButtons[0], visibleButtons);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        updateActionsFocus(visibleButtons[visibleButtons.length - 1], visibleButtons);
+      }
+    });
+  }
+}
+
+export function syncDrawerActionsTabindex() {
+  const container = document.getElementById("drawerActions");
+  if (!container) return;
+  const visibleButtons = Array.from(container.querySelectorAll("button:not(.is-hidden)"));
+  if (visibleButtons.length === 0) return;
+  const hasFocusable = visibleButtons.some((b) => b.getAttribute("tabindex") === "0");
+  if (!hasFocusable) {
+    visibleButtons.forEach((b) => b.setAttribute("tabindex", "-1"));
+    const firstEnabled = visibleButtons.find((b) => !b.disabled) || visibleButtons[0];
+    if (firstEnabled) firstEnabled.setAttribute("tabindex", "0");
+  }
 }

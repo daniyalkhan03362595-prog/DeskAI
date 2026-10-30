@@ -366,6 +366,31 @@ class TestProblemsE2E(unittest.TestCase):
         finally:
             ctx.close()
 
+    def test_tc_prb_28b_toml_replace_semantics_clears_to_empty(self):
+        """TC-PRB-28b: Fixing syntax error in TOML file and saving replaces diags and restores empty state."""
+        ctx, page = self._create_page()
+        try:
+            toml_file = self.temp_workspace / "config.toml"
+            toml_file.write_text("[table\nkey = 'value'\n", encoding="utf-8")
+
+            page.locator("#tab-problems").click()
+            page.evaluate(f'window.DeskAIProblems.onFileSaved("{toml_file.as_posix()}");')
+            page.wait_for_selector(".problem-item", timeout=3000)
+            self.assertEqual(page.locator(".problem-item").count(), 1)
+
+            # Fix error in TOML
+            toml_file.write_text("[table]\nkey = 'value'\n", encoding="utf-8")
+            page.evaluate(f'window.DeskAIProblems.onFileSaved("{toml_file.as_posix()}");')
+            page.wait_for_selector(".problems-empty", timeout=3000)
+
+            self.assertEqual(page.locator(".problem-item").count(), 0)
+            self.assertEqual(
+                page.locator(".problems-empty").inner_text(),
+                "No problems have been detected in the workspace.",
+            )
+        finally:
+            ctx.close()
+
     def test_tc_prb_29_stale_response_guard(self):
         """TC-PRB-29: Stale responses with older request IDs are dropped."""
         ctx, page = self._create_page()

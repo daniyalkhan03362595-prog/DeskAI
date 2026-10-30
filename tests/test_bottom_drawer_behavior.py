@@ -131,6 +131,53 @@ class TestBottomDrawerBehavior(unittest.TestCase):
         self.page.keyboard.press("ArrowLeft")
         self.assertEqual(self.page.evaluate("document.activeElement.id"), "tab-problems")
 
+    def test_drawer_actions_roving_tabindex(self):
+        """Arrow keys, Home, and End rove tabindex and focus across visible action buttons in drawer-actions."""
+        new_btn = self.page.locator("#btnNewTerminal")
+        max_btn = self.page.locator("#btnMaximizeDrawer")
+        toggle_btn = self.page.locator("#drawerToggleBtn")
+
+        new_btn.focus()
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "btnNewTerminal")
+        self.assertEqual(new_btn.get_attribute("tabindex"), "0")
+
+        # ArrowRight roves to next enabled button (skipping disabled btnKillTerminalHeader)
+        self.page.keyboard.press("ArrowRight")
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "btnMaximizeDrawer")
+        self.assertEqual(max_btn.get_attribute("tabindex"), "0")
+        self.assertEqual(new_btn.get_attribute("tabindex"), "-1")
+
+        # End moves to last visible button (toggle-drawer)
+        self.page.keyboard.press("End")
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "drawerToggleBtn")
+        self.assertEqual(toggle_btn.get_attribute("tabindex"), "0")
+
+        # Home moves back to first visible button
+        self.page.keyboard.press("Home")
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "btnNewTerminal")
+
+    def test_maximize_button_dynamic_context_label(self):
+        """Maximize button title and aria-label dynamically update when switching drawer tabs."""
+        max_btn = self.page.locator("#btnMaximizeDrawer")
+        self.assertIn("Terminal", max_btn.get_attribute("title"))
+
+        # Switch to Output tab
+        self.page.locator("#tab-output").click()
+        self.assertIn("Output", max_btn.get_attribute("title"))
+        self.assertIn("Output", max_btn.get_attribute("aria-label"))
+
+        # Switch to Problems tab
+        self.page.locator("#tab-problems").click()
+        self.assertIn("Problems", max_btn.get_attribute("title"))
+
+        # Switch to Ports tab
+        self.page.locator("#tab-ports").click()
+        self.assertIn("Ports", max_btn.get_attribute("title"))
+
+        # Switch back to Terminal tab
+        self.page.locator("#tab-terminal").click()
+        self.assertIn("Terminal", max_btn.get_attribute("title"))
+
     def test_refresh_ports_preserves_focus(self):
         """Refreshing ports preserves focus on active elements inside the ports table."""
         self.page.locator("#tab-ports").click()

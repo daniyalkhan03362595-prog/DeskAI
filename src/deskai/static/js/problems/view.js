@@ -120,7 +120,7 @@ function renderItem(d, ui, isFirst) {
   fixBtn.type = "button";
   fixBtn.setAttribute("aria-label", `Fix error in ${d.file} line ${startLine} with AI`);
   fixBtn.setAttribute("title", "Fix this error using DeskAI Assistant");
-  fixBtn.textContent = "✨ Fix";
+  fixBtn.append(createSvgIcon("sparkle", 12), document.createTextNode(" Fix"));
   fixBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (typeof ui.triggerAiFix === "function") {
@@ -132,7 +132,7 @@ function renderItem(d, ui, isFirst) {
   explainBtn.type = "button";
   explainBtn.setAttribute("aria-label", `Explain error in ${d.file} line ${startLine}`);
   explainBtn.setAttribute("title", "Explain why this error occurred");
-  explainBtn.textContent = "💡 Explain";
+  explainBtn.append(createSvgIcon("lightbulb", 12), document.createTextNode(" Explain"));
   explainBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     if (typeof ui.triggerAiExplain === "function") {

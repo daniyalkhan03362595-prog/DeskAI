@@ -124,6 +124,29 @@ class TestTerminalMultiAndMaximize(unittest.TestCase):
         self.assertNotEqual(editor_viewport_restored, "none")
         self.assertEqual(btn_maximize.get_attribute("aria-expanded"), "false")
 
+    def test_resizer_double_click_clears_maximized_state(self):
+        """Double-clicking resizer while drawer is maximized clears .drawer-maximized and resets button."""
+        btn_maximize = self.page.locator("#btnMaximizeDrawer")
+        resizer = self.page.locator("#resizerBottom")
+        drawer = self.page.locator("#bottomDrawer")
+
+        # Maximize drawer
+        btn_maximize.click()
+        self.page.wait_for_timeout(50)
+        self.assertEqual(btn_maximize.get_attribute("aria-expanded"), "true")
+        self.assertTrue(
+            self.page.evaluate("() => document.getElementById('editorStage').classList.contains('drawer-maximized')")
+        )
+
+        # Double-click resizer to collapse (dispatched via DOM event since resizer is hidden when maximized)
+        resizer.dispatch_event("dblclick")
+        self.page.wait_for_timeout(50)
+        self.assertIn("collapsed", drawer.get_attribute("class"))
+        self.assertFalse(
+            self.page.evaluate("() => document.getElementById('editorStage').classList.contains('drawer-maximized')")
+        )
+        self.assertEqual(btn_maximize.get_attribute("aria-expanded"), "false")
+
     def test_multi_terminal_sessions_and_sidebar_display(self):
         """Clicking + spawns multiple terminals; sidebar appears when sessions >= 2."""
         btn_new = self.page.locator("#btnNewTerminal")

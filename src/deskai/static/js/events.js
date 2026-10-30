@@ -5,7 +5,7 @@ import { NativeBridge } from "./bridge.js";
 import { store } from "./state.js";
 import { toggleTheme } from "./theme.js";
 import { createSvgIcon } from "./icons.js";
-import { initKeyboardShortcuts } from "./events/shortcuts.js";
+import { initKeyboardShortcuts, syncDrawerActionsTabindex } from "./events/shortcuts.js";
 import { initPanelResizers, initHeaderAndWindowResizers } from "./events/resizers.js";
 
 export function initGlobalEvents() {
@@ -254,9 +254,12 @@ export function initGlobalEvents() {
 
           const isMaximized = stage.classList.toggle("drawer-maximized");
           if (btn) {
+            const activeTab = document.querySelector(".drawer-tab.active");
+            const target = activeTab ? activeTab.getAttribute("data-target") : "terminal";
+            const tabLabel = target ? (target.charAt(0).toUpperCase() + target.slice(1)) : "Panel";
             btn.setAttribute("aria-expanded", String(isMaximized));
-            btn.setAttribute("title", isMaximized ? "Restore Terminal Panel Size" : "Maximize Terminal Panel");
-            btn.setAttribute("aria-label", isMaximized ? "Restore Terminal Panel Size" : "Maximize Terminal Panel");
+            btn.setAttribute("title", isMaximized ? `Restore ${tabLabel} Panel Size` : `Maximize ${tabLabel} Panel`);
+            btn.setAttribute("aria-label", isMaximized ? `Restore ${tabLabel} Panel Size` : `Maximize ${tabLabel} Panel`);
             btn.replaceChildren(createSvgIcon(isMaximized ? "restore" : "maximize", 14));
           }
 
@@ -278,9 +281,12 @@ export function initGlobalEvents() {
               stage.classList.remove("drawer-maximized");
               const maxBtn = document.getElementById("btnMaximizeDrawer");
               if (maxBtn) {
+                const activeTab = document.querySelector(".drawer-tab.active");
+                const target = activeTab ? activeTab.getAttribute("data-target") : "terminal";
+                const tabLabel = target ? (target.charAt(0).toUpperCase() + target.slice(1)) : "Panel";
                 maxBtn.setAttribute("aria-expanded", "false");
-                maxBtn.setAttribute("title", "Maximize Terminal Panel");
-                maxBtn.setAttribute("aria-label", "Maximize Terminal Panel");
+                maxBtn.setAttribute("title", `Maximize ${tabLabel} Panel`);
+                maxBtn.setAttribute("aria-label", `Maximize ${tabLabel} Panel`);
                 maxBtn.replaceChildren(createSvgIcon("maximize", 14));
               }
             }
@@ -331,6 +337,18 @@ export function initGlobalEvents() {
         const isTerminalTab = target === "terminal";
         if (btnNewTerm) btnNewTerm.classList.toggle("is-hidden", !isTerminalTab);
         if (btnKillTerm) btnKillTerm.classList.toggle("is-hidden", !isTerminalTab);
+
+        // Update maximize button label for newly active tab
+        const maxBtn = document.getElementById("btnMaximizeDrawer");
+        if (maxBtn) {
+          const stage = document.getElementById("editorStage");
+          const isMax = stage && stage.classList.contains("drawer-maximized");
+          const tabLabel = target ? (target.charAt(0).toUpperCase() + target.slice(1)) : "Panel";
+          maxBtn.setAttribute("title", isMax ? `Restore ${tabLabel} Panel Size` : `Maximize ${tabLabel} Panel`);
+          maxBtn.setAttribute("aria-label", isMax ? `Restore ${tabLabel} Panel Size` : `Maximize ${tabLabel} Panel`);
+        }
+
+        syncDrawerActionsTabindex();
 
         if (target !== "ports" && window.DeskAIPorts) {
           window.DeskAIPorts.stopPolling();

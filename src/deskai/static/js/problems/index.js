@@ -201,10 +201,19 @@ export class ProblemsManager {
     }
     // Also include default built-in checkers for file extension
     const ext = filePath.includes(".") ? filePath.substring(filePath.lastIndexOf(".")).toLowerCase() : "";
-    if (ext === ".py" || ext === ".pyw") {
-      sourcesToUpdate.add("python");
-    } else if (ext === ".json") {
-      sourcesToUpdate.add("json");
+    const EXT_TO_SOURCE = {
+      ".py": "python",
+      ".pyw": "python",
+      ".json": "json",
+      ".toml": "toml",
+      ".html": "html",
+      ".htm": "html",
+      ".xml": "xml",
+      ".svg": "xml"
+    };
+    const defaultSource = EXT_TO_SOURCE[ext];
+    if (defaultSource) {
+      sourcesToUpdate.add(defaultSource);
     }
 
     for (const source of sourcesToUpdate) {
