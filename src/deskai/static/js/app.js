@@ -283,6 +283,9 @@ store.subscribe("telemetry", (data) => {
   const ramText = document.getElementById("teleRamText");
   const vramTrack = document.getElementById("teleVramTrack");
   const vramFill = document.getElementById("teleVramFill");
+  const gpuTempText = document.getElementById("teleGpuTempText");
+  const cpuText = document.getElementById("teleCpuText");
+  const cpuTempText = document.getElementById("teleCpuTempText");
 
   if (gpuBadge) {
     while (gpuBadge.firstChild) {
@@ -299,6 +302,28 @@ store.subscribe("telemetry", (data) => {
     } else {
       gpuBadge.classList.add("unknown");
       gpuBadge.title = "Hardware telemetry unavailable on this host";
+    }
+  }
+
+  // GPU Temperature
+  if (gpuTempText) {
+    const tempC = data.gpuTempC;
+    const hasTemp = typeof tempC === "number" && !isNaN(tempC);
+    gpuTempText.classList.remove("temp-cool", "temp-warm", "temp-hot", "unknown");
+    if (hasTemp) {
+      gpuTempText.textContent = `${tempC} °C`;
+      gpuTempText.title = `GPU Temperature: ${tempC} °C`;
+      if (tempC < 60) {
+        gpuTempText.classList.add("temp-cool");
+      } else if (tempC < 80) {
+        gpuTempText.classList.add("temp-warm");
+      } else {
+        gpuTempText.classList.add("temp-hot");
+      }
+    } else {
+      gpuTempText.textContent = "—";
+      gpuTempText.classList.add("unknown");
+      gpuTempText.title = "GPU temperature unavailable";
     }
   }
 
@@ -351,6 +376,43 @@ store.subscribe("telemetry", (data) => {
       ramText.textContent = "Unavailable";
       ramText.classList.add("unknown");
       ramText.title = "Hardware telemetry unavailable on this host";
+    }
+  }
+
+  // CPU Usage
+  if (cpuText) {
+    const cpu = data.cpuUsagePct;
+    const hasCpu = cpu && cpu !== "unavailable";
+    if (hasCpu) {
+      cpuText.textContent = cpu;
+      cpuText.classList.remove("unknown");
+      cpuText.title = `CPU Usage: ${cpu}`;
+    } else {
+      cpuText.textContent = "—";
+      cpuText.classList.add("unknown");
+      cpuText.title = "CPU usage unavailable";
+    }
+  }
+
+  // CPU Temperature
+  if (cpuTempText) {
+    const tempC = data.cpuTempC;
+    const hasTemp = typeof tempC === "number" && !isNaN(tempC);
+    cpuTempText.classList.remove("temp-cool", "temp-warm", "temp-hot", "unknown");
+    if (hasTemp) {
+      cpuTempText.textContent = `${tempC} °C`;
+      cpuTempText.title = `CPU Temperature: ${tempC} °C`;
+      if (tempC < 60) {
+        cpuTempText.classList.add("temp-cool");
+      } else if (tempC < 80) {
+        cpuTempText.classList.add("temp-warm");
+      } else {
+        cpuTempText.classList.add("temp-hot");
+      }
+    } else {
+      cpuTempText.textContent = "—";
+      cpuTempText.classList.add("unknown");
+      cpuTempText.title = "CPU temperature unavailable";
     }
   }
 });

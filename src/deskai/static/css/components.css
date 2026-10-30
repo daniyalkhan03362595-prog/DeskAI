@@ -798,6 +798,20 @@
   width: 0% !important;
 }
 
+/* GPU Temperature colour states */
+.tele-val.temp-cool {
+  color: var(--color-success);
+}
+
+.tele-val.temp-warm {
+  color: var(--color-amber);
+}
+
+.tele-val.temp-hot {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
 /* ==========================================================================
    Center Stage: Editor Tabs & Surface
    ========================================================================== */

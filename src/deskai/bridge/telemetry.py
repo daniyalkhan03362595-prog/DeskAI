@@ -1,6 +1,7 @@
 """
 Host System Telemetry Bridge Module.
-Reports CPU, RAM, and GPU platform metrics across Linux, Windows, and macOS.
+Reports CPU, RAM, GPU platform metrics, GPU temperature, and CPU usage percentage
+across Linux, Windows, and macOS.
 """
 
 import logging
@@ -20,7 +21,7 @@ _GPU_CACHE_TTL = 3.0  # seconds
 
 def detect_host_gpu() -> dict[str, Any]:
     """
-    Detects host GPU device model, used VRAM (MB), and total VRAM (MB).
+    Detects host GPU device model, used VRAM (MB), total VRAM (MB), and GPU temperature (°C).
     Supports NVIDIA (nvidia-smi), macOS (Apple Silicon unified), and Linux AMD (/sys/class/drm).
     Caches probe results for 3 seconds to avoid subprocess execution overhead.
     """
@@ -32,6 +33,7 @@ def detect_host_gpu() -> dict[str, Any]:
         "gpuName": "--",
         "vramUsedMB": "--",
         "vramTotalMB": "--",
+        "gpuTempC": "--",
     }
 
     try:
@@ -40,7 +42,7 @@ def detect_host_gpu() -> dict[str, Any]:
         if smi:
             try:
                 proc = subprocess.run(
-                    [smi, "--query-gpu=name,memory.used,memory.total", "--format=csv,noheader,nounits"],
+                    [smi, "--query-gpu=name,memory.used,memory.total,temperature.gpu", "--format=csv,noheader,nounits"],
                     capture_output=True,
                     text=True,
                     timeout=1.5,
@@ -53,6 +55,8 @@ def detect_host_gpu() -> dict[str, Any]:
                         gpu_info["gpuName"] = parts[0]
                         gpu_info["vramUsedMB"] = int(float(parts[1]))
                         gpu_info["vramTotalMB"] = int(float(parts[2]))
+                        if len(parts) >= 4 and parts[3] not in ("", "[N/A]", "N/A"):
+                            gpu_info["gpuTempC"] = int(float(parts[3]))
                         _GPU_CACHE["data"] = gpu_info
                         _GPU_CACHE["ts"] = now
                         return dict(gpu_info)
@@ -82,13 +86,15 @@ def detect_host_gpu() -> dict[str, Any]:
                         gpu_info["vramUsedMB"] = int(vm.used // (1024 * 1024))
                     except Exception:
                         pass
+                    # macOS userspace GPU temp is not reliably accessible without SMC
+                    gpu_info["gpuTempC"] = "--"
                     _GPU_CACHE["data"] = gpu_info
                     _GPU_CACHE["ts"] = now
                     return dict(gpu_info)
             except Exception as e:
                 logger.debug("macOS Apple Silicon probe failed: %s", e)
 
-        # 3. Linux AMD sysfs VRAM
+        # 3. Linux AMD sysfs VRAM + hwmon temperature
         if os.name != "nt" and os.path.exists("/sys/class/drm"):
             try:
                 for entry in os.listdir("/sys/class/drm"):
@@ -105,6 +111,19 @@ def detect_host_gpu() -> dict[str, Any]:
                         gpu_info["gpuName"] = "AMD Radeon GPU"
                         gpu_info["vramTotalMB"] = int(total_bytes // (1024 * 1024))
                         gpu_info["vramUsedMB"] = int(used_bytes // (1024 * 1024))
+                        # Try AMD hwmon temperature (millidegrees → degrees)
+                        hwmon_base = os.path.join(card_dev, "hwmon")
+                        if os.path.exists(hwmon_base):
+                            for hwmon in os.listdir(hwmon_base):
+                                temp_path = os.path.join(hwmon_base, hwmon, "temp1_input")
+                                if os.path.exists(temp_path):
+                                    try:
+                                        with open(temp_path, "r", encoding="utf-8") as f:
+                                            millideg = int(f.read().strip())
+                                        gpu_info["gpuTempC"] = millideg // 1000
+                                    except Exception:
+                                        pass
+                                    break
                         _GPU_CACHE["data"] = gpu_info
                         _GPU_CACHE["ts"] = now
                         return dict(gpu_info)
@@ -119,6 +138,65 @@ def detect_host_gpu() -> dict[str, Any]:
     return dict(gpu_info)
 
 
+def detect_cpu_temperature() -> Any:
+    """
+    Detects host CPU temperature in degrees Celsius (°C).
+    Supports Linux (psutil coretemp/k10temp/thermal_zone sysfs),
+    falling back to '--' if unavailable or unsupported on the platform.
+    """
+    try:
+        import psutil
+
+        if hasattr(psutil, "sensors_temperatures"):
+            temps = psutil.sensors_temperatures()
+            if temps:
+                # 1. Known primary CPU thermal sensor drivers
+                for key in ("coretemp", "k10temp", "zenpower", "cpu_thermal", "soc_thermal"):
+                    if key in temps and temps[key]:
+                        # Prefer Package id 0 / Tdie / Tctl
+                        for entry in temps[key]:
+                            lbl = (entry.label or "").lower()
+                            if "package id 0" in lbl or "tdie" in lbl or "tctl" in lbl:
+                                if entry.current is not None and entry.current > 0:
+                                    return int(round(entry.current))
+                        # Fallback to first non-zero entry in this sensor
+                        for entry in temps[key]:
+                            if entry.current is not None and entry.current > 0:
+                                return int(round(entry.current))
+
+                # 2. Any sensor with 'cpu' in key name
+                for name, entries in temps.items():
+                    if "cpu" in name.lower() and entries:
+                        for entry in entries:
+                            if entry.current is not None and entry.current > 0:
+                                return int(round(entry.current))
+    except Exception as e:
+        logger.debug("psutil sensors_temperatures probe failed: %s", e)
+
+    # 3. Direct Linux sysfs thermal zone probe fallback
+    if os.name != "nt" and os.path.exists("/sys/class/thermal"):
+        try:
+            for zone in sorted(os.listdir("/sys/class/thermal")):
+                if zone.startswith("thermal_zone"):
+                    type_p = os.path.join("/sys/class/thermal", zone, "type")
+                    temp_p = os.path.join("/sys/class/thermal", zone, "temp")
+                    if os.path.exists(type_p) and os.path.exists(temp_p):
+                        try:
+                            with open(type_p, "r", encoding="utf-8") as f:
+                                t_type = f.read().strip().lower()
+                            if any(k in t_type for k in ("x86_pkg_temp", "cpu", "k10temp", "coretemp")):
+                                with open(temp_p, "r", encoding="utf-8") as f:
+                                    raw_val = int(f.read().strip())
+                                    if raw_val > 0:
+                                        return int(round(raw_val / 1000.0))
+                        except Exception:
+                            continue
+        except Exception as e:
+            logger.debug("sysfs thermal zone probe failed: %s", e)
+
+    return "--"
+
+
 class TelemetryBridge(BaseBridgeModule):
     """Bridge methods for system telemetry reporting."""
 
@@ -131,6 +209,8 @@ class TelemetryBridge(BaseBridgeModule):
             "gpuName": "--",
             "vramUsedMB": "--",
             "vramTotalMB": "--",
+            "gpuTempC": "--",
+            "cpuTempC": "--",
             "cpuUsagePct": "unavailable",
             "ramUsedMB": "unavailable",
             "ramTotalMB": "unavailable",
@@ -147,8 +227,10 @@ class TelemetryBridge(BaseBridgeModule):
             telemetry["gpuName"] = gpu_data["gpuName"]
             telemetry["vramUsedMB"] = gpu_data["vramUsedMB"]
             telemetry["vramTotalMB"] = gpu_data["vramTotalMB"]
+            telemetry["gpuTempC"] = gpu_data.get("gpuTempC", "--")
 
             # 2. Host RAM and CPU telemetry across platforms (Linux, Windows, macOS)
+            telemetry["cpuTempC"] = detect_cpu_temperature()
             telemetry_obtained = False
             try:
                 import psutil

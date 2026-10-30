@@ -10,7 +10,7 @@ except ImportError:
     _HAS_PLAYWRIGHT = False
 
 from deskai.bridge.api import DesktopBridgeAPI
-from deskai.bridge.telemetry import TelemetryBridge, detect_host_gpu
+from deskai.bridge.telemetry import TelemetryBridge, detect_cpu_temperature, detect_host_gpu
 
 
 class TestHardwareTelemetryDock(unittest.TestCase):
@@ -52,15 +52,21 @@ class TestHardwareTelemetryDock(unittest.TestCase):
             self.context.close()
 
     def test_backend_detect_host_gpu_structure(self):
-        """detect_host_gpu returns a dict containing gpuName, vramUsedMB, and vramTotalMB."""
+        """detect_host_gpu returns a dict containing gpuName, vramUsedMB, vramTotalMB, and gpuTempC."""
         gpu = detect_host_gpu()
         self.assertIsInstance(gpu, dict)
         self.assertIn("gpuName", gpu)
         self.assertIn("vramUsedMB", gpu)
         self.assertIn("vramTotalMB", gpu)
+        self.assertIn("gpuTempC", gpu)
 
-    def test_backend_telemetry_bridge_includes_gpu_and_ram(self):
-        """TelemetryBridge.get_system_telemetry returns full hardware telemetry."""
+    def test_backend_detect_cpu_temperature_returns_valid_or_fallback(self):
+        """detect_cpu_temperature returns either an integer °C or '--'."""
+        temp = detect_cpu_temperature()
+        self.assertTrue(isinstance(temp, int) or temp == "--")
+
+    def test_backend_telemetry_bridge_includes_gpu_temp_and_cpu(self):
+        """TelemetryBridge.get_system_telemetry returns gpuTempC, cpuTempC, and cpuUsagePct."""
         mock_mgr = MagicMock()
         mock_mgr.server.port = 8000
         mock_mgr.window.get_current_url.return_value = "http://127.0.0.1:8000/"
@@ -73,6 +79,8 @@ class TestHardwareTelemetryDock(unittest.TestCase):
         self.assertIn("gpuName", telem)
         self.assertIn("vramUsedMB", telem)
         self.assertIn("vramTotalMB", telem)
+        self.assertIn("gpuTempC", telem)
+        self.assertIn("cpuTempC", telem)
         self.assertIn("ramUsedMB", telem)
         self.assertIn("ramTotalMB", telem)
         self.assertIn("cpuUsagePct", telem)
@@ -118,6 +126,8 @@ class TestHardwareTelemetryDock(unittest.TestCase):
                             gpuName: "NVIDIA GeForce RTX 4080",
                             vramUsedMB: 3072,
                             vramTotalMB: 16384,
+                            gpuTempC: 58,
+                            cpuTempC: 52,
                             ramUsedMB: 8192,
                             ramTotalMB: 32768,
                             cpuUsagePct: "12.4%",
@@ -136,11 +146,129 @@ class TestHardwareTelemetryDock(unittest.TestCase):
         vram_text = self.page.locator("#teleVramText").text_content().strip()
         vram_val = self.page.locator("#teleVramTrack").get_attribute("aria-valuenow")
         ram_text = self.page.locator("#teleRamText").text_content().strip()
+        gpu_temp_text = self.page.locator("#teleGpuTempText").text_content().strip()
+        cpu_text = self.page.locator("#teleCpuText").text_content().strip()
+        cpu_temp_text = self.page.locator("#teleCpuTempText").text_content().strip()
 
         self.assertIn("NVIDIA GeForce RTX 4080", gpu_text)
         self.assertEqual(vram_text, "3.0 / 16 GB")
         self.assertEqual(vram_val, "19")  # 3072 / 16384 = ~18.75% -> 19
         self.assertEqual(ram_text, "8.0 / 32 GB")
+        self.assertEqual(gpu_temp_text, "58 °C")
+        self.assertEqual(cpu_text, "12.4%")
+        self.assertEqual(cpu_temp_text, "52 °C")
+
+    def test_gpu_temp_color_coding(self):
+        """GPU temperature element receives correct CSS class based on temperature value."""
+        # Cool: < 60°C → temp-cool
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "Test GPU", vramUsedMB: 1000, vramTotalMB: 8192,
+                gpuTempC: 45, ramUsedMB: 4096, ramTotalMB: 16384, cpuUsagePct: "5.0%"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        classes = self.page.locator("#teleGpuTempText").get_attribute("class")
+        self.assertIn("temp-cool", classes)
+
+        # Warm: 60–79°C → temp-warm
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "Test GPU", vramUsedMB: 1000, vramTotalMB: 8192,
+                gpuTempC: 72, ramUsedMB: 4096, ramTotalMB: 16384, cpuUsagePct: "5.0%"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        classes = self.page.locator("#teleGpuTempText").get_attribute("class")
+        self.assertIn("temp-warm", classes)
+
+        # Hot: >= 80°C → temp-hot
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "Test GPU", vramUsedMB: 1000, vramTotalMB: 8192,
+                gpuTempC: 85, ramUsedMB: 4096, ramTotalMB: 16384, cpuUsagePct: "5.0%"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        classes = self.page.locator("#teleGpuTempText").get_attribute("class")
+        self.assertIn("temp-hot", classes)
+
+    def test_gpu_temp_unavailable_shows_dash(self):
+        """When gpuTempC is '--', the GPU temp element shows '—' with unknown class."""
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "--", vramUsedMB: "--", vramTotalMB: "--",
+                gpuTempC: "--", ramUsedMB: "--", ramTotalMB: "--", cpuUsagePct: "unavailable"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        temp_text = self.page.locator("#teleGpuTempText").text_content().strip()
+        classes = self.page.locator("#teleGpuTempText").get_attribute("class")
+        self.assertEqual(temp_text, "—")
+        self.assertIn("unknown", classes)
+
+    def test_cpu_temp_color_coding(self):
+        """CPU temperature element receives correct CSS class based on temperature value."""
+        # Cool: < 60°C → temp-cool
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "Test GPU", vramUsedMB: 1000, vramTotalMB: 8192,
+                gpuTempC: 45, cpuTempC: 48, ramUsedMB: 4096, ramTotalMB: 16384, cpuUsagePct: "5.0%"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        classes = self.page.locator("#teleCpuTempText").get_attribute("class")
+        self.assertIn("temp-cool", classes)
+
+        # Warm: 60–79°C → temp-warm
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "Test GPU", vramUsedMB: 1000, vramTotalMB: 8192,
+                gpuTempC: 45, cpuTempC: 74, ramUsedMB: 4096, ramTotalMB: 16384, cpuUsagePct: "5.0%"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        classes = self.page.locator("#teleCpuTempText").get_attribute("class")
+        self.assertIn("temp-warm", classes)
+
+        # Hot: >= 80°C → temp-hot
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "Test GPU", vramUsedMB: 1000, vramTotalMB: 8192,
+                gpuTempC: 45, cpuTempC: 88, ramUsedMB: 4096, ramTotalMB: 16384, cpuUsagePct: "5.0%"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        classes = self.page.locator("#teleCpuTempText").get_attribute("class")
+        self.assertIn("temp-hot", classes)
+
+    def test_cpu_temp_unavailable_shows_dash(self):
+        """When cpuTempC is '--', the CPU temp element shows '—' with unknown class."""
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "--", vramUsedMB: "--", vramTotalMB: "--",
+                gpuTempC: "--", cpuTempC: "--", ramUsedMB: "--", ramTotalMB: "--", cpuUsagePct: "unavailable"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        temp_text = self.page.locator("#teleCpuTempText").text_content().strip()
+        classes = self.page.locator("#teleCpuTempText").get_attribute("class")
+        self.assertEqual(temp_text, "—")
+        self.assertIn("unknown", classes)
+
+    def test_cpu_usage_unavailable_shows_dash(self):
+        """When cpuUsagePct is 'unavailable', CPU element shows '—' with unknown class."""
+        self.page.evaluate("""() => {
+            window.store.state.telemetry = {
+                gpuName: "--", vramUsedMB: "--", vramTotalMB: "--",
+                gpuTempC: "--", ramUsedMB: "--", ramTotalMB: "--", cpuUsagePct: "unavailable"
+            };
+        }""")
+        self.page.wait_for_timeout(30)
+        cpu_text = self.page.locator("#teleCpuText").text_content().strip()
+        classes = self.page.locator("#teleCpuText").get_attribute("class")
+        self.assertEqual(cpu_text, "—")
+        self.assertIn("unknown", classes)
 
     def test_deskai_telemetry_reset_to_unavailable(self):
         """When hardware telemetry returns unavailable or null, the UI gracefully resets."""

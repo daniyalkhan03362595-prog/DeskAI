@@ -11,8 +11,11 @@
 The **Hardware Telemetry Dock** (`#hardwareDock`) is a persistent status card anchored at the base of the Left Explorer Sidebar (`#sidebarLeft`). It provides developer-oriented, truthful, real-time visibility into the local workstation's hardware acceleration and memory utilization:
 
 1. **GPU Acceleration Badge (`#teleGpuBadge`):** Real-time hardware accelerator detection, model reporting (`NVIDIA GeForce RTX 2070 SUPER`, Apple Silicon, AMD Radeon), and status indicator dot.
-2. **VRAM Usage Meter (`#teleVramText`, `#teleVramTrack`, `#teleVramFill`):** Resident VRAM consumption (`used / total GB`) with visual progress fill and accessibility bindings.
-3. **Host RAM Indicator (`#teleRamText`):** Host system memory footprint (`used / total GB`).
+2. **GPU Temperature Indicator (`#teleGpuTempText`):** Real-time GPU core temperature in degrees Celsius with dynamic color-coding (`<60°C` cool/green, `60–79°C` warm/amber, `≥80°C` hot/danger).
+3. **VRAM Usage Meter (`#teleVramText`, `#teleVramTrack`, `#teleVramFill`):** Resident VRAM consumption (`used / total GB`) with visual progress fill and accessibility bindings.
+4. **Host RAM Indicator (`#teleRamText`):** Host system memory footprint (`used / total GB`).
+5. **CPU Usage Percentage (`#teleCpuText`):** Live processor utilization (`xx.x%`) updated via non-blocking `psutil.cpu_percent`.
+6. **CPU Temperature Indicator (`#teleCpuTempText`):** Live CPU package/core temperature in degrees Celsius with matching dynamic color-coding.
 
 ```
 +-------------------------------------------------------------+
@@ -31,9 +34,12 @@ The **Hardware Telemetry Dock** (`#hardwareDock`) is a persistent status card an
 | +---------------------------------------------------------+ |
 | |                    hardware-dock                        | |
 | |  GPU Acceleration     [🟢 NVIDIA RTX 2070 SUPER ]        | |
+| |  GPU Temp             36 °C                             | |
 | |  VRAM Resident        1.5 / 8 GB                        | |
 | |  [==== 19% ===========================================] | |
 | |  Host RAM             7.5 / 15 GB                       | |
+| |  CPU Usage            29.2%                             | |
+| |  CPU Temp             48 °C                             | |
 | +---------------------------------------------------------+ |
 +-------------------------------------------------------------+
 ```
@@ -84,8 +90,11 @@ flowchart TD
 | :--- | :--- | :--- |
 | **Dock Container** | `#hardwareDock` / `.hardware-dock` | Section landmark (`role="region"`, `aria-label="Host System Telemetry"`) pinned below explorer. |
 | **GPU Status Badge** | `#teleGpuBadge` / `.gpu-badge` | Live region (`aria-live="polite"`) displaying `.status-dot.ready` or `.status-dot.unknown` and GPU model. |
+| **GPU Temp Indicator** | `#teleGpuTempText` / `.tele-val` | Real-time GPU core temperature with dynamic thermal color classes (`.temp-cool`, `.temp-warm`, `.temp-hot`). |
 | **VRAM Usage Meter** | `#teleVramText`, `#teleVramTrack`, `#teleVramFill` | Textual ratio and W3C progressbar (`role="progressbar"`, `aria-label="VRAM Usage"`, `aria-valuenow`). |
 | **Host RAM Indicator** | `#teleRamText` / `.ram-val` | Textual readout of host virtual memory (`${used} / ${total} GB`). |
+| **CPU Usage Indicator** | `#teleCpuText` / `.tele-val` | Real-time processor utilization percentage (`xx.x%`). |
+| **CPU Temp Indicator** | `#teleCpuTempText` / `.tele-val` | Live processor temperature with dynamic thermal classes matching GPU thermal thresholds. |
 
 ---
 

@@ -22,6 +22,10 @@
     </span>
   </div>
   <div class="telemetry-row">
+    <span class="tele-label">GPU Temp</span>
+    <span class="tele-val unknown" id="teleGpuTempText" title="GPU temperature unavailable" aria-live="polite">—</span>
+  </div>
+  <div class="telemetry-row">
     <span class="tele-label">VRAM Resident</span>
     <span class="tele-val unknown" id="teleVramText" title="Hardware telemetry unavailable on this host">Unavailable</span>
   </div>
@@ -31,6 +35,14 @@
   <div class="telemetry-row">
     <span class="tele-label">Host RAM</span>
     <span class="tele-val ram-val unknown" id="teleRamText" title="Hardware telemetry unavailable on this host">Unavailable</span>
+  </div>
+  <div class="telemetry-row">
+    <span class="tele-label">CPU Usage</span>
+    <span class="tele-val unknown" id="teleCpuText" title="CPU usage unavailable" aria-live="polite">—</span>
+  </div>
+  <div class="telemetry-row">
+    <span class="tele-label">CPU Temp</span>
+    <span class="tele-val unknown" id="teleCpuTempText" title="CPU temperature unavailable" aria-live="polite">—</span>
   </div>
 </footer>
 ```
@@ -141,6 +153,11 @@
   background: var(--color-unknown);
   width: 0% !important;
 }
+
+/* Temperature colour states (GPU & CPU) */
+.tele-val.temp-cool { color: var(--color-success); }
+.tele-val.temp-warm { color: var(--color-amber); }
+.tele-val.temp-hot  { color: var(--color-danger); font-weight: 600; }
 ```
 
 ---
@@ -155,6 +172,8 @@
     "gpuName": "NVIDIA GeForce RTX 2070 SUPER",
     "vramUsedMB": 1459,
     "vramTotalMB": 8192,
+    "gpuTempC": 34,
+    "cpuTempC": 48,
     "cpuUsagePct": "2.4%",
     "ramUsedMB": 7703,
     "ramTotalMB": 15417,
@@ -164,12 +183,15 @@
 }
 ```
 
+> **Fallback values:** `"--"` for string fields, `"unavailable"` for `cpuUsagePct` when psutil is absent.
+
 ### Probing Strategy:
-1. **NVIDIA Devices:** Probes `nvidia-smi` with `--query-gpu=name,memory.used,memory.total --format=csv,noheader,nounits` (timeout 1.5s).
-2. **Apple Silicon:** Probes Darwin `sysctl -n machdep.cpu.brand_string` with unified host memory mapping.
-3. **AMD Linux:** Reads `/sys/class/drm/card*/device/mem_info_vram_total` and `mem_info_vram_used`.
-4. **Caching:** Results are memoized in memory for 3.0 seconds to prevent subprocess execution thrashing.
-5. **Origin Verification:** Enforced via `_is_origin_allowed()`.
+1. **NVIDIA Devices:** Probes `nvidia-smi` with `--query-gpu=name,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits` (timeout 1.5s). Returns integer `gpuTempC` when available.
+2. **Apple Silicon:** Probes Darwin `sysctl -n machdep.cpu.brand_string` with unified host memory mapping. `gpuTempC` returns `"--"` (SMC not accessible in userspace).
+3. **AMD Linux:** Reads `/sys/class/drm/card*/device/mem_info_vram_total`, `mem_info_vram_used`, and hwmon temperature via `/sys/class/drm/card*/device/hwmon/hwmon*/temp1_input` (millidegrees ÷ 1000).
+4. **CPU Thermal Probing:** Evaluates `psutil.sensors_temperatures()` looking for `coretemp` (Package id 0), `k10temp`, `zenpower`, or `cpu_thermal`. Falls back to `/sys/class/thermal/thermal_zone*/temp` on Linux sysfs. Returns integer degrees or `"--"`.
+5. **Caching:** GPU probe results are memoized in memory for 3.0 seconds to prevent subprocess execution thrashing; CPU thermal and usage reads are in-memory kernel sysfs reads (<0.1ms).
+6. **Origin Verification:** Enforced via `_is_origin_allowed()`.
 
 ---
 
