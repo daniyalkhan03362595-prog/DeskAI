@@ -159,6 +159,7 @@ button, input, select, textarea {
   z-index: var(--z-resizer);
   transition: background-color 0.15s ease;
   user-select: none;
+  touch-action: none;
 }
 
 .resizer-col::before {
@@ -166,8 +167,8 @@ button, input, select, textarea {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -3px;
-  right: -3px;
+  left: -5px;
+  right: -5px;
   cursor: col-resize;
   z-index: 1;
 }
@@ -188,6 +189,7 @@ button, input, select, textarea {
   transition: background-color 0.15s ease;
   user-select: none;
   flex-shrink: 0;
+  touch-action: none;
 }
 
 .resizer-row::before {
@@ -195,8 +197,8 @@ button, input, select, textarea {
   position: absolute;
   left: 0;
   right: 0;
-  top: -3px;
-  bottom: -3px;
+  top: -5px;
+  bottom: -5px;
   cursor: row-resize;
   z-index: 1;
 }
@@ -205,6 +207,38 @@ button, input, select, textarea {
 .resizer-row.resizing,
 .resizer-row.is-resizing {
   background-color: var(--color-primary);
+}
+
+.resizer-col:focus-visible,
+.resizer-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* Hardware-accelerated resizing drag isolation: prevents layout thrashing, text selection, and pointer contention */
+html.is-resizing-col,
+html.is-resizing-col * {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+html.is-resizing-row,
+html.is-resizing-row * {
+  cursor: row-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+html.is-resizing-col iframe,
+html.is-resizing-col .cm-editor,
+html.is-resizing-col .xterm,
+html.is-resizing-col textarea,
+html.is-resizing-row iframe,
+html.is-resizing-row .cm-editor,
+html.is-resizing-row .xterm,
+html.is-resizing-row textarea {
+  pointer-events: none !important;
 }
 
 /* Custom Minimalist WebKit Scrollbars */
