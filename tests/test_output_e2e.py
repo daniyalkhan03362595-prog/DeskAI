@@ -524,6 +524,8 @@ class TestOutputE2E(unittest.TestCase):
                 page.wait_for_timeout(200)
 
                 # Dark screenshot
+                page.evaluate('document.documentElement.setAttribute("data-theme", "dark")')
+                page.wait_for_timeout(100)
                 dark_path = docs_dir / f"output_panel_dark_{width}x{height}.png"
                 page.screenshot(path=str(dark_path))
                 self.assertTrue(dark_path.exists())
