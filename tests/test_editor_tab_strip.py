@@ -259,3 +259,40 @@ class TestEditorTabStrip(unittest.TestCase):
         # Check label contains text verbatim
         label = self.page.locator(".editor-tab .tab-label").text_content()
         self.assertEqual(label, malicious_name)
+
+    def test_ets_10_tab_strip_clears_sidebar_expand_pill(self):
+        """TC-ETS-10: When sidebar is collapsed, tab strip provides dedicated offset so tabs do not collide."""
+        self.page.evaluate("""() => {
+            window.EditorManager.createBuffer('config.toml', 'test content');
+        }""")
+        self.page.wait_for_selector(".editor-tab")
+
+        # Collapse sidebar
+        overlap = self.page.evaluate("""async () => {
+            const toggle = document.getElementById("btnToggleSidebar");
+            if (toggle) toggle.click();
+            await new Promise(r => setTimeout(r, 200));
+
+            const pill = document.getElementById("btnExpandSidebar");
+            const firstTab = document.querySelector(".editor-tab");
+            const pillRect = pill.getBoundingClientRect();
+            const tabRect = firstTab.getBoundingClientRect();
+
+            return {
+                pillRight: pillRect.right,
+                tabLeft: tabRect.left,
+                isCollapsed: document.getElementById("appBody").classList.contains("sidebar-left-collapsed"),
+                isPillVisible: pill.offsetParent !== null
+            };
+        }""")
+
+        self.assertTrue(overlap["isCollapsed"])
+        self.assertTrue(overlap["isPillVisible"])
+        # The first tab must start strictly to the right of the expand pill with clearance
+        self.assertGreater(overlap["tabLeft"], overlap["pillRight"], "First tab overlaps with expand pill!")
+
+        # Restore sidebar
+        self.page.evaluate("""() => {
+            const pill = document.getElementById("btnExpandSidebar");
+            if (pill) pill.click();
+        }""")

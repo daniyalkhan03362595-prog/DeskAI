@@ -824,6 +824,7 @@
   user-select: none;
   scrollbar-width: thin;
   scrollbar-color: var(--border-regular) transparent;
+  transition: padding-left var(--transition-fast);
 }
 
 .tab-strip-empty-label {
