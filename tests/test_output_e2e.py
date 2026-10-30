@@ -677,6 +677,36 @@ class TestOutputE2E(unittest.TestCase):
         finally:
             ctx.close()
 
+    def test_tc_out_52_save_log_native_bridge(self):
+        """TC-OUT-52: In native PyWebView desktop environment, saveLog invokes save_file_dialog and write_file."""
+        ctx, page = self._create_page()
+        try:
+            page.locator("#tab-output").click()
+            page.evaluate("""() => {
+                window.__nativeSaved = null;
+                window.pywebview = window.pywebview || {};
+                window.pywebview.api = window.pywebview.api || {};
+                window.pywebview.api.save_file_dialog = async (filename) => {
+                    return { status: "ok", path: "/workspace/saved_" + filename };
+                };
+                window.pywebview.api.write_file = async (path, content) => {
+                    window.__nativeSaved = { path, content };
+                    return { status: "ok" };
+                };
+                window.DeskAIOutput.log("system", "info", "native bridge log line 1");
+            }""")
+            page.wait_for_timeout(150)
+
+            page.locator("button[data-action='output-save']").click()
+            page.wait_for_timeout(150)
+
+            saved = page.evaluate("() => window.__nativeSaved")
+            self.assertIsNotNone(saved)
+            self.assertTrue(saved["path"].startswith("/workspace/saved_deskai-output-"))
+            self.assertIn("native bridge log line 1", saved["content"])
+        finally:
+            ctx.close()
+
 
 if __name__ == "__main__":
     unittest.main()

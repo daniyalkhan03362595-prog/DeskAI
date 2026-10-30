@@ -366,7 +366,7 @@ export function initGlobalEvents() {
         break;
       }
       case "output-save": {
-        if (window.DeskAIOutput) window.DeskAIOutput.saveLog();
+        if (window.DeskAIOutput) await window.DeskAIOutput.saveLog();
         break;
       }
       case "output-clear": {

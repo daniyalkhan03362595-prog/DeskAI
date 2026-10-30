@@ -109,7 +109,10 @@ class WorkspaceFSBridge(BaseBridgeModule):
         """Opens native OS file save dialog."""
         if not self._is_origin_allowed() or self._window is None:
             return {"status": "error", "message": "Unauthorized origin", "path": None}
-        selected = self._window.create_file_dialog(DIALOG_SAVE, save_filename=default_name)
+        directory = self.workspace_root or ""
+        selected = self._window.create_file_dialog(
+            DIALOG_SAVE, directory=directory, save_filename=default_name
+        )
         if selected:
             target = selected[0] if isinstance(selected, (list, tuple)) else selected
             if not target:

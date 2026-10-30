@@ -7,6 +7,7 @@
 import { announce } from "../terminal.js";
 import { createSvgIcon } from "../icons.js";
 import { store } from "../state.js";
+import { NativeBridge } from "../bridge.js";
 import { OutputClient } from "./client.js";
 
 export class OutputManager {
@@ -401,7 +402,7 @@ export class OutputManager {
     announce(`Copied ${lines.length} lines`);
   }
 
-  saveLog() {
+  async saveLog() {
     if (!this.view || !this.view.el) return;
     const lines = [];
     const rows = this.view.el.querySelectorAll(".log-line");
@@ -425,6 +426,41 @@ export class OutputManager {
     const timestampStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const filename = `deskai-output-${timestampStr}.log`;
 
+    // 1. Desktop native dialog (PyWebView bridge)
+    if (
+      window.pywebview &&
+      window.pywebview.api &&
+      typeof window.pywebview.api.save_file_dialog === "function"
+    ) {
+      try {
+        const res = await NativeBridge.saveFileDialog(filename);
+        if (res && res.status === "ok" && res.path) {
+          const writeRes = await NativeBridge.writeFile(res.path, content);
+          if (writeRes && writeRes.status === "ok") {
+            const baseName = res.path.split("/").pop().split("\\").pop();
+            announce(`Saved ${lines.length} lines to ${baseName}`);
+            if (window.ExplorerManager && typeof window.ExplorerManager.refresh === "function") {
+              await window.ExplorerManager.refresh();
+            }
+            return;
+          } else if (writeRes && writeRes.message) {
+            console.error("Failed to write log file:", writeRes.message);
+            announce(`Save failed: ${writeRes.message}`);
+            return;
+          }
+        } else if (res && res.status === "error" && res.message) {
+          console.error("Save file dialog error:", res.message);
+          announce(`Save failed: ${res.message}`);
+          return;
+        } else if (res && res.status === "cancelled") {
+          return;
+        }
+      } catch (err) {
+        console.error("Native save failed, falling back to browser download:", err);
+      }
+    }
+
+    // 2. Browser fallback (Blob URL download) for standard browser tabs & headless test runners
     try {
       const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);

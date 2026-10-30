@@ -683,8 +683,9 @@ Layout stability: the toolbar has a fixed height, the status line is `hidden` wh
 | TC-OUT-47 | Static scan | no `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `document.write` in `static/js/output/*` and `LogView` |
 | TC-OUT-48 | Server restart simulation | cursor ahead of server -> view cleared with notice, new records shown |
 | TC-OUT-49 | Clickable file:line links | file references in log text render as accessible `.log-link` jumping to `EditorManager.openAt` |
-| TC-OUT-50 | Save / Export log | `output-save` button in toolbar exports visible log lines as `.log` file |
+| TC-OUT-50 | Save / Export log (browser fallback) | `output-save` button in toolbar exports visible log lines as `.log` file |
 | TC-OUT-51 | Channel unread badges | inactive channels track unread counts in `#outputChannelSelect` (e.g. `Git (2)`) and toggle `.has-unread` |
+| TC-OUT-52 | Save / Export log (NativeBridge) | in native PyWebView desktop environment, saveLog invokes save_file_dialog and write_file |
 
 ### 10.4 Existing tests retained
 
