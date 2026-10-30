@@ -365,8 +365,21 @@ export function initGlobalEvents() {
         if (window.DeskAIOutput) window.DeskAIOutput.copyVisible();
         break;
       }
+      case "output-save": {
+        if (window.DeskAIOutput) window.DeskAIOutput.saveLog();
+        break;
+      }
       case "output-clear": {
         if (window.DeskAIOutput) window.DeskAIOutput.clear();
+        break;
+      }
+      case "output-nav": {
+        const file = trigger.getAttribute("data-file");
+        const line = parseInt(trigger.getAttribute("data-line") || "1", 10);
+        const col = parseInt(trigger.getAttribute("data-col") || "1", 10);
+        if (file && window.DeskAIOutput) {
+          window.DeskAIOutput.navigateToFile(file, line, col);
+        }
         break;
       }
       case "output-jump": {
@@ -458,6 +471,17 @@ export function initGlobalEvents() {
 
       default:
         console.warn("Unhandled action:", action);
+    }
+  });
+
+  // 3b. Keyboard link activation for accessibility
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      const link = e.target && e.target.closest && e.target.closest(".log-link[data-action='output-nav']");
+      if (link) {
+        e.preventDefault();
+        link.click();
+      }
     }
   });
 

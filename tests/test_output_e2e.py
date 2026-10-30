@@ -580,6 +580,103 @@ class TestOutputE2E(unittest.TestCase):
         finally:
             ctx.close()
 
+    def test_tc_out_49_clickable_file_links(self):
+        """TC-OUT-49: File path and line numbers in log lines render as interactive links jumping to editor."""
+        ctx, page = self._create_page()
+        try:
+            page.locator("#tab-output").click()
+            page.evaluate("""() => {
+                window.__editorNavCalled = null;
+                window.EditorManager = window.EditorManager || {};
+                window.EditorManager.openAt = async (path, line, col) => {
+                    window.__editorNavCalled = { path, line, col };
+                };
+                window.DeskAIOutput.log(
+                    "diagnostics", "error", "SyntaxError in src/deskai/bridge/git.py:42:10 invalid syntax"
+                );
+            }""")
+            page.wait_for_timeout(150)
+
+            link = page.locator("#channelOutput .log-link[data-action='output-nav']")
+            self.assertTrue(link.is_visible())
+            self.assertEqual(link.get_attribute("data-file"), "src/deskai/bridge/git.py")
+            self.assertEqual(link.get_attribute("data-line"), "42")
+            self.assertEqual(link.get_attribute("data-col"), "10")
+
+            # Click link and check EditorManager invocation
+            link.click()
+            page.wait_for_timeout(100)
+            nav = page.evaluate("() => window.__editorNavCalled")
+            self.assertIsNotNone(nav)
+            self.assertTrue(nav["path"].endswith("src/deskai/bridge/git.py"))
+            self.assertEqual(nav["line"], 42)
+            self.assertEqual(nav["col"], 10)
+        finally:
+            ctx.close()
+
+    def test_tc_out_50_save_log_action(self):
+        """TC-OUT-50: Output toolbar contains save action that exports visible log stream."""
+        ctx, page = self._create_page()
+        try:
+            page.locator("#tab-output").click()
+            save_btn = page.locator("button[data-action='output-save']")
+            self.assertTrue(save_btn.is_visible())
+            self.assertIn("Save", save_btn.get_attribute("aria-label"))
+
+            # Log lines to export
+            page.evaluate("""() => {
+                window.DeskAIOutput.log("system", "info", "export test record 1");
+                window.DeskAIOutput.log("system", "warn", "export test record 2");
+            }""")
+            page.wait_for_timeout(150)
+
+            with page.expect_download() as download_info:
+                save_btn.click()
+            download = download_info.value
+            self.assertTrue(download.suggested_filename.startswith("deskai-output-"))
+            self.assertTrue(download.suggested_filename.endswith(".log"))
+        finally:
+            ctx.close()
+
+    def test_tc_out_51_channel_unread_counts(self):
+        """TC-OUT-51: Inactive channels track unread counts in outputChannelSelect and clear on selection."""
+        ctx, page = self._create_page()
+        try:
+            page.locator("#tab-output").click()
+            # Select system channel specifically
+            page.select_option("#outputChannelSelect", "system")
+
+            # Emit logs on git and ports channels
+            page.evaluate("""() => {
+                window.DeskAIOutput.log("git", "warn", "git tracking branch updated");
+                window.DeskAIOutput.log("git", "info", "git pull completed");
+                window.DeskAIOutput.log("ports", "info", "port 3000 listening");
+            }""")
+            page.wait_for_timeout(150)
+
+            # Check that git option shows (2) and ports option shows (1)
+            git_opt = page.locator("#outputChannelSelect option[value='git']")
+            ports_opt = page.locator("#outputChannelSelect option[value='ports']")
+            self.assertIn("Git (2)", git_opt.text_content())
+            self.assertIn("Ports (1)", ports_opt.text_content())
+
+            # Check select element has .has-unread class
+            select_el = page.locator("#outputChannelSelect")
+            self.assertTrue("has-unread" in (select_el.get_attribute("class") or ""))
+
+            # Now switch to git channel -> unread count for git should clear
+            page.select_option("#outputChannelSelect", "git")
+            page.wait_for_timeout(100)
+            self.assertEqual(git_opt.text_content().strip(), "Git")
+
+            # Switch to all -> all unread counts should clear
+            page.select_option("#outputChannelSelect", "all")
+            page.wait_for_timeout(100)
+            self.assertEqual(ports_opt.text_content().strip(), "Ports")
+            self.assertFalse("has-unread" in (select_el.get_attribute("class") or ""))
+        finally:
+            ctx.close()
+
 
 if __name__ == "__main__":
     unittest.main()

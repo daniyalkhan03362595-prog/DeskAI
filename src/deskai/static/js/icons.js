@@ -167,6 +167,11 @@ const ICON_DEFS = {
     { tag: "polyline", attrs: { points: "9 10 4 15 9 20" } },
     { tag: "path", attrs: { d: "M20 4v7a4 4 0 0 1-4 4H4" } },
   ],
+  "download": [
+    { tag: "path", attrs: { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" } },
+    { tag: "polyline", attrs: { points: "7 10 12 15 17 10" } },
+    { tag: "line", attrs: { x1: "12", y1: "15", x2: "12", y2: "3" } },
+  ],
 };
 
 /**

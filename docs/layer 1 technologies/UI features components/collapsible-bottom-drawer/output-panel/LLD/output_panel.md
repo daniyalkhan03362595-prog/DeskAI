@@ -1,10 +1,10 @@
 # Low-Level Design (LLD): Output Panel (System & Channel Logs)
 
 **Document ID:** `ORX-LLD-OUTPUT-PANEL-V2`  
-**Version:** `2.0` (supersedes `ORX-LLD-OUTPUT-PANEL-V1`)  
+**Version:** `2.1` (supersedes `ORX-LLD-OUTPUT-PANEL-V1` and V2.0 draft; incorporates clickable file:line navigation, log file export, and per-channel unread badges)  
 **Parent Document:** `ORX-HLD-OUTPUT-PANEL-V2`  
 **Target Codebase:** `DeskAI` (verified against `main` @ `5cc5434`)  
-**Status:** Proposed (ready for implementation)  
+**Status:** Implemented  
 **Date:** October 30, 2026  
 
 ---
@@ -14,16 +14,17 @@
 | File | Action | Purpose |
 | :--- | :--- | :--- |
 | `src/deskai/server/output_hub.py` | NEW | `LogRecord`, sanitiser and redaction, `OutputHub`, `OutputLogHandler`, `install_output_logging()` |
-| `src/deskai/server/supervisor.py` | MODIFY | Own an `OutputHub`; `_authorize_ws()` helper; `/ws/output` endpoint; install/uninstall handler in `start()`/`stop()` |
+| `src/deskai/server/supervisor.py` | MODIFY | Own an `OutputHub`; `_authorize_ws()` helper; `/ws/output` endpoint; install/uninstall handler in `start()`/`stop()`; structured `task` channel transitions |
 | `src/deskai/static/js/output/client.js` | NEW | `OutputClient` (socket, cursor, reconnect, frame validation) |
-| `src/deskai/static/js/output/index.js` | NEW | `OutputManager` (toolbar, filters, prefs, announcer, tab indicator) |
-| `src/deskai/static/js/terminal.js` | MODIFY | `LogView` gains record mode; legacy `write()` / `clear()` / `lineCount` / `pinned` keep working |
+| `src/deskai/static/js/output/index.js` | NEW | `OutputManager` (toolbar, filters, prefs, announcer, tab indicator, `saveLog()`, `navigateToFile()`, per-channel unread badges) |
+| `src/deskai/static/js/terminal.js` | MODIFY | `LogView` record mode, `formatLogText()` parsing `file:line[:col]` links into interactive accessible `.log-link` DOM elements |
+| `src/deskai/static/js/icons.js` | MODIFY | Vector `download` icon definition in `ICON_DEFS` |
 | `src/deskai/static/js/app.js` | MODIFY | Create `OutputManager`, expose `window.DeskAIOutput` |
-| `src/deskai/static/js/events.js` | MODIFY | `output-*` `data-action` cases; `drawer-tab` hook |
-| `src/deskai/static/index.html` | MODIFY | Output panel markup (section 4.1), tab indicator |
-| `src/deskai/static/css/components.css`, `tokens.css` | MODIFY | Log styles (no new colours needed) |
+| `src/deskai/static/js/events.js` | MODIFY | `output-*` `data-action` cases (`output-save`, `output-nav`, `output-copy`, etc.); keyboard Enter/Space activation |
+| `src/deskai/static/index.html` | MODIFY | Output panel markup (section 4.1), tab indicator, `output-save` button |
+| `src/deskai/static/css/components.css`, `tokens.css` | MODIFY | Log styles, `.log-link` interaction styles, `#outputChannelSelect.has-unread` styling |
 | `tools/check_contrast.py` | MODIFY | Log level colour pairs |
-| `tests/test_output_*.py` | NEW | See section 10 |
+| `tests/test_output_*.py` | NEW | See section 10 (TC-OUT-01..51) |
 
 ---
 
@@ -369,6 +370,7 @@ async def output_websocket_endpoint(ws: WebSocket):
     <button type="button" class="icon-btn" data-action="output-time" aria-pressed="false" aria-label="Show timestamps" title="Show timestamps"></button>
     <button type="button" class="icon-btn" data-action="output-wrap" aria-pressed="true" aria-label="Wrap long lines" title="Wrap long lines"></button>
     <button type="button" class="icon-btn" data-action="output-copy" aria-label="Copy visible output" title="Copy visible output"></button>
+    <button type="button" class="icon-btn" data-action="output-save" aria-label="Save output to file" title="Save output to file"></button>
     <button type="button" class="icon-btn" data-action="output-clear" aria-label="Clear output" title="Clear output"></button>
   </div>
   <div class="output-status" id="outputStatus" role="status" hidden></div>
@@ -468,7 +470,8 @@ renderRecord(r) {
   const time = document.createElement("span"); time.className = "log-time"; time.textContent = formatTime(r.ts);
   const chan = document.createElement("span"); chan.className = "log-channel"; chan.textContent = r.channel;
   const tag = document.createElement("span"); tag.className = "log-level-tag"; tag.textContent = LEVEL_TAG[r.level];
-  const text = document.createElement("span"); text.className = "log-text"; text.textContent = r.text;
+  const text = document.createElement("span"); text.className = "log-text";
+  formatLogText(text, r.text); // splits plain text and clickable .log-link elements without innerHTML
   row.append(time, chan, tag, text);
   return row;
 }
@@ -501,16 +504,19 @@ Required adjustments to existing methods:
 | State | updates `#outputStatus` (`Reconnecting…`, `Output stream unavailable` + `Retry` button, hidden when streaming) |
 | Filters | `output-channel`, `output-level` change events and input on the filter text (debounce 150 ms, lower-cased) call `view.filter = ...; view.renderAll()` |
 | Toggles | `output-time`, `output-wrap` flip `aria-pressed`, call `view.setOptions()` |
-| Copy | joins visible rows (`HH:mm:ss.SSS channel LEVEL text`) and calls `NativeBridge.clipboardWrite(text)` (fallback `navigator.clipboard.writeText`); announces `Copied N lines` |
+| Copy | joins visible rows (`HH:mm:ss.SSS [channel] [LEVEL] text`) and calls `NativeBridge.clipboardWrite(text)` (fallback `navigator.clipboard.writeText`); announces `Copied N lines` |
+| Save / Export | `saveLog()` joins visible rows and creates an instant Blob download (`deskai-output-<timestamp>.log`); announces `Saved N lines to <filename>` |
+| Code Navigation | `navigateToFile(file, line, col)` resolves path via `store.state.workspace.rootPath` and jumps to `EditorManager.openAt(fullPath, line, col)` |
+| Channel Badges | `_updateChannelSelectBadges()` tracks unread record counts per channel in `#outputChannelSelect` (e.g. `Git (2)`) and applies `.has-unread` class |
 | Clear | `view.clear()`, announces `Output cleared`; the server ring is untouched (a reload replays it) |
 | Local logging API | `window.DeskAIOutput.log(channel, level, text)` pushes a client-only record (negative `seq`, never sent to the server) for frontend events |
-| Tab indicator | `#tab-output` gets a `<span class="tab-badge">`; `aria-label` becomes `Output, 2 new errors`; cleared in `onShow()` |
+| Tab indicator | `#tab-output` gets a `<span class="tab-badge">` with `.has-errors` or `.has-warnings`; `aria-label` becomes `Output, 2 new errors`; cleared in `onShow()` |
 | Announcer | single debounced (1000 ms) call to `announce()` (exported from `terminal.js`): `2 new errors, 1 warning in Output` |
 | Prefs (P2) | `localStorage` keys `deskai.output.prefs` (`channel`, `level`, `wrap`, `timestamps`), wrapped in try/catch, panel works without it |
 
 ### 4.5 `events.js`
 
-In `case "drawer-tab"` add `if (target === "output" && window.DeskAIOutput) window.DeskAIOutput.onShow();`. Add cases `output-time`, `output-wrap`, `output-copy`, `output-clear`, `output-jump`, `output-retry`. Select and input events are bound directly in `OutputManager` (they are `change`/`input`, not clicks). Keyboard on the panel: `End` -> jump to latest; `Ctrl+A` -> select only the log contents (`Range.selectNodeContents(#channelOutput)`); `Esc` -> focus `#tab-output`.
+In `case "drawer-tab"` add `if (target === "output" && window.DeskAIOutput) window.DeskAIOutput.onShow();`. Add cases `output-time`, `output-wrap`, `output-copy`, `output-save`, `output-clear`, `output-jump`, `output-retry`, `output-nav`. Select and input events are bound directly in `OutputManager` (they are `change`/`input`, not clicks). Keyboard on the panel: `End` -> jump to latest; `Ctrl+A` -> select only the log contents (`Range.selectNodeContents(#channelOutput)`); `Esc` -> focus `#tab-output`; Enter/Space on `.log-link` -> dispatch click for `output-nav`.
 
 ---
 
@@ -520,6 +526,12 @@ In `case "drawer-tab"` add `if (target === "output" && window.DeskAIOutput) wind
 .output-toolbar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: var(--space-2);
   padding: var(--space-1-5) var(--space-3); background: var(--bg-header); border-bottom: 1px solid var(--border-subtle); }
 .output-field { display: inline-flex; align-items: center; gap: var(--space-1-5); font-size: var(--text-xs); color: var(--text-secondary); }
+.output-select, .output-filter-input { min-height: 28px; font: inherit; font-size: var(--text-xs); color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: var(--radius-sm); }
+#outputChannelSelect.has-unread { border-color: var(--color-info); }
+.log-link { color: var(--color-info); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; border-radius: var(--radius-sm); padding: 0 2px; display: inline; }
+.log-link:hover { color: var(--color-primary); text-decoration-thickness: 2px; }
+.log-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
 .output-select, .output-filter-input { min-height: 28px; font: inherit; font-size: var(--text-xs); color: var(--text-primary);
   background: var(--bg-surface); border: 1px solid var(--border-input); border-radius: var(--radius-sm); }
 .output-filter-input { flex: 1; min-width: 80px; }
@@ -670,6 +682,9 @@ Layout stability: the toolbar has a fixed height, the status line is `hidden` wh
 | TC-OUT-46 | Themes | contrast pairs pass; screenshots rendered in dark and light |
 | TC-OUT-47 | Static scan | no `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `document.write` in `static/js/output/*` and `LogView` |
 | TC-OUT-48 | Server restart simulation | cursor ahead of server -> view cleared with notice, new records shown |
+| TC-OUT-49 | Clickable file:line links | file references in log text render as accessible `.log-link` jumping to `EditorManager.openAt` |
+| TC-OUT-50 | Save / Export log | `output-save` button in toolbar exports visible log lines as `.log` file |
+| TC-OUT-51 | Channel unread badges | inactive channels track unread counts in `#outputChannelSelect` (e.g. `Git (2)`) and toggle `.has-unread` |
 
 ### 10.4 Existing tests retained
 

@@ -1,9 +1,9 @@
 # High-Level Design (HLD): Output Panel (System & Channel Logs)
 
 **Document ID:** `ORX-HLD-OUTPUT-PANEL-V2`  
-**Version:** `2.0` (supersedes `ORX-HLD-OUTPUT-PANEL-V1`, which described a static, never-updated log line)  
+**Version:** `2.1` (supersedes `ORX-HLD-OUTPUT-PANEL-V1` and V2.0 draft; incorporates clickable file:line navigation, log file export, and per-channel unread badges)  
 **Target Codebase:** `DeskAI` (verified against `main` @ `5cc5434`)  
-**Status:** Proposed (ready for implementation)  
+**Status:** Implemented  
 **Date:** October 30, 2026  
 
 **Target Files (to create / modify):**
@@ -36,16 +36,18 @@ The Output Panel (`#outputPanel`) is the read-only **log console** of DeskAI. It
 
 ### 1.2 Goals
 1. A real, live, bounded log stream from the Python backend to the panel, with replay on reconnect and no duplicates.
-2. Useful controls: channel and level filters, text filter, clear, copy, wrap, timestamps, follow-latest.
-3. Never leak secrets (launch token, session cookie, API keys) into logs shown in the UI.
-4. Fully keyboard and screen-reader usable (WCAG 2.1 AA / WAI-ARIA 1.2) in dark and light themes; no layout shift.
-5. Respect project rules: vanilla ES modules, custom store, tokens only, **no `innerHTML`**, loopback-only authenticated transport.
+2. Useful controls: channel and level filters, text filter, clear, copy, save/export, wrap, timestamps, follow-latest.
+3. Interactive clickable `file:line[:col]` links in log records that immediately jump to the target file and line in `EditorManager`.
+4. Per-channel unread badges in the channel dropdown so developers know which channels received new logs without manual polling.
+5. Never leak secrets (launch token, session cookie, API keys) into logs shown in the UI.
+6. Fully keyboard and screen-reader usable (WCAG 2.1 AA / WAI-ARIA 1.2) in dark and light themes; no layout shift.
+7. Respect project rules: vanilla ES modules, custom store, tokens only, **no `innerHTML`**, loopback-only authenticated transport.
 
-### 1.3 Non-goals (v2)
-* Interactive input (the terminal is the interactive surface).
-* Writing logs to disk or shipping them anywhere (privacy; in-memory only).
+### 1.3 Non-goals
+* Interactive shell input (the terminal is the interactive surface).
+* Automatic unconstrained disk persistence (export is user-initiated via Save button).
 * Rendering ANSI colours (escape sequences are stripped; level colours come from tokens).
-* Log search across sessions or history after app restart.
+* Log search across sessions after app restart.
 
 ---
 
@@ -102,22 +104,24 @@ flowchart LR
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ [Terminal] [Output •2] [Problems] [Ports]                                          [─] │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ Channel [All ▾]  Level [Info+ ▾]  [Filter output…        ]  [⏱] [↵ Wrap] [⧉ Copy] [🗑 Clear] │
+│ Channel [Git (2) ▾]  Level [Info+ ▾]  [Filter output…  ]  [⏱] [↵ Wrap] [⧉ Copy] [↓ Save] [🗑 Clear] │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ [DeskAI System] Supervisor active on loopback. Ready for tasks.                        │
 │ 10:42:01.120  system   INFO   Terminal session t1 opened                               │
-│ 10:42:07.884  git      WARN   Could not read HEAD for /project (permission denied)     │
-│ 10:42:09.015  diag     ERROR  Checker timeout: flake8 (10 s)                           │
+│ 10:42:07.884  git      WARN   Tracking branch origin/main is ahead by 1 commit         │
+│ 10:42:09.015  diag     ERROR  Syntax error at src/deskai/bridge/git.py:42:10            │
 │ 10:42:09.016  diag     ERROR  Previous message repeated 3 more times                    │
 │                                                              [ ↓ Jump to latest ]     │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-* **Controls** (toolbar icons are SVG from `createSvgIcon`, no emoji; the sketch uses glyphs only for illustration): channel select, minimum-level select, text filter, timestamps toggle, wrap toggle, copy, clear.
+* **Controls** (toolbar icons are SVG from `createSvgIcon`, no emoji; the sketch uses glyphs only for illustration): channel select (with per-channel unread counts), minimum-level select, text filter, timestamps toggle, wrap toggle, copy, save/export, clear.
+* **Interactive Code Links:** file paths and line numbers (e.g. `src/deskai/bridge/git.py:42:10` or Python traceback `File "foo.py", line 12`) render as clickable `.log-link` elements (`role="link"`, `tabindex="0"`) that resolve relative to workspace root and jump directly to editor via `EditorManager.openAt`.
+* **Per-Channel Unread Badges:** `#outputChannelSelect` tracks unread counts per channel when a specific channel is selected or drawer is inactive (e.g., `Git (2)`). The select element also toggles `.has-unread` (info accent border).
 * **Levels are never colour-only:** warn and error lines show a visible text tag (`WARN`, `ERROR`) in addition to the token colour.
 * **Banner line** (`[DeskAI System] Supervisor active on loopback. Ready for tasks.`) stays at the top, is never trimmed, and keeps TC-OUT-05 valid.
 * **Follow latest:** auto-scroll while the user is within 40 px of the bottom (existing `pinned` logic). When the user scrolls up, auto-scroll stops and a `Jump to latest` button appears (absolutely positioned, no layout shift).
-* **Tab indicator:** while another tab is active, new warn/error records add an unread dot or count to the Output tab (`aria-label` updated, for example `Output, 2 new errors`). Cleared when the tab is opened.
+* **Tab indicator:** while another tab is active, new warn/error records add an unread badge to the Output tab (`aria-label` updated, for example `Output, 2 new errors`, with `.has-errors` or `.has-warnings` classes). Cleared when the tab is opened.
 
 ### 3.1 Client state machine
 
@@ -226,11 +230,11 @@ The client never sends data frames. Any inbound text over 1 KB closes the socket
 
 ## 9. Phased Delivery
 
-| Phase | Scope | Exit criteria |
-| :--- | :--- | :--- |
-| **P1** | `OutputHub` + handler + redaction + `/ws/output` + auth helper refactor; `OutputClient`; `LogView` record mode; toolbar (channel, level, filter, clear, copy, wrap, timestamps); follow-latest + Jump button; severity CSS; a11y; tests | All TC-OUT tests green on Ubuntu and Windows x Python 3.11/3.12; contrast tool passes |
-| **P2** | Unread indicator on the tab, per-channel counts, `Save log…` (save dialog + `writeFile`), persisted preferences (try/catch `localStorage`) | Prefs survive reload; save produces the visible lines |
-| **P3** | UEC / AI task channel records, terminal lifecycle records, clickable `path:line:col` (via `EditorManager.openAt`), optional debug-level toggle in settings | Security test for S8 passes |
+| Phase | Scope | Status | Exit criteria |
+| :--- | :--- | :--- | :--- |
+| **P1** | `OutputHub` + handler + redaction + `/ws/output` + auth helper refactor; `OutputClient`; `LogView` record mode; toolbar (channel, level, filter, clear, copy, wrap, timestamps); follow-latest + Jump button; severity CSS; a11y; tests | **Completed** | All TC-OUT-01..48 green; contrast tool passes |
+| **P2** | Unread indicator on the tab (`.has-errors` / `.has-warnings`), per-channel counts in dropdown, `Save log…` (`output-save` Blob export), natural event instrumentation (`terminal`, `git`, `diagnostics`, `ports`) | **Completed** | Save produces formatted log lines; channel unread tracks accurately |
+| **P3** | UEC / AI task channel transitions in supervisor, clickable `path:line:col` navigation (via `EditorManager.openAt`), keyboard Enter/Space activation | **Completed** | TC-OUT-49, TC-OUT-50, TC-OUT-51 green; zero innerHTML; WCAG 2.1 AA |
 
 ---
 
@@ -241,13 +245,11 @@ The client never sends data frames. Any inbound text over 1 KB closes the socket
 | Secret leakage through third-party log messages | Redaction at ingestion plus exact-secret registration; tests with realistic payloads (TC-OUT-22) |
 | Log storm freezing the UI | Coalescing, batching, drop-oldest, DOM cap |
 | `/ws/output` socket blocked or capped | Explicit `Unavailable` state with Retry; local client logs still shown |
-| Merge conflicts with in-flight Problems work (shared `index.html`, `components.css`, `tokens.css`, `events.js`, `app.js`, `bridge.js`) | Implement on a separate branch from latest `main` and rebase after the Problems branch lands |
+| Merge conflicts with in-flight Problems work | Rebased cleanly against `feat/output-panel` |
 | Python `logging` records from other threads while the loop is closing | Handler swallows errors and checks `loop.is_closed()` |
-
-**Open questions for the product owner:** (1) Should debug-level records be hidden by default (proposed: yes, level filter defaults to `Info+`)? (2) Should the log survive a window reload within the same app run (proposed: yes, via the server ring and the cursor)? (3) Which task events belong in the `task` channel in P3?
 
 ---
 
 ## 11. Traceability
 
-Existing tests **TC-OUT-01 to TC-OUT-07** and `test_log_view_line_cap_and_scroll_preservation` / ANSI-strip tests in `tests/test_bottom_drawer_behavior.py` must keep passing. New tests are specified in `ORX-LLD-OUTPUT-PANEL-V2` section 10 (**TC-OUT-08 onward**).
+Existing tests **TC-OUT-01 to TC-OUT-07** and `test_log_view_line_cap_and_scroll_preservation` / ANSI-strip tests in `tests/test_bottom_drawer_behavior.py` pass. New tests **TC-OUT-08 to TC-OUT-51** in `tests/test_output_e2e.py` and `tests/test_output_hub.py` verify all streaming, buffering, redaction, security, navigation, export, and unread badge capabilities.

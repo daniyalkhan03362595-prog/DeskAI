@@ -19,6 +19,40 @@ const MAX_RECORDS = 5000;
 const ANSI_REGEX = /\x1B(?:\][^\x07\x1B]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g;
 const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 };
 const LEVEL_TAG = { debug: "DEBUG", info: "INFO", warn: "WARN", error: "ERROR" };
+const FILE_LINK_REGEX = /(?:File "([^"]+)", line (\d+))|(?<![\w@/.:])((?:[a-zA-Z]:[/\\]|\/|[.\w\-])[.\w\-/\\]*\.(?:py|js|ts|jsx|tsx|html|css|json|md|toml|ya?ml|txt|sh|c|cpp|h|rs|go|rb|php|java|xml|svg|log|ini|cfg)):(\d+)(?::(\d+))?/g;
+
+export function formatLogText(container, rawText) {
+  if (!rawText) return;
+  FILE_LINK_REGEX.lastIndex = 0;
+  let lastIdx = 0;
+  let match;
+  while ((match = FILE_LINK_REGEX.exec(rawText)) !== null) {
+    if (match.index > lastIdx) {
+      container.appendChild(document.createTextNode(rawText.slice(lastIdx, match.index)));
+    }
+    const matchedStr = match[0];
+    const file = match[1] || match[3];
+    const line = match[2] || match[4] || "1";
+    const col = match[5] || "1";
+
+    const link = document.createElement("span");
+    link.className = "log-link";
+    link.setAttribute("role", "link");
+    link.tabIndex = 0;
+    link.dataset.action = "output-nav";
+    link.dataset.file = file;
+    link.dataset.line = line;
+    link.dataset.col = col;
+    link.textContent = matchedStr;
+    link.title = `Jump to ${file}:${line}${match[5] ? ":" + col : ""}`;
+    container.appendChild(link);
+
+    lastIdx = match.index + matchedStr.length;
+  }
+  if (lastIdx < rawText.length) {
+    container.appendChild(document.createTextNode(rawText.slice(lastIdx)));
+  }
+}
 
 function formatTime(ts) {
   const d = new Date(Number(ts) || Date.now());
@@ -114,7 +148,7 @@ export class LogView {
 
     const text = document.createElement("span");
     text.className = "log-text";
-    text.textContent = r.text;
+    formatLogText(text, r.text);
 
     row.append(time, chan, tag, text);
     return row;

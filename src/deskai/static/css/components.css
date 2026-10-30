@@ -3372,6 +3372,30 @@ span.log-debug {
   overflow-x: auto;
 }
 
+.log-link {
+  color: var(--color-info);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+  display: inline;
+}
+
+.log-link:hover {
+  color: var(--color-primary);
+  text-decoration-thickness: 2px;
+}
+
+.log-link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+#outputChannelSelect.has-unread {
+  border-color: var(--color-info);
+}
+
 .output-jump {
   position: sticky;
   bottom: var(--space-2);

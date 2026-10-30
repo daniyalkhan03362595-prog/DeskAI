@@ -6,6 +6,7 @@
 
 import { announce } from "../terminal.js";
 import { createSvgIcon } from "../icons.js";
+import { store } from "../state.js";
 import { OutputClient } from "./client.js";
 
 export class OutputManager {
@@ -22,12 +23,21 @@ export class OutputManager {
     this.timeBtn = panelEl.querySelector('[data-action="output-time"]');
     this.wrapBtn = panelEl.querySelector('[data-action="output-wrap"]');
     this.copyBtn = panelEl.querySelector('[data-action="output-copy"]');
+    this.saveBtn = panelEl.querySelector('[data-action="output-save"]');
     this.clearBtn = panelEl.querySelector('[data-action="output-clear"]');
 
     this.isActive = false;
     this.unreadErrors = 0;
     this.unreadWarnings = 0;
     this._localSeq = 0;
+    this.channelUnread = {
+      system: 0,
+      task: 0,
+      git: 0,
+      ports: 0,
+      terminal: 0,
+      diagnostics: 0,
+    };
 
     this._filterDebounceTimer = null;
     this._announceTimer = null;
@@ -63,6 +73,9 @@ export class OutputManager {
     if (this.copyBtn) {
       this.copyBtn.replaceChildren(createSvgIcon("copy", 14));
     }
+    if (this.saveBtn) {
+      this.saveBtn.replaceChildren(createSvgIcon("download", 14));
+    }
     if (this.clearBtn) {
       this.clearBtn.replaceChildren(createSvgIcon("trash", 14));
     }
@@ -71,10 +84,19 @@ export class OutputManager {
   _initEvents() {
     if (this.channelSelect) {
       this.channelSelect.addEventListener("change", (e) => {
+        const ch = e.target.value;
         if (this.view) {
-          this.view.filter.channel = e.target.value;
+          this.view.filter.channel = ch;
           this.view.renderAll();
         }
+        if (ch === "all") {
+          for (const k of Object.keys(this.channelUnread)) {
+            this.channelUnread[k] = 0;
+          }
+        } else if (this.channelUnread[ch] !== undefined) {
+          this.channelUnread[ch] = 0;
+        }
+        this._updateChannelSelectBadges();
       });
     }
 
@@ -149,6 +171,20 @@ export class OutputManager {
     if (!this.view) return;
     this.view.writeRecords(records);
 
+    const activeChan = (this.channelSelect && this.channelSelect.value) || "all";
+    let channelCountChanged = false;
+    for (const r of records) {
+      if (this.channelUnread[r.channel] !== undefined) {
+        if (!this.isActive || (activeChan !== "all" && activeChan !== r.channel)) {
+          this.channelUnread[r.channel] = (this.channelUnread[r.channel] || 0) + 1;
+          channelCountChanged = true;
+        }
+      }
+    }
+    if (channelCountChanged) {
+      this._updateChannelSelectBadges();
+    }
+
     let errCount = 0;
     let warnCount = 0;
     for (const r of records) {
@@ -169,6 +205,32 @@ export class OutputManager {
         this._updateTabIndicator();
       }
     }
+  }
+
+  _updateChannelSelectBadges() {
+    if (!this.channelSelect) return;
+    const baseNames = {
+      all: "All",
+      system: "System",
+      task: "Task",
+      git: "Git",
+      ports: "Ports",
+      terminal: "Terminal",
+      diagnostics: "Diagnostics",
+    };
+    let anyUnread = false;
+    for (const opt of this.channelSelect.options) {
+      const val = opt.value;
+      const base = baseNames[val] || val;
+      const count = this.channelUnread[val] || 0;
+      if (count > 0) {
+        opt.textContent = `${base} (${count})`;
+        anyUnread = true;
+      } else {
+        opt.textContent = base;
+      }
+    }
+    this.channelSelect.classList.toggle("has-unread", anyUnread);
   }
 
   _scheduleAnnouncement() {
@@ -236,6 +298,15 @@ export class OutputManager {
     this.unreadErrors = 0;
     this.unreadWarnings = 0;
     this._updateTabIndicator();
+    const activeChan = (this.channelSelect && this.channelSelect.value) || "all";
+    if (activeChan === "all") {
+      for (const k of Object.keys(this.channelUnread)) {
+        this.channelUnread[k] = 0;
+      }
+    } else if (this.channelUnread[activeChan] !== undefined) {
+      this.channelUnread[activeChan] = 0;
+    }
+    this._updateChannelSelectBadges();
     if (this.jumpBtn && this.view) {
       this.jumpBtn.hidden = this.view.pinned;
     }
@@ -328,6 +399,67 @@ export class OutputManager {
       navigator.clipboard.writeText(fullText).catch(() => {});
     }
     announce(`Copied ${lines.length} lines`);
+  }
+
+  saveLog() {
+    if (!this.view || !this.view.el) return;
+    const lines = [];
+    const rows = this.view.el.querySelectorAll(".log-line");
+    const showTime = !!(this.view && this.view.options && this.view.options.timestamps);
+    for (const row of rows) {
+      const time = showTime ? (row.querySelector(".log-time")?.textContent || "") : "";
+      const chan = row.querySelector(".log-channel")?.textContent || "";
+      const isTagVisible = row.classList.contains("log-warn") || row.classList.contains("log-error");
+      const tag = isTagVisible ? (row.querySelector(".log-level-tag")?.textContent || "") : "";
+      const text = row.querySelector(".log-text")?.textContent || "";
+      const parts = [];
+      if (time) parts.push(time);
+      if (chan) parts.push(`[${chan}]`);
+      if (tag) parts.push(`[${tag}]`);
+      if (text) parts.push(text);
+      lines.push(parts.join(" "));
+    }
+    const content = lines.join("\n");
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const timestampStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const filename = `deskai-output-${timestampStr}.log`;
+
+    try {
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      announce(`Saved ${lines.length} lines to ${filename}`);
+    } catch (err) {
+      console.error("Failed to save output:", err);
+    }
+  }
+
+  async navigateToFile(relOrAbsFile, line = 1, col = 1) {
+    if (!relOrAbsFile) return;
+    let fullPath = relOrAbsFile;
+    const isAbs = /^(?:\/|[a-zA-Z]:[/\\])/.test(relOrAbsFile);
+    if (!isAbs) {
+      const root = store && store.state && store.state.workspace ? store.state.workspace.rootPath : "";
+      if (root) {
+        const cleanRoot = root.replace(/\/+$/, "");
+        const cleanRel = relOrAbsFile.replace(/^\/+/, "");
+        fullPath = `${cleanRoot}/${cleanRel}`;
+      }
+    }
+
+    if (window.EditorManager && typeof window.EditorManager.openAt === "function") {
+      await window.EditorManager.openAt(fullPath, line, col);
+    } else if (window.EditorManager && typeof window.EditorManager.openFile === "function") {
+      await window.EditorManager.openFile(fullPath);
+    }
+    announce(`Opened ${relOrAbsFile} at line ${line}`);
   }
 
   clear() {
