@@ -54,7 +54,17 @@ class DiagnosticsBridge(BaseBridgeModule):
             canonical_p = canonicalize_path(target_path)
             res = run_checks(canonical_p, self.workspace_root, request_id=request_id)
             if res.get("status") == "ok":
-                self._diag_cache.put(canonical_p, res.get("diagnostics", []))
+                diags = res.get("diagnostics", [])
+                self._diag_cache.put(canonical_p, diags)
+                err_cnt = sum(1 for d in diags if d.get("severity") == "error")
+                warn_cnt = sum(1 for d in diags if d.get("severity") == "warning")
+                fname = os.path.basename(target_path)
+                if err_cnt > 0:
+                    logger.error("Diagnostics [%s]: %d syntax error(s) found", fname, err_cnt)
+                elif warn_cnt > 0:
+                    logger.warning("Diagnostics [%s]: %d warning(s) found", fname, warn_cnt)
+                else:
+                    logger.info("Diagnostics [%s]: Clean, 0 errors/warnings", fname)
             return res
         except Exception:
             logger.exception("diagnostics failed for %s", target_path)

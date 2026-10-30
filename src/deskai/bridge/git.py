@@ -74,10 +74,13 @@ class GitBridge(BaseBridgeModule):
                 head_content = head_file.read_text(encoding="utf-8").strip()
                 if head_content.startswith("ref: refs/heads/"):
                     branch = head_content.replace("ref: refs/heads/", "").strip()
+                    logger.info("Git active branch: %s", branch)
                     return {"status": "ok", "branch": branch}
                 elif head_content:
                     # Detached HEAD (SHA-1 prefix)
-                    return {"status": "ok", "branch": head_content[:7]}
+                    short_sha = head_content[:7]
+                    logger.info("Git detached HEAD: %s", short_sha)
+                    return {"status": "ok", "branch": short_sha}
         except Exception as e:
             logger.debug("Failed to read git branch: %s", e)
         return {"status": "ok", "branch": None}

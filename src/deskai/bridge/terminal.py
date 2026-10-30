@@ -68,8 +68,11 @@ class TerminalBridge(BaseBridgeModule):
 
         try:
             session = tm.create_session(self.workspace_root, cols=cols, rows=rows)
+            ws_name = os.path.basename(self.workspace_root) or self.workspace_root
+            logger.info("Terminal session spawned for %s (session %s)", ws_name, session.session_id[:8])
             return {"status": "ok", "session_id": session.session_id}
         except Exception as e:
+            logger.error("Terminal session spawn failed: %s", e)
             return {"status": "error", "message": str(e)}
 
     def terminal_close(self, session_id: str) -> bool:
@@ -82,4 +85,5 @@ class TerminalBridge(BaseBridgeModule):
         tm = getattr(server, "terminal_manager", None)
         if not tm:
             return False
+        logger.info("Terminal session closed (%s)", session_id[:8])
         return tm.close_session(session_id)

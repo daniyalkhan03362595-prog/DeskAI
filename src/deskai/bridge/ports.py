@@ -88,6 +88,7 @@ class PortsBridge(BaseBridgeModule):
         supervisor_port = getattr(getattr(self._manager, "server", None), "port", None)
         if supervisor_port and port == supervisor_port:
             return False
+        logger.info("Opening local service in browser: http://%s:%s", host, port)
         return bool(webbrowser.open(f"http://{host}:{port}"))
 
     def probe_port(self, port: int, host: str = "127.0.0.1") -> bool:
@@ -190,4 +191,5 @@ class PortsBridge(BaseBridgeModule):
             }
 
         ports = sorted(rows.values(), key=lambda r: (r["port"], r["host"]))
+        logger.debug("Ports scanned: %d active listener(s) found", len(ports))
         return {"status": "ok", "ports": ports, "warnings": warnings}
