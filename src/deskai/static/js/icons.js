@@ -159,6 +159,14 @@ const ICON_DEFS = {
     { tag: "rect", attrs: { x: "3", y: "3", width: "18", height: "18", rx: "2", ry: "2" } },
     { tag: "line", attrs: { x1: "8", y1: "12", x2: "16", y2: "12" } },
   ],
+  "clock": [
+    { tag: "circle", attrs: { cx: "12", cy: "12", r: "10" } },
+    { tag: "polyline", attrs: { points: "12 6 12 12 16 14" } },
+  ],
+  "wrap": [
+    { tag: "polyline", attrs: { points: "9 10 4 15 9 20" } },
+    { tag: "path", attrs: { d: "M20 4v7a4 4 0 0 1-4 4H4" } },
+  ],
 };
 
 /**

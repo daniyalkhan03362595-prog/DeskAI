@@ -343,7 +343,38 @@ export function initGlobalEvents() {
           window.DeskAIPorts.startPolling();
         } else if (target === "problems" && window.DeskAIProblems) {
           window.DeskAIProblems.onShow();
+        } else if (target === "output" && window.DeskAIOutput) {
+          window.DeskAIOutput.onShow();
         }
+
+        if (target !== "output" && window.DeskAIOutput) {
+          window.DeskAIOutput.onHide();
+        }
+        break;
+      }
+
+      case "output-time": {
+        if (window.DeskAIOutput) window.DeskAIOutput.toggleTime();
+        break;
+      }
+      case "output-wrap": {
+        if (window.DeskAIOutput) window.DeskAIOutput.toggleWrap();
+        break;
+      }
+      case "output-copy": {
+        if (window.DeskAIOutput) window.DeskAIOutput.copyVisible();
+        break;
+      }
+      case "output-clear": {
+        if (window.DeskAIOutput) window.DeskAIOutput.clear();
+        break;
+      }
+      case "output-jump": {
+        if (window.DeskAIOutput) window.DeskAIOutput.jumpToLatest();
+        break;
+      }
+      case "output-retry": {
+        if (window.DeskAIOutput) window.DeskAIOutput.retry();
         break;
       }
 

@@ -1,0 +1,345 @@
+/**
+ * OutputManager: Coordinates live system and channel logs for DeskAI Studio.
+ * Wires the OutputClient to LogView, manages filters, toolbar toggles, accessibility announcements,
+ * unread badges, and local logging.
+ */
+
+import { announce } from "../terminal.js";
+import { createSvgIcon } from "../icons.js";
+import { OutputClient } from "./client.js";
+
+export class OutputManager {
+  constructor(panelEl, view) {
+    this.panelEl = panelEl;
+    this.view = view;
+    this.tabEl = document.getElementById("tab-output");
+    this.statusEl = document.getElementById("outputStatus");
+    this.jumpBtn = document.getElementById("outputJump");
+    this.channelSelect = document.getElementById("outputChannelSelect");
+    this.levelSelect = document.getElementById("outputLevelSelect");
+    this.filterInput = document.getElementById("outputFilterInput");
+
+    this.timeBtn = panelEl.querySelector('[data-action="output-time"]');
+    this.wrapBtn = panelEl.querySelector('[data-action="output-wrap"]');
+    this.copyBtn = panelEl.querySelector('[data-action="output-copy"]');
+    this.clearBtn = panelEl.querySelector('[data-action="output-clear"]');
+
+    this.isActive = false;
+    this.unreadErrors = 0;
+    this.unreadWarnings = 0;
+    this._localSeq = 0;
+
+    this._filterDebounceTimer = null;
+    this._announceTimer = null;
+    this._pendingAnnounceErrors = 0;
+    this._pendingAnnounceWarnings = 0;
+
+    this._initIcons();
+    this._initEvents();
+
+    this.client = new OutputClient({
+      onRecords: (rs) => this._onRecords(rs),
+      onReset: (info) => this._onReset(info),
+      onState: (state) => this._onState(state),
+      onDropped: (n) => this._onDropped(n),
+    });
+
+    if (this.view) {
+      this.view.onPinnedChange = (pinned) => {
+        if (this.jumpBtn) {
+          this.jumpBtn.hidden = pinned;
+        }
+      };
+    }
+  }
+
+  _initIcons() {
+    if (this.timeBtn) {
+      this.timeBtn.replaceChildren(createSvgIcon("clock", 14));
+    }
+    if (this.wrapBtn) {
+      this.wrapBtn.replaceChildren(createSvgIcon("wrap", 14));
+    }
+    if (this.copyBtn) {
+      this.copyBtn.replaceChildren(createSvgIcon("copy", 14));
+    }
+    if (this.clearBtn) {
+      this.clearBtn.replaceChildren(createSvgIcon("trash", 14));
+    }
+  }
+
+  _initEvents() {
+    if (this.channelSelect) {
+      this.channelSelect.addEventListener("change", (e) => {
+        if (this.view) {
+          this.view.filter.channel = e.target.value;
+          this.view.renderAll();
+        }
+      });
+    }
+
+    if (this.levelSelect) {
+      this.levelSelect.addEventListener("change", (e) => {
+        if (this.view) {
+          this.view.filter.minLevel = e.target.value;
+          this.view.renderAll();
+        }
+      });
+    }
+
+    if (this.filterInput) {
+      this.filterInput.addEventListener("input", (e) => {
+        if (this._filterDebounceTimer) {
+          clearTimeout(this._filterDebounceTimer);
+        }
+        this._filterDebounceTimer = setTimeout(() => {
+          if (this.view) {
+            this.view.filter.text = e.target.value.trim().toLowerCase();
+            this.view.renderAll();
+          }
+        }, 150);
+      });
+    }
+
+    if (this.panelEl) {
+      this.panelEl.addEventListener("keydown", (e) => {
+        if (e.key === "End") {
+          e.preventDefault();
+          this.jumpToLatest();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+          // Select only log contents
+          if (this.view && this.view.el) {
+            e.preventDefault();
+            const range = document.createRange();
+            range.selectNodeContents(this.view.el);
+            const sel = window.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          }
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          if (this.tabEl) {
+            this.tabEl.focus();
+          }
+        }
+      });
+    }
+  }
+
+  start() {
+    window.DeskAIOutput = this;
+    this.client.connect();
+  }
+
+  log(channel, level, text) {
+    this._localSeq = (this._localSeq || 0) - 1;
+    const rec = {
+      seq: this._localSeq,
+      ts: Date.now(),
+      channel: channel || "system",
+      level: level || "info",
+      text: String(text),
+    };
+    this._onRecords([rec]);
+  }
+
+  _onRecords(records) {
+    if (!this.view) return;
+    this.view.writeRecords(records);
+
+    let errCount = 0;
+    let warnCount = 0;
+    for (const r of records) {
+      if (r.level === "error") errCount++;
+      else if (r.level === "warn") warnCount++;
+    }
+
+    if (this.isActive) {
+      if (errCount > 0 || warnCount > 0) {
+        this._pendingAnnounceErrors += errCount;
+        this._pendingAnnounceWarnings += warnCount;
+        this._scheduleAnnouncement();
+      }
+    } else {
+      if (errCount > 0 || warnCount > 0) {
+        this.unreadErrors += errCount;
+        this.unreadWarnings += warnCount;
+        this._updateTabIndicator();
+      }
+    }
+  }
+
+  _scheduleAnnouncement() {
+    if (this._announceTimer) {
+      clearTimeout(this._announceTimer);
+    }
+    this._announceTimer = setTimeout(() => {
+      const parts = [];
+      if (this._pendingAnnounceErrors > 0) {
+        parts.push(
+          `${this._pendingAnnounceErrors} new error${this._pendingAnnounceErrors !== 1 ? "s" : ""}`
+        );
+      }
+      if (this._pendingAnnounceWarnings > 0) {
+        parts.push(
+          `${this._pendingAnnounceWarnings} warning${this._pendingAnnounceWarnings !== 1 ? "s" : ""}`
+        );
+      }
+      if (parts.length > 0) {
+        announce(`${parts.join(", ")} in Output`);
+      }
+      this._pendingAnnounceErrors = 0;
+      this._pendingAnnounceWarnings = 0;
+    }, 1000);
+  }
+
+  _updateTabIndicator() {
+    if (!this.tabEl) return;
+    let badge = this.tabEl.querySelector(".tab-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "tab-badge";
+      this.tabEl.appendChild(badge);
+    }
+
+    const total = this.unreadErrors + this.unreadWarnings;
+    if (total > 0) {
+      badge.hidden = false;
+      badge.textContent = String(total);
+      if (this.unreadErrors > 0) {
+        this.tabEl.setAttribute(
+          "aria-label",
+          `Output, ${this.unreadErrors} new error${this.unreadErrors !== 1 ? "s" : ""}`
+        );
+      } else {
+        this.tabEl.setAttribute(
+          "aria-label",
+          `Output, ${this.unreadWarnings} new warning${this.unreadWarnings !== 1 ? "s" : ""}`
+        );
+      }
+    } else {
+      badge.hidden = true;
+      badge.textContent = "";
+      this.tabEl.setAttribute("aria-label", "Output");
+    }
+  }
+
+  onShow() {
+    this.isActive = true;
+    this.unreadErrors = 0;
+    this.unreadWarnings = 0;
+    this._updateTabIndicator();
+    if (this.jumpBtn && this.view) {
+      this.jumpBtn.hidden = this.view.pinned;
+    }
+  }
+
+  onHide() {
+    this.isActive = false;
+  }
+
+  _onReset({ restarted, missed }) {
+    if (restarted) {
+      if (this.view) this.view.clear();
+      this.log("system", "info", "[DeskAI System] Server restarted; previous log discarded.");
+    } else if (missed > 0) {
+      this.log("system", "warn", `${missed} earlier lines were discarded`);
+    }
+  }
+
+  _onDropped(n) {
+    this.log("system", "warn", `${n} lines were dropped (slow display)`);
+  }
+
+  _onState(state) {
+    if (!this.statusEl) return;
+    if (state === "streaming") {
+      this.statusEl.hidden = true;
+      this.statusEl.replaceChildren();
+    } else if (state === "connecting") {
+      this.statusEl.hidden = false;
+      this.statusEl.textContent = "Connecting…";
+    } else if (state === "reconnecting") {
+      this.statusEl.hidden = false;
+      this.statusEl.textContent = "Reconnecting…";
+    } else if (state === "unavailable") {
+      this.statusEl.hidden = false;
+      this.statusEl.replaceChildren();
+      const text = document.createTextNode("Output stream unavailable ");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "output-retry-btn";
+      btn.dataset.action = "output-retry";
+      btn.textContent = "Retry";
+      btn.addEventListener("click", () => this.retry());
+      this.statusEl.append(text, btn);
+    }
+  }
+
+  retry() {
+    this.client.retry();
+  }
+
+  toggleTime() {
+    if (!this.view || !this.timeBtn) return;
+    const cur = !!this.view.options.timestamps;
+    const next = !cur;
+    this.timeBtn.setAttribute("aria-pressed", String(next));
+    this.view.setOptions({ timestamps: next });
+  }
+
+  toggleWrap() {
+    if (!this.view || !this.wrapBtn) return;
+    const cur = !!this.view.options.wrap;
+    const next = !cur;
+    this.wrapBtn.setAttribute("aria-pressed", String(next));
+    this.view.setOptions({ wrap: next });
+  }
+
+  copyVisible() {
+    if (!this.view || !this.view.el) return;
+    const lines = [];
+    const rows = this.view.el.querySelectorAll(".log-line");
+    for (const row of rows) {
+      const time = row.querySelector(".log-time")?.textContent || "";
+      const chan = row.querySelector(".log-channel")?.textContent || "";
+      const tag = row.querySelector(".log-level-tag")?.textContent || "";
+      const text = row.querySelector(".log-text")?.textContent || "";
+      const parts = [];
+      if (time) parts.push(time);
+      if (chan) parts.push(chan);
+      if (tag) parts.push(tag);
+      if (text) parts.push(text);
+      lines.push(parts.join(" "));
+    }
+    const fullText = lines.join("\n");
+    if (window.NativeBridge && typeof window.NativeBridge.clipboardWrite === "function") {
+      window.NativeBridge.clipboardWrite(fullText);
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(fullText).catch(() => {});
+    }
+    announce(`Copied ${lines.length} lines`);
+  }
+
+  clear() {
+    if (this.view) {
+      this.view.clear();
+    }
+    announce("Output cleared");
+  }
+
+  jumpToLatest() {
+    if (this.view) {
+      this.view.pinned = true;
+      const scroller = this.view.scrollContainer;
+      if (scroller) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    }
+    if (this.jumpBtn) {
+      this.jumpBtn.hidden = true;
+    }
+  }
+}

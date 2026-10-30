@@ -127,7 +127,7 @@
           <div class="drawer-header">
             <div class="drawer-tabs" role="tablist" aria-label="Drawer Panels">
               <button class="drawer-tab active" id="tab-terminal" data-action="drawer-tab" data-target="terminal" role="tab" aria-selected="true" aria-controls="terminalPanel" tabindex="0">Terminal</button>
-              <button class="drawer-tab" id="tab-output" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false" aria-controls="outputPanel" tabindex="-1">Output</button>
+              <button class="drawer-tab" id="tab-output" data-action="drawer-tab" data-target="output" role="tab" aria-selected="false" aria-controls="outputPanel" tabindex="-1">Output<span class="tab-badge" id="outputTabBadge" hidden></span></button>
               <button class="drawer-tab" id="tab-problems" data-action="drawer-tab" data-target="problems" role="tab" aria-selected="false" aria-controls="problemsPanel" tabindex="-1">Problems<span class="tab-badge" id="problemsTabBadge" hidden></span></button>
               <button class="drawer-tab" id="tab-ports" data-action="drawer-tab" data-target="ports" role="tab" aria-selected="false" aria-controls="portsPanel" tabindex="-1">Ports</button>
             </div>
@@ -166,7 +166,30 @@
 
             <!-- Output Channel Panel -->
             <div class="drawer-panel" id="outputPanel" role="tabpanel" aria-labelledby="tab-output" tabindex="0" hidden>
-              <pre class="terminal-view" id="channelOutput"><code>[DeskAI System] Supervisor active on loopback. Ready for tasks.</code></pre>
+              <div class="output-toolbar" role="toolbar" aria-label="Output controls">
+                <label class="output-field"><span class="output-field-label">Channel</span>
+                  <select id="outputChannelSelect" class="output-select" data-action="output-channel">
+                    <option value="all" selected>All</option><option value="system">System</option><option value="task">Task</option>
+                    <option value="git">Git</option><option value="ports">Ports</option><option value="terminal">Terminal</option>
+                    <option value="diagnostics">Diagnostics</option>
+                  </select></label>
+                <label class="output-field"><span class="output-field-label">Level</span>
+                  <select id="outputLevelSelect" class="output-select" data-action="output-level">
+                    <option value="debug">Debug+</option><option value="info" selected>Info+</option>
+                    <option value="warn">Warnings+</option><option value="error">Errors</option>
+                  </select></label>
+                <label class="sr-only" for="outputFilterInput">Filter output</label>
+                <input type="text" id="outputFilterInput" class="output-filter-input" placeholder="Filter output" autocomplete="off" />
+                <button type="button" class="icon-btn" data-action="output-time" aria-pressed="false" aria-label="Show timestamps" title="Show timestamps"></button>
+                <button type="button" class="icon-btn" data-action="output-wrap" aria-pressed="true" aria-label="Wrap long lines" title="Wrap long lines"></button>
+                <button type="button" class="icon-btn" data-action="output-copy" aria-label="Copy visible output" title="Copy visible output"></button>
+                <button type="button" class="icon-btn" data-action="output-clear" aria-label="Clear output" title="Clear output"></button>
+              </div>
+              <div class="output-status" id="outputStatus" role="status" hidden></div>
+              <div class="terminal-view log-view" id="channelOutput" role="log" aria-label="Output log" aria-live="off">
+                <div class="log-banner">[DeskAI System] Supervisor active on loopback. Ready for tasks.</div>
+              </div>
+              <button type="button" class="output-jump" id="outputJump" data-action="output-jump" hidden>Jump to latest</button>
             </div>
 
             <!-- Problems Panel -->

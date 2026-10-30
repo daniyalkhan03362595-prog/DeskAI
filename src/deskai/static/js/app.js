@@ -12,6 +12,7 @@ import { ExplorerManager } from "./explorer.js";
 import { initTheme } from "./theme.js";
 import { initProblems } from "./problems/index.js";
 import { editorDiagnostics } from "./problems/editor_decorations.js";
+import { OutputManager } from "./output/index.js";
 
 // Global singletons instantiated and wired
 const wsClient = new WebSocketClient(`ws://${location.host}/ws`);
@@ -118,6 +119,11 @@ window.WorkspacePill = workspacePill;
 const channelOutputEl = document.getElementById("channelOutput");
 if (channelOutputEl) {
   window.DeskAILogView = new LogView(channelOutputEl);
+  const outputPanelEl = document.getElementById("outputPanel");
+  if (outputPanelEl) {
+    const outputManager = new OutputManager(outputPanelEl, window.DeskAILogView);
+    outputManager.start();
+  }
 }
 
 // Wire incoming server push events to UEC state machine

@@ -15,7 +15,21 @@ import {
 } from "./terminal/xterm_view.js";
 
 const MAX_LOG_LINES = 10000;
+const MAX_RECORDS = 5000;
 const ANSI_REGEX = /\x1B(?:\][^\x07\x1B]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g;
+const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 };
+const LEVEL_TAG = { debug: "DEBUG", info: "INFO", warn: "WARN", error: "ERROR" };
+
+function formatTime(ts) {
+  const d = new Date(Number(ts) || Date.now());
+  const timePart = new Intl.DateTimeFormat(undefined, {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(d);
+  return `${timePart}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+}
 
 export { getTerminalTheme, announce, updateTabStatus };
 
@@ -26,21 +40,29 @@ export class LogView {
   constructor(element) {
     this.el = element;
     this.queue = [];
+    this.queueRecords = [];
+    this.records = [];
+    this.filter = { channel: "all", minLevel: "info", text: "" };
+    this.options = { wrap: true, timestamps: false };
     this.rafId = 0;
     this.lineCount = 0;
     this.pinned = true;
+    this.onPinnedChange = null;
 
     const scroller = this.scrollContainer;
     if (scroller) {
       scroller.addEventListener("scroll", () => {
         const dist = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
         this.pinned = dist < 40;
+        if (this.onPinnedChange) {
+          this.onPinnedChange(this.pinned);
+        }
       });
     }
   }
 
   get scrollContainer() {
-    return (this.el && this.el.closest) ? (this.el.closest(".drawer-content") || this.el) : this.el;
+    return this.el && this.el.closest ? this.el.closest(".drawer-content") || this.el : this.el;
   }
 
   write(text, className = "") {
@@ -52,32 +74,144 @@ export class LogView {
     }
   }
 
+  writeRecords(records) {
+    this.records.push(...records);
+    if (this.records.length > MAX_RECORDS) {
+      this.records.splice(0, this.records.length - MAX_RECORDS);
+    }
+    const matching = records.filter((r) => this.matches(r));
+    this.queueRecords.push(...matching);
+    if (!this.rafId) {
+      this.rafId = requestAnimationFrame(() => this._flush());
+    }
+  }
+
+  matches(r) {
+    const f = this.filter;
+    if (f.channel !== "all" && r.channel !== f.channel) return false;
+    if (LEVEL_RANK[r.level] < LEVEL_RANK[f.minLevel]) return false;
+    return !f.text || (r.text + " " + r.channel).toLowerCase().includes(f.text);
+  }
+
+  renderRecord(r) {
+    const row = document.createElement("div");
+    row.className = `log-line log-${r.level}`;
+    row.dataset.seq = String(r.seq);
+    row.dataset.channel = r.channel;
+    row.dataset.level = r.level;
+
+    const time = document.createElement("span");
+    time.className = "log-time";
+    time.textContent = formatTime(r.ts);
+
+    const chan = document.createElement("span");
+    chan.className = "log-channel";
+    chan.textContent = r.channel;
+
+    const tag = document.createElement("span");
+    tag.className = "log-level-tag";
+    tag.textContent = LEVEL_TAG[r.level] || r.level.toUpperCase();
+
+    const text = document.createElement("span");
+    text.className = "log-text";
+    text.textContent = r.text;
+
+    row.append(time, chan, tag, text);
+    return row;
+  }
+
+  renderAll() {
+    const frag = document.createDocumentFragment();
+    let count = 0;
+    for (const r of this.records) {
+      if (this.matches(r)) {
+        frag.append(this.renderRecord(r));
+        count++;
+      }
+    }
+    const banner = this.el.querySelector(".log-banner");
+    const emptyNotice = this.el.querySelector(".output-empty");
+    if (emptyNotice) emptyNotice.remove();
+
+    this.el.replaceChildren(...(banner ? [banner] : []), frag);
+
+    if (count === 0 && this.records.length > 0) {
+      const emptyEl = document.createElement("div");
+      emptyEl.className = "output-empty";
+      emptyEl.setAttribute("role", "status");
+      emptyEl.setAttribute("aria-live", "polite");
+      emptyEl.textContent = "No output matches the current filters";
+      this.el.appendChild(emptyEl);
+    }
+
+    if (this.pinned) {
+      const scroller = this.scrollContainer;
+      if (scroller) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    }
+  }
+
+  setOptions({ wrap, timestamps }) {
+    if (wrap !== undefined) this.options.wrap = wrap;
+    if (timestamps !== undefined) this.options.timestamps = timestamps;
+    this.el.classList.toggle("log-nowrap", !this.options.wrap);
+    this.el.classList.toggle("log-show-time", !!this.options.timestamps);
+  }
+
   _flush() {
     this.rafId = 0;
     if (!this.el) return;
 
-    const items = this.queue.splice(0);
     const frag = document.createDocumentFragment();
 
-    for (const item of items) {
-      const span = document.createElement("span");
-      if (item.className && ["log-error", "log-warn", "log-info", "log-debug"].includes(item.className)) {
-        span.className = item.className;
-      }
-      span.textContent = item.text;
-      frag.appendChild(span);
+    if (this.queue.length > 0) {
+      const items = this.queue.splice(0);
+      for (const item of items) {
+        const span = document.createElement("span");
+        if (item.className && ["log-error", "log-warn", "log-info", "log-debug"].includes(item.className)) {
+          span.className = item.className;
+        }
+        span.textContent = item.text;
+        frag.appendChild(span);
 
-      const newlines = (item.text.match(/\n/g) || []).length || 1;
-      this.lineCount += newlines;
+        const newlines = (item.text.match(/\n/g) || []).length || 1;
+        this.lineCount += newlines;
+      }
+    }
+
+    if (this.queueRecords.length > 0) {
+      const records = this.queueRecords.splice(0);
+      const emptyNotice = this.el.querySelector(".output-empty");
+      if (emptyNotice) emptyNotice.remove();
+      for (const r of records) {
+        frag.appendChild(this.renderRecord(r));
+      }
     }
 
     this.el.appendChild(frag);
 
     while (this.lineCount > MAX_LOG_LINES && this.el.firstChild) {
       const first = this.el.firstChild;
+      if (first.classList && first.classList.contains("log-banner")) {
+        if (this.el.childNodes.length <= 1) break;
+        const next = this.el.childNodes[1];
+        const count = (next.textContent.match(/\n/g) || []).length || 1;
+        this.lineCount -= count;
+        next.remove();
+        continue;
+      }
       const count = (first.textContent.match(/\n/g) || []).length || 1;
       this.lineCount -= count;
       first.remove();
+    }
+
+    const logLines = this.el.querySelectorAll(".log-line");
+    if (logLines.length > MAX_RECORDS) {
+      const toRemove = logLines.length - MAX_RECORDS;
+      for (let i = 0; i < toRemove; i++) {
+        logLines[i].remove();
+      }
     }
 
     if (this.pinned) {
@@ -90,9 +224,12 @@ export class LogView {
 
   clear() {
     this.queue = [];
+    this.queueRecords = [];
+    this.records = [];
     this.lineCount = 0;
     if (this.el) {
-      this.el.textContent = "";
+      const banner = this.el.querySelector(".log-banner");
+      this.el.replaceChildren(...(banner ? [banner] : []));
     }
     const scroller = this.scrollContainer;
     if (scroller) {
