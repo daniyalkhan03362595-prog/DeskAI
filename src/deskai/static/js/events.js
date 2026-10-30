@@ -377,6 +377,10 @@ export function initGlobalEvents() {
         if (window.DeskAIOutput) window.DeskAIOutput.retry();
         break;
       }
+      case "output-channel":
+      case "output-level": {
+        break;
+      }
 
       case "problems-filter": {
         const sev = trigger.getAttribute("data-severity");
