@@ -338,7 +338,13 @@ store.subscribe("telemetry", (data) => {
   const hasRam = typeof data.ramUsedMB === "number" && !isNaN(data.ramUsedMB);
   if (ramText) {
     if (hasRam) {
-      ramText.textContent = `${(data.ramUsedMB / 1024).toFixed(1)} GB`;
+      const usedGb = (data.ramUsedMB / 1024).toFixed(1);
+      if (typeof data.ramTotalMB === "number" && data.ramTotalMB > 0) {
+        const totalGb = (data.ramTotalMB / 1024).toFixed(0);
+        ramText.textContent = `${usedGb} / ${totalGb} GB`;
+      } else {
+        ramText.textContent = `${usedGb} GB`;
+      }
       ramText.classList.remove("unknown");
       ramText.removeAttribute("title");
     } else {
@@ -348,6 +354,51 @@ store.subscribe("telemetry", (data) => {
     }
   }
 });
+
+// Host Hardware Telemetry Lifecycle Manager
+export const DeskAITelemetry = {
+  timer: null,
+  async sync() {
+    if (
+      window.pywebview &&
+      window.pywebview.api &&
+      typeof window.pywebview.api.get_system_telemetry === "function"
+    ) {
+      try {
+        const res = await NativeBridge.getSystemTelemetry();
+        if (res && res.status === "ok" && res.telemetry) {
+          store.state.telemetry = res.telemetry;
+          return res.telemetry;
+        }
+      } catch (err) {
+        console.warn("[Telemetry] Sync error:", err);
+      }
+    }
+    return null;
+  },
+  startPolling(intervalMs = 5000) {
+    this.stopPolling();
+    if (!window.pywebview || !window.pywebview.api) return;
+    this.sync();
+    this.timer = setInterval(() => {
+      if (!document.hidden) {
+        this.sync();
+      }
+    }, intervalMs);
+  },
+  stopPolling() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+};
+
+window.DeskAITelemetry = DeskAITelemetry;
+window.addEventListener("pywebviewready", () => {
+  DeskAITelemetry.startPolling(5000);
+});
+DeskAITelemetry.startPolling(5000);
 
 // Initialize theme, global hotkeys, router & resizers
 initTheme();

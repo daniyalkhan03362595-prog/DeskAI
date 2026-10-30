@@ -71,21 +71,21 @@ DeskAI ka frontend pure **Semantic HTML5** par mushtamil hai jo strict CSP aur W
         </section>
 
         <!-- Hardware Status Dock -->
-        <footer class="hardware-dock" id="hardwareDock" role="contentinfo" aria-label="Host System Telemetry">
+        <footer class="hardware-dock" id="hardwareDock" role="region" aria-label="Host System Telemetry">
           <div class="telemetry-row">
             <span class="tele-label">GPU Acceleration</span>
-            <span class="tele-badge gpu-badge" id="teleGpuBadge">🟢 Detecting...</span>
+            <span class="tele-badge gpu-badge unknown" id="teleGpuBadge" title="Hardware telemetry unavailable on this host" aria-live="polite"><span class="status-dot unknown"></span> Unavailable</span>
           </div>
           <div class="telemetry-row">
             <span class="tele-label">VRAM Resident</span>
-            <span class="tele-val" id="teleVramText">-- / -- GB</span>
+            <span class="tele-val unknown" id="teleVramText" title="Hardware telemetry unavailable on this host">Unavailable</span>
           </div>
-          <div class="vram-meter-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-            <div class="vram-meter-fill" id="teleVramFill"></div>
+          <div class="vram-meter-track unknown" id="teleVramTrack" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="VRAM Usage">
+            <div class="vram-meter-fill unknown" id="teleVramFill"></div>
           </div>
           <div class="telemetry-row">
             <span class="tele-label">Host RAM</span>
-            <span class="tele-val ram-val" id="teleRamText">-- / -- GB</span>
+            <span class="tele-val ram-val unknown" id="teleRamText" title="Hardware telemetry unavailable on this host">Unavailable</span>
           </div>
         </footer>
       </aside>

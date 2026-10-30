@@ -53,12 +53,12 @@ export const initialState = {
     activeTabId: null
   },
   telemetry: {
-    gpuName: "NVIDIA RTX 2070 Super",
-    vramUsedMB: 4710,
-    vramTotalMB: 8192,
-    cpuUsagePct: 14.8,
-    ramUsedMB: 5820,
-    status: "ready"
+    gpuName: "--",
+    vramUsedMB: "--",
+    vramTotalMB: "--",
+    cpuUsagePct: "--",
+    ramUsedMB: "--",
+    status: "idle"
   },
   execution: {
     state: "IDLE",            // IDLE | PLANNING | EXECUTING | REVIEW_DIFF | SUCCESS | FAILED | ROLLBACK | CANCELLED

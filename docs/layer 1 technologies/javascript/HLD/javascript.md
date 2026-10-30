@@ -34,14 +34,14 @@ const StudioState = {
     activeTabId: null
   },
 
-  // Real-time Host Telemetry
+  // Real-time Host Telemetry (Initialized with truthful neutral defaults, populated dynamically via NativeBridge)
   telemetry: {
-    gpuName: "NVIDIA RTX 2070 Super",
-    vramUsedMB: 4710,
-    vramTotalMB: 8192,
-    cpuUsagePct: 14.8,
-    ramUsedMB: 5820,
-    status: "ready"
+    gpuName: "--",
+    vramUsedMB: "--",
+    vramTotalMB: "--",
+    cpuUsagePct: "--",
+    ramUsedMB: "--",
+    status: "idle"
   },
 
   // Execution & Agent Lifecycle State

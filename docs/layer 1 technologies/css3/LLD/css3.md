@@ -246,11 +246,27 @@ Jab local Qwen 7B model chat window mein tezi se text chunks stream karta hai, t
 ## 6. Components Styling Specification (`components.css`)
 
 ### 6.1 Hardware Telemetry Dock
-Sidebar ke bottom par fixed panel:
+Sidebar ke bottom par in-flow pinned status card (prevents file explorer scroll occlusion):
 ```css
+.sidebar-left {
+  background-color: var(--bg-sidebar);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.explorer-container {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .hardware-dock {
-  position: sticky;
-  bottom: 0;
+  flex-shrink: 0;
+  position: relative;
   background-color: var(--bg-header);
   border-top: 1px solid var(--border-subtle);
   padding: var(--space-3);
@@ -276,7 +292,7 @@ Sidebar ke bottom par fixed panel:
 
 .vram-meter-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-teal), var(--color-primary));
+  background: linear-gradient(to right, var(--color-primary-hover), var(--color-amber));
   border-radius: 3px;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }

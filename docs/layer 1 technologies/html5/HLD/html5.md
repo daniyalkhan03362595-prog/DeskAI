@@ -86,11 +86,10 @@ Application interface chaar baray semantic hisson mein taqseem hai:
 ### Zone 1: Left Dock (`<aside class="sidebar-left">`)
 * **Activity Bar:** Workspace switch karne, global search aur source control ke navigation controls.
 * **File Explorer Tree (`#fileTreeViewport`):** Nested files aur folders ko clean tree structure mein display karta hai.
-* **Hardware Status Footer (`#hardwareDock`):** Screen ke bottom par fixed telemetry status card:
-  1. `GPU Acceleration`: 🟢 NVIDIA RTX 2070 Super status badge.
-  2. `VRAM Resident`: Usage counter (`4.7 / 8.0 GB`) + `<div class="vram-meter-track">` visual fill bar.
-  3. `Local Neural Brain`: Handshake-received local model name.
-  4. `System RAM`: Host memory usage text (`5.8 / 32.0 GB`).
+* **Hardware Status Footer (`#hardwareDock`):** Screen ke bottom par fixed in-flow telemetry status card (`role="region"`):
+  1. `GPU Acceleration` (`#teleGpuBadge`): Real-time hardware accelerator badge (`.status-dot.ready` ya `.status-dot.unknown` with model name / "Unavailable").
+  2. `VRAM Resident` (`#teleVramText`, `#teleVramTrack`, `#teleVramFill`): Usage ratio (`used / total GB`) + W3C progressbar fill bar.
+  3. `System RAM` (`#teleRamText`): Host memory usage text (`used / total GB`).
 
 ### Zone 2: Central Code Stage (`<section class="editor-stage">`)
 * **Tab Strip (`#editorTabStrip`):** Multi-file tabs with dirty state dots aur close action (`tab-close`).

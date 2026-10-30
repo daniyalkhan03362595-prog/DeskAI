@@ -239,5 +239,17 @@ export const NativeBridge = {
       return await window.pywebview.api.run_workspace_diagnostics(String(requestId));
     }
     return { status: "error", message: "Bridge unavailable", request_id: String(requestId), diagnostics: [] };
+  },
+
+  async getSystemTelemetry() {
+    await this.whenReady();
+    if (
+      window.pywebview &&
+      window.pywebview.api &&
+      typeof window.pywebview.api.get_system_telemetry === "function"
+    ) {
+      return await window.pywebview.api.get_system_telemetry();
+    }
+    return { status: "error", message: "Bridge unavailable", telemetry: null };
   }
 };
